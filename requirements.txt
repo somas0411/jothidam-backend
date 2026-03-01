@@ -1,0 +1,7 @@
+flask==3.1.2
+flask-cors==4.0.0
+reportlab==4.4.10
+openpyxl==3.1.5
+gunicorn==23.0.0
+razorpay==1.4.2
+Pillow==12.1.1

@@ -1,338 +1,567 @@
 """
-excel_generator.py — Professional Vedic Horoscope Excel Generator
-Creates a formatted, colourful workbook with 4 sheets.
+excel_generator.py — Professional Excel Horoscope Generator
+Generates a multi-sheet Excel with:
+  Sheet 1: Summary
+  Sheet 2: Rasi Chart (South Indian square drawn with cells)
+  Sheet 3: Planet Positions
+  Sheet 4: Vimshottari Dasa Bhukti
+  Sheet 5: Yogas
 """
+
 import io
-from openpyxl import Workbook
-from openpyxl.styles import (PatternFill, Font, Alignment, Border, Side,
-                              GradientFill)
-from openpyxl.utils import get_column_letter
-from openpyxl.styles.numbers import FORMAT_DATE_DDMMYY
-from openpyxl.drawing.image import Image as XLImage
 from datetime import date
+import openpyxl
+from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
+from openpyxl.utils import get_column_letter
 
-from astro_engine import (
-    get_rasi, get_deg, fmt_deg, get_nak, get_pada,
-    get_rasi_name, get_nak_name, get_planet_name,
-    build_bhuktis, fmt_date, lbl,
-    LUCKY_NUMS, LUCKY_COLORS, get_gemstone, NAK_LORDS
-)
 
-# ── COLOUR CONSTANTS ──────────────────────────────────────────────────────────
-DARK_BG   = '0D0600'
-GOLD      = 'C9A03A'
-GOLD_LT   = 'E8C96B'
-GOLD_DIM  = '7A6020'
-CREAM     = 'FFF8E8'
-CREAM_D   = 'F5EDCF'
-BROWN_D   = '1A0A00'
-BROWN_M   = '3D2000'
-WHITE     = 'FFFFFF'
-CURRENT_Y = 'FFF3CD'  # yellow highlight for current dasa
-PAST_G    = 'F0F0F0'
-FUTURE_B  = 'EBF5FB'
+# ── CONSTANTS ─────────────────────────────────────────────────────────────────
+GOLD        = 'FFD700'
+DARK_BROWN  = '1A0A00'
+LIGHT_GOLD  = 'FFF8E6'
+LAGNA_BG    = 'FFE5B4'
+CENTER_BG   = 'F5E6C8'
+HEADER_BG   = '2C1810'
+CURRENT_BG  = 'FFF3CD'
+COMPLETED_BG= 'F0F0F0'
+WHITE       = 'FFFFFF'
+CREAM       = 'FFFEF5'
 
-P_COLORS = {
-    'Sun':     'E8871A', 'Moon':    '2980B9', 'Mars':    'C0392B',
-    'Mercury': '27AE60', 'Jupiter': '8B6914', 'Venus':   '8E44AD',
-    'Saturn':  '5D6D7E', 'Rahu':    '2C3E50', 'Ketu':    '7F8C8D',
-    'Lagna':   'E8871A',
+# South Indian grid: house numbers, -1 = center block
+CHART_GRID = [
+    [12,  1,  2,  3],
+    [11, -1, -1,  4],
+    [10, -1, -1,  5],
+    [ 9,  8,  7,  6],
+]
+
+RASI_SHORT = {
+    1:'Pis', 2:'Ari', 3:'Tau', 4:'Gem',
+    5:'Can', 6:'Leo', 7:'Vir', 8:'Lib',
+    9:'Sco', 10:'Sag', 11:'Cap', 12:'Aqu',
 }
 
-def fill(hex_color):
-    return PatternFill('solid', fgColor=hex_color)
+RASI_FULL = {
+    1:'Meena (Pisces)',     2:'Mesha (Aries)',      3:'Vrishabha (Taurus)',
+    4:'Mithuna (Gemini)',   5:'Kataka (Cancer)',    6:'Simha (Leo)',
+    7:'Kanya (Virgo)',      8:'Tula (Libra)',        9:'Vrischika (Scorpio)',
+    10:'Dhanus (Sagittarius)', 11:'Makara (Capricorn)', 12:'Kumbha (Aquarius)',
+}
 
-def font(name='Calibri', size=10, bold=False, color=BROWN_D, italic=False):
-    return Font(name=name, size=size, bold=bold, color=color, italic=italic)
+PLANET_ABBR = {
+    'Lagna':'La', 'Sun':'Su', 'Moon':'Mo', 'Mars':'Ma',
+    'Mercury':'Me', 'Jupiter':'Ju', 'Venus':'Ve',
+    'Saturn':'Sa', 'Rahu':'Ra', 'Ketu':'Ke',
+}
 
-def align(h='left', v='center', wrap=False):
+
+# ── STYLE HELPERS ─────────────────────────────────────────────────────────────
+def thin_border(color=GOLD):
+    s = Side(style='thin', color=color)
+    return Border(left=s, right=s, top=s, bottom=s)
+
+def thick_border(color=DARK_BROWN):
+    s = Side(style='medium', color=color)
+    return Border(left=s, right=s, top=s, bottom=s)
+
+def fill(color):
+    return PatternFill('solid', fgColor=color)
+
+def font(bold=False, size=10, color=DARK_BROWN, italic=False):
+    return Font(bold=bold, size=size, color=color, italic=italic, name='Calibri')
+
+def align(h='center', v='center', wrap=False):
     return Alignment(horizontal=h, vertical=v, wrap_text=wrap)
 
-def thin_border():
-    s = Side(style='thin', color='DDDDCC')
-    return Border(left=s, right=s, top=s, bottom=s)
-
-def medium_border():
-    s = Side(style='medium', color=GOLD_DIM)
-    return Border(left=s, right=s, top=s, bottom=s)
-
-def set_cell(ws, row, col, value, fnt=None, aln=None, fill_=None, brd=None):
+def set_cell(ws, row, col, value='', bold=False, size=10, color=DARK_BROWN,
+             bg=None, h_align='left', v_align='center', wrap=False,
+             italic=False, border=None):
     cell = ws.cell(row=row, column=col, value=value)
-    if fnt:   cell.font      = fnt
-    if aln:   cell.alignment = aln
-    if fill_: cell.fill      = fill_
-    if brd:   cell.border    = brd
+    cell.font      = font(bold=bold, size=size, color=color, italic=italic)
+    cell.alignment = align(h=h_align, v=v_align, wrap=wrap)
+    if bg:
+        cell.fill = fill(bg)
+    if border:
+        cell.border = border
     return cell
 
-def merge_set(ws, r1, c1, r2, c2, value, fnt=None, aln=None, fill_=None):
-    ws.merge_cells(start_row=r1, start_column=c1, end_row=r2, end_column=c2)
-    cell = ws.cell(row=r1, column=c1, value=value)
-    if fnt:   cell.font      = fnt
-    if aln:   cell.alignment = aln
-    if fill_: cell.fill      = fill_
-    return cell
 
-# ── SHEET 1: SUMMARY ──────────────────────────────────────────────────────────
-
-def build_summary_sheet(wb, data, lang):
+# ── SHEET 1: SUMMARY ─────────────────────────────────────────────────────────
+def build_summary_sheet(wb, data, lang='en'):
     ws = wb.active
-    ws.title = 'Summary' if lang == 'en' else ('சுருக்கம்' if lang=='ta' else 'Summary')
+    ws.title = 'Summary'
     ws.sheet_view.showGridLines = False
 
     # Column widths
-    for col, w in [(1,4),(2,28),(3,28),(4,28),(5,4)]:
-        ws.column_dimensions[get_column_letter(col)].width = w
+    ws.column_dimensions['A'].width = 2
+    ws.column_dimensions['B'].width = 26
+    ws.column_dimensions['C'].width = 32
+    ws.column_dimensions['D'].width = 18
+    ws.column_dimensions['E'].width = 18
 
-    # Row 1: Header title
-    ws.row_dimensions[1].height = 10
-    ws.row_dimensions[2].height = 36
-    merge_set(ws, 2, 1, 2, 5, f'🕉  JOTHIDAM  ·  {lbl("report_title", lang).upper()}',
-              font('Calibri', 18, True, GOLD, False),
-              align('center','center'),
-              fill(DARK_BG))
-    ws.row_dimensions[3].height = 8
+    # Row 1: Main title banner
+    ws.merge_cells('B1:E1')
+    ws.row_dimensions[1].height = 36
+    set_cell(ws, 1, 2, '🕉  JOTHIDAM  ·  VEDIC HOROSCOPE REPORT',
+             bold=True, size=16, color=DARK_BROWN, bg=GOLD, h_align='center',
+             border=thick_border())
 
-    # Name
-    ws.row_dimensions[4].height = 28
-    merge_set(ws, 4, 2, 4, 4, data['name'],
-              font('Calibri', 16, True, BROWN_D),
-              align('center','center'),
-              fill(GOLD))
-    ws.row_dimensions[5].height = 6
+    ws.row_dimensions[2].height = 8
 
-    # Birth details header
-    ws.row_dimensions[6].height = 20
-    merge_set(ws, 6, 2, 6, 4, lbl('birth_details', lang),
-              font('Calibri', 10, True, GOLD_LT),
-              align('center','center'),
-              fill(BROWN_M))
+    # Row 3: subtitle
+    ws.merge_cells('B3:E3')
+    ws.row_dimensions[3].height = 20
+    set_cell(ws, 3, 2,
+             f"Generated: {date.today().strftime('%d %b %Y')}  ·  horoscopegen.in",
+             italic=True, size=9, color='7A5C2E', bg=LIGHT_GOLD, h_align='center')
+
+    ws.row_dimensions[4].height = 10
+
+    # Section: Birth Details
+    def section_header(row, title):
+        ws.merge_cells(f'B{row}:E{row}')
+        ws.row_dimensions[row].height = 22
+        set_cell(ws, row, 2, f'  {title}', bold=True, size=11,
+                 color=GOLD, bg=HEADER_BG, h_align='left',
+                 border=thick_border(GOLD))
+
+    def data_row(row, label, value, highlight=False):
+        ws.row_dimensions[row].height = 20
+        bg = CURRENT_BG if highlight else LIGHT_GOLD
+        set_cell(ws, row, 2, label, bold=True, size=10, color='5C3D11',
+                 bg=bg, h_align='left', border=thin_border())
+        ws.merge_cells(f'C{row}:E{row}')
+        set_cell(ws, row, 3, value, size=10, color=DARK_BROWN,
+                 bg=WHITE if not highlight else CURRENT_BG,
+                 h_align='left', border=thin_border())
+
+    r = 5
+    section_header(r, '👤  BIRTH DETAILS')
+    r += 1
+    data_row(r, 'Full Name',      data.get('name', ''));           r += 1
+    data_row(r, 'Date of Birth',  data.get('dob', ''));            r += 1
+    data_row(r, 'Time of Birth',  data.get('tob', ''));            r += 1
+    data_row(r, 'Place of Birth', data.get('pob', ''));            r += 1
+
+    r += 1
+    section_header(r, '🔷  CORE ASTROLOGICAL DETAILS')
+    r += 1
+    data_row(r, 'Lagna (Ascendant)',  data.get('lagnaName', '')); r += 1
+    data_row(r, 'Janma Rasi',         data.get('moonRasiName', '')); r += 1
+    data_row(r, 'Janma Nakshatra',
+             f"{data.get('nakName','')} - Pada {data.get('nakPada','')}"); r += 1
+    data_row(r, 'Nakshatra Lord',     data.get('nakLord', '')); r += 1
+
+    r += 1
+    section_header(r, '📅  CURRENT DASA PERIOD')
+    r += 1
+    cur_dasa   = data.get('curDasa', {})
+    cur_bhukti = data.get('curBhukti', {})
+    data_row(r, 'Current Dasa',
+             f"{cur_dasa.get('dasa','')}  (ends {cur_dasa.get('end','')})",
+             highlight=True); r += 1
+    data_row(r, 'Current Bhukti',
+             f"{cur_bhukti.get('bhukti','')}  (ends {cur_bhukti.get('end','')})",
+             highlight=True); r += 1
+
+    r += 1
+    section_header(r, '💎  AUSPICIOUS DETAILS')
+    r += 1
+    data_row(r, 'Recommended Gemstone', data.get('gemstone', '')); r += 1
+    data_row(r, 'Lucky Colors',         data.get('luckyColors', '')); r += 1
+    lucky = data.get('luckyNumbers', [])
+    data_row(r, 'Lucky Numbers',
+             ', '.join(str(n) for n in lucky) if isinstance(lucky, list) else str(lucky))
+
+    r += 2
+    ws.merge_cells(f'B{r}:E{r}')
+    set_cell(ws, r, 2,
+             'This report is based on Vedic astrology principles. For guidance only.',
+             italic=True, size=8, color='999999', h_align='center')
+
+
+# ── SHEET 2: RASI CHART ───────────────────────────────────────────────────────
+def build_chart_sheet(wb, data):
+    ws = wb.create_sheet('Rasi Chart')
+    ws.sheet_view.showGridLines = False
+
+    # Build house → planet abbreviations map
+    planets_by_house = {}
+    lagna_rasi = data.get('lagnaRasi', 1)
+
+    for p in data.get('planets', []):
+        h = p.get('house', 0)
+        if h not in planets_by_house:
+            planets_by_house[h] = []
+        abbr = PLANET_ABBR.get(p['planet'], p['planet'][:2])
+        planets_by_house[h].append(abbr)
+
+    CELL_COLS = 4   # Excel columns per chart cell
+    CELL_ROWS = 5   # Excel rows per chart cell
+    START_COL = 2
+    START_ROW = 4
+
+    # Set column/row sizes
+    ws.column_dimensions['A'].width = 2
+    for c in range(START_COL, START_COL + 4 * CELL_COLS + 2):
+        ws.column_dimensions[get_column_letter(c)].width = 9
+    for r in range(START_ROW, START_ROW + 4 * CELL_ROWS + 1):
+        ws.row_dimensions[r].height = 24
+
+    name    = data.get('name', '')
+    dob     = data.get('dob', '')
+    tob     = data.get('tob', '')
+    pob     = data.get('pob', '')
+    nak     = data.get('nakName', '')
+    nakpada = data.get('nakPada', '')
+    lagna   = data.get('lagnaName', '')
+
+    # Title row
+    ws.merge_cells(start_row=1, start_column=START_COL,
+                   end_row=1,   end_column=START_COL + 4*CELL_COLS - 1)
+    ws.row_dimensions[1].height = 30
+    t = ws.cell(row=1, column=START_COL,
+                value='🕉  RASI CHART (South Indian Style)')
+    t.font      = Font(bold=True, size=14, color=DARK_BROWN, name='Calibri')
+    t.alignment = align(h='center')
+    t.fill      = fill(GOLD)
+    t.border    = thick_border()
+
+    ws.merge_cells(start_row=2, start_column=START_COL,
+                   end_row=2,   end_column=START_COL + 4*CELL_COLS - 1)
+    ws.row_dimensions[2].height = 18
+    s = ws.cell(row=2, column=START_COL,
+                value=f'{name}  ·  {dob}  ·  {tob}  ·  {pob}  ·  Lagna: {lagna}')
+    s.font      = Font(italic=True, size=9, color='5C3D11', name='Calibri')
+    s.alignment = align(h='center')
+    s.fill      = fill(LIGHT_GOLD)
+    ws.row_dimensions[3].height = 6
+
+    thin  = Side(style='thin',   color=GOLD)
+    thick = Side(style='medium', color=DARK_BROWN)
+
+    center_merged = False
+
+    for grid_row in range(4):
+        for grid_col in range(4):
+            house = CHART_GRID[grid_row][grid_col]
+            er    = START_ROW + grid_row * CELL_ROWS
+            ec    = START_COL + grid_col * CELL_COLS
+
+            if house == -1:
+                # Center 2x2 block — merge once
+                if not center_merged:
+                    cr = START_ROW + CELL_ROWS
+                    cc = START_COL + CELL_COLS
+                    ws.merge_cells(
+                        start_row=cr, start_column=cc,
+                        end_row=cr + 2*CELL_ROWS - 1,
+                        end_column=cc + 2*CELL_COLS - 1
+                    )
+                    c = ws.cell(row=cr, column=cc)
+                    c.value     = f'🕉\n{name}\n\n{lagna}\nLagna\n\n{nak}\nPada {nakpada}'
+                    c.font      = Font(bold=True, size=11, color=DARK_BROWN, name='Calibri')
+                    c.alignment = align(h='center', v='center', wrap=True)
+                    c.fill      = fill(CENTER_BG)
+                    c.border    = Border(
+                        left=Side(style='medium', color=DARK_BROWN),
+                        right=Side(style='medium', color=DARK_BROWN),
+                        top=Side(style='medium', color=DARK_BROWN),
+                        bottom=Side(style='medium', color=DARK_BROWN),
+                    )
+                    center_merged = True
+                continue
+
+            # Merge the house cell block
+            ws.merge_cells(
+                start_row=er, start_column=ec,
+                end_row=er + CELL_ROWS - 1,
+                end_column=ec + CELL_COLS - 1
+            )
+
+            planets = planets_by_house.get(house, [])
+            short   = RASI_SHORT.get(house, '')
+            content = short + ('\n' + '  '.join(planets) if planets else '')
+
+            is_lagna = (house == lagna_rasi)
+            bg_color = LAGNA_BG if is_lagna else (CREAM if planets else LIGHT_GOLD)
+
+            cell = ws.cell(row=er, column=ec, value=content)
+            cell.font = Font(
+                bold=bool(planets) or is_lagna,
+                size=11 if planets else 9,
+                color='8B0000' if is_lagna else (DARK_BROWN if planets else '8B6914'),
+                name='Calibri'
+            )
+            cell.alignment = align(h='center', v='center', wrap=True)
+            cell.fill      = fill(bg_color)
+            cell.border    = Border(
+                left=Side(style='thin', color=GOLD),
+                right=Side(style='thin', color=GOLD),
+                top=Side(style='thin', color=GOLD),
+                bottom=Side(style='thin', color=GOLD),
+            )
+
+    # Thick outer border
+    chart_end_row = START_ROW + 4 * CELL_ROWS - 1
+    chart_end_col = START_COL + 4 * CELL_COLS - 1
+    for r in range(START_ROW, chart_end_row + 1):
+        for c_idx in range(START_COL, chart_end_col + 1):
+            cell = ws.cell(row=r, column=c_idx)
+            left   = Side(style='medium', color=DARK_BROWN) if c_idx == START_COL    else cell.border.left
+            right  = Side(style='medium', color=DARK_BROWN) if c_idx == chart_end_col else cell.border.right
+            top    = Side(style='medium', color=DARK_BROWN) if r == START_ROW         else cell.border.top
+            bottom = Side(style='medium', color=DARK_BROWN) if r == chart_end_row     else cell.border.bottom
+            cell.border = Border(left=left, right=right, top=top, bottom=bottom)
+
+    # Legend
+    leg_row = chart_end_row + 3
+    ws.merge_cells(start_row=leg_row, start_column=START_COL,
+                   end_row=leg_row,   end_column=START_COL + 4*CELL_COLS - 1)
+    ws.row_dimensions[leg_row].height = 18
+    h = ws.cell(row=leg_row, column=START_COL, value='PLANET ABBREVIATIONS')
+    h.font = Font(bold=True, size=9, color=DARK_BROWN)
+    h.fill = fill(LIGHT_GOLD)
+
+    abbrevs = 'La=Lagna  ·  Su=Sun  ·  Mo=Moon  ·  Ma=Mars  ·  Me=Mercury  ·  Ju=Jupiter  ·  Ve=Venus  ·  Sa=Saturn  ·  Ra=Rahu  ·  Ke=Ketu'
+    ws.merge_cells(start_row=leg_row+1, start_column=START_COL,
+                   end_row=leg_row+1,   end_column=START_COL + 4*CELL_COLS - 1)
+    ws.row_dimensions[leg_row+1].height = 16
+    a = ws.cell(row=leg_row+1, column=START_COL, value=abbrevs)
+    a.font = Font(italic=True, size=8, color='5C3D11')
+
+    ws.merge_cells(start_row=leg_row+2, start_column=START_COL,
+                   end_row=leg_row+2,   end_column=START_COL + 4*CELL_COLS - 1)
+    n = ws.cell(row=leg_row+2, column=START_COL,
+                value='★ Peach highlighted house = Lagna (Ascendant)')
+    n.font = Font(italic=True, size=8, color='8B4513')
+
+
+# ── SHEET 3: PLANET POSITIONS ────────────────────────────────────────────────
+def build_planets_sheet(wb, data, lang='en'):
+    ws = wb.create_sheet('Planet Positions')
+    ws.sheet_view.showGridLines = False
+
+    ws.column_dimensions['A'].width = 2
+    ws.column_dimensions['B'].width = 16
+    ws.column_dimensions['C'].width = 20
+    ws.column_dimensions['D'].width = 14
+    ws.column_dimensions['E'].width = 22
+    ws.column_dimensions['F'].width = 8
+    ws.column_dimensions['G'].width = 8
+
+    # Title
+    ws.merge_cells('B1:G1')
+    ws.row_dimensions[1].height = 28
+    t = ws.cell(row=1, column=2, value='🌟  PLANET POSITIONS')
+    t.font = Font(bold=True, size=13, color=DARK_BROWN, name='Calibri')
+    t.alignment = align(h='center')
+    t.fill = fill(GOLD)
+    t.border = thick_border()
+
+    # Header row
+    ws.row_dimensions[2].height = 6
+    headers = ['Planet', 'Rasi', 'Degrees', 'Nakshatra', 'Pada', 'House']
+    ws.row_dimensions[3].height = 22
+    for i, h in enumerate(headers, start=2):
+        c = ws.cell(row=3, column=i, value=h)
+        c.font      = Font(bold=True, size=10, color=GOLD, name='Calibri')
+        c.alignment = align(h='center')
+        c.fill      = fill(HEADER_BG)
+        c.border    = thin_border(GOLD)
+
+    # Data rows
+    lagna_rasi = data.get('lagnaRasi', 1)
+    for ri, p in enumerate(data.get('planets', []), start=4):
+        ws.row_dimensions[ri].height = 20
+        is_lagna = p.get('planet') == 'Lagna'
+        bg = LAGNA_BG if is_lagna else (LIGHT_GOLD if ri % 2 == 0 else WHITE)
+        row_data = [
+            p.get('planet', ''),
+            p.get('rasi', ''),
+            p.get('degrees', ''),
+            p.get('nakshatra', ''),
+            str(p.get('pada', '')),
+            str(p.get('house', '')),
+        ]
+        for ci, val in enumerate(row_data, start=2):
+            c = ws.cell(row=ri, column=ci, value=val)
+            c.font      = Font(bold=is_lagna, size=10, color=DARK_BROWN, name='Calibri')
+            c.alignment = align(h='center' if ci > 3 else 'left')
+            c.fill      = fill(bg)
+            c.border    = thin_border()
+
+
+# ── SHEET 4: DASA BHUKTI ─────────────────────────────────────────────────────
+def build_dasa_sheet(wb, data, lang='en'):
+    ws = wb.create_sheet('Vimshottari Dasa Bhukti')
+    ws.sheet_view.showGridLines = False
+
+    ws.column_dimensions['A'].width = 2
+    ws.column_dimensions['B'].width = 16
+    ws.column_dimensions['C'].width = 16
+    ws.column_dimensions['D'].width = 14
+    ws.column_dimensions['E'].width = 14
+    ws.column_dimensions['F'].width = 14
+
+    ws.merge_cells('B1:F1')
+    ws.row_dimensions[1].height = 28
+    t = ws.cell(row=1, column=2, value='📅  VIMSHOTTARI DASA BHUKTI')
+    t.font = Font(bold=True, size=13, color=DARK_BROWN, name='Calibri')
+    t.alignment = align(h='center')
+    t.fill = fill(GOLD)
+    t.border = thick_border()
+
+    ws.row_dimensions[2].height = 6
+    headers = ['Dasa', 'Bhukti', 'Start', 'End', 'Status']
+    ws.row_dimensions[3].height = 22
+    for i, h in enumerate(headers, start=2):
+        c = ws.cell(row=3, column=i, value=h)
+        c.font      = Font(bold=True, size=10, color=GOLD, name='Calibri')
+        c.alignment = align(h='center')
+        c.fill      = fill(HEADER_BG)
+        c.border    = thin_border(GOLD)
+
+    for ri, d in enumerate(data.get('dasas', []), start=4):
+        ws.row_dimensions[ri].height = 20
+        status = d.get('status', '')
+        if status == 'current':
+            bg = CURRENT_BG
+            st_color = '856404'
+        elif status == 'completed':
+            bg = COMPLETED_BG
+            st_color = '6C757D'
+        else:
+            bg = WHITE
+            st_color = '155724'
+
+        row_data = [
+            d.get('dasa', ''),
+            d.get('bhukti', ''),
+            d.get('start', ''),
+            d.get('end', ''),
+            status.capitalize(),
+        ]
+        for ci, val in enumerate(row_data, start=2):
+            c = ws.cell(row=ri, column=ci, value=val)
+            c.font      = Font(
+                bold=(status == 'current'),
+                size=10,
+                color=st_color if ci == 6 else DARK_BROWN,
+                name='Calibri'
+            )
+            c.alignment = align(h='center')
+            c.fill      = fill(bg)
+            c.border    = thin_border()
+
+        # Gold left bar for current
+        if status == 'current':
+            ws.cell(row=ri, column=2).border = Border(
+                left=Side(style='medium', color=GOLD),
+                right=Side(style='thin', color=GOLD),
+                top=Side(style='thin', color=GOLD),
+                bottom=Side(style='thin', color=GOLD),
+            )
+
+
+# ── SHEET 5: YOGAS ───────────────────────────────────────────────────────────
+def build_yogas_sheet(wb, data):
+    ws = wb.create_sheet('Yogas & Remedies')
+    ws.sheet_view.showGridLines = False
+
+    ws.column_dimensions['A'].width = 2
+    ws.column_dimensions['B'].width = 28
+    ws.column_dimensions['C'].width = 52
+    ws.column_dimensions['D'].width = 14
+
+    ws.merge_cells('B1:C1')
+    ws.row_dimensions[1].height = 28
+    t = ws.cell(row=1, column=2, value='✨  PLANETARY YOGAS & AUSPICIOUS DETAILS')
+    t.font = Font(bold=True, size=13, color=DARK_BROWN, name='Calibri')
+    t.alignment = align(h='center')
+    t.fill = fill(GOLD)
+    t.border = thick_border()
+
+    ws.row_dimensions[2].height = 6
+
+    headers = ['Yoga Name', 'Significance']
+    ws.row_dimensions[3].height = 22
+    for i, h in enumerate(headers, start=2):
+        c = ws.cell(row=3, column=i, value=h)
+        c.font = Font(bold=True, size=10, color=GOLD, name='Calibri')
+        c.alignment = align(h='center')
+        c.fill = fill(HEADER_BG)
+        c.border = thin_border(GOLD)
+
+    for ri, y in enumerate(data.get('yogas', []), start=4):
+        ws.row_dimensions[ri].height = 22
+        bg = LIGHT_GOLD if ri % 2 == 0 else WHITE
+        c1 = ws.cell(row=ri, column=2, value=y.get('name', ''))
+        c1.font = Font(bold=True, size=10, color=DARK_BROWN, name='Calibri')
+        c1.fill = fill(bg)
+        c1.border = thin_border()
+        c1.alignment = align(h='left')
+
+        c2 = ws.cell(row=ri, column=3, value=y.get('description', ''))
+        c2.font = Font(size=9, color='3D2B00', name='Calibri')
+        c2.fill = fill(bg)
+        c2.border = thin_border()
+        c2.alignment = align(h='left', wrap=True)
+
+    # Auspicious details section
+    ri = 4 + len(data.get('yogas', [])) + 2
+    ws.merge_cells(f'B{ri}:C{ri}')
+    ws.row_dimensions[ri].height = 22
+    h = ws.cell(row=ri, column=2, value='💎  AUSPICIOUS DETAILS')
+    h.font = Font(bold=True, size=11, color=GOLD, name='Calibri')
+    h.fill = fill(HEADER_BG)
+    h.alignment = align(h='left')
+    h.border = thick_border()
+    ri += 1
 
     details = [
-        (lbl('dob',lang), data['dob']),
-        (lbl('tob',lang), data['tob']),
-        (lbl('pob',lang), data['pob']),
+        ('Recommended Gemstone', data.get('gemstone', '')),
+        ('Lucky Colors',         data.get('luckyColors', '')),
+        ('Lucky Numbers',        ', '.join(str(n) for n in data.get('luckyNumbers', []))),
+        ('Nakshatra Lord',       data.get('nakLord', '')),
+        ('Current Dasa Ends',    data.get('curDasa', {}).get('end', '')),
+        ('Current Bhukti Ends',  data.get('curBhukti', {}).get('end', '')),
     ]
-    for i, (k, v) in enumerate(details):
-        r = 7 + i
-        ws.row_dimensions[r].height = 18
-        set_cell(ws, r, 2, k, font('Calibri', 9, False, GOLD_DIM), align('left','center'), fill(CREAM_D), thin_border())
-        set_cell(ws, r, 3, v, font('Calibri', 10, True, BROWN_D), align('left','center'), fill(CREAM), thin_border())
-        set_cell(ws, r, 4, '', fill_=fill(CREAM))
+    for label, val in details:
+        ws.row_dimensions[ri].height = 20
+        c1 = ws.cell(row=ri, column=2, value=label)
+        c1.font = Font(bold=True, size=10, color='5C3D11', name='Calibri')
+        c1.fill = fill(LIGHT_GOLD)
+        c1.border = thin_border()
+        c1.alignment = align(h='left')
 
-    # Blank row
-    ws.row_dimensions[10].height = 8
+        c2 = ws.cell(row=ri, column=3, value=val)
+        c2.font = Font(size=10, color=DARK_BROWN, name='Calibri')
+        c2.fill = fill(WHITE)
+        c2.border = thin_border()
+        c2.alignment = align(h='left')
+        ri += 1
 
-    # Astro details header
-    ws.row_dimensions[11].height = 20
-    merge_set(ws, 11, 2, 11, 4, 'ASTROLOGICAL DETAILS',
-              font('Calibri', 10, True, GOLD_LT),
-              align('center','center'),
-              fill(BROWN_M))
 
-    lagna_name = get_rasi_name(data['lagna_rasi'], lang)
-    rasi_name  = get_rasi_name(data['moon_rasi'],  lang)
-    nak_name   = get_nak_name(data['nak_num'], lang)
-    astro_rows = [
-        (lbl('lagna',lang),      lagna_name),
-        (lbl('janma_rasi',lang), rasi_name),
-        (lbl('janma_nak',lang),  f'{nak_name} - {lbl("pada",lang)} {data["nak_pada"]}'),
-        (lbl('cur_dasa',lang),   data['cur_dasa']['dasa']),
-        (lbl('dasa_ends',lang),  fmt_date(data['cur_dasa']['end'])),
-        (lbl('cur_bhukti',lang), data['cur_bhukti']['bhukti']),
-        (lbl('bhukti_ends',lang),fmt_date(data['cur_bhukti']['end'])),
-        (lbl('gemstone',lang),   get_gemstone(data['nak_lord'], lang)),
-        (lbl('lucky_color',lang),LUCKY_COLORS.get(data['nak_lord'],'Gold')),
-        (lbl('lucky_num',lang),  ', '.join(str(n) for n in LUCKY_NUMS.get(data['nak_lord'],[1,4,7]))),
-    ]
-    for i, (k, v) in enumerate(astro_rows):
-        r = 12 + i
-        ws.row_dimensions[r].height = 18
-        bg = CREAM if i % 2 == 0 else CREAM_D
-        set_cell(ws, r, 2, k, font('Calibri', 9, False, GOLD_DIM), align('left','center'), fill(bg), thin_border())
-        set_cell(ws, r, 3, str(v), font('Calibri', 10, True, BROWN_D), align('left','center'), fill(bg), thin_border())
-        set_cell(ws, r, 4, '', fill_=fill(bg))
+# ── MAIN ENTRY POINT ─────────────────────────────────────────────────────────
+def generate_excel(data, lang='en'):
+    """
+    Generate professional Excel horoscope report.
+    Args:
+        data (dict): Horoscope data from compute() or frontend payload
+        lang (str):  Language code
+    Returns:
+        bytes: Excel file as bytes
+    """
+    wb = openpyxl.Workbook()
 
-    # Generated footer
-    r = 12 + len(astro_rows) + 2
-    ws.row_dimensions[r].height = 14
-    merge_set(ws, r, 2, r, 4,
-              f'Generated by Jothidam · horoscopegen.in · {date.today().strftime("%d %b %Y")}',
-              font('Calibri', 8, False, GOLD_DIM, True),
-              align('center','center'),
-              fill(DARK_BG))
-
-# ── SHEET 2: PLANET POSITIONS ─────────────────────────────────────────────────
-
-def build_planets_sheet(wb, data, lang):
-    ws = wb.create_sheet(lbl('planet_positions', lang)[:31])
-    ws.sheet_view.showGridLines = False
-
-    for col, w in [(1,2),(2,20),(3,20),(4,14),(5,22),(6,10),(7,10),(8,2)]:
-        ws.column_dimensions[get_column_letter(col)].width = w
-
-    ws.row_dimensions[1].height = 8
-    ws.row_dimensions[2].height = 28
-    merge_set(ws, 2, 2, 2, 7, lbl('planet_positions', lang),
-              font('Calibri', 14, True, GOLD), align('center','center'), fill(DARK_BG))
-    ws.row_dimensions[3].height = 8
-
-    # Table header
-    ws.row_dimensions[4].height = 22
-    headers = [lbl('planet',lang), lbl('rasi',lang), lbl('degrees',lang),
-               lbl('nakshatra',lang), lbl('pada',lang), lbl('house',lang)]
-    for ci, h in enumerate(headers):
-        cell = ws.cell(row=4, column=2+ci, value=h)
-        cell.font      = font('Calibri', 10, True, GOLD_LT)
-        cell.alignment = align('center','center')
-        cell.fill      = fill(BROWN_M)
-        cell.border    = thin_border()
-
-    lagna_rasi = data['lagna_rasi']
-    for ri, (pname, lon) in enumerate(data['planet_list']):
-        r  = 5 + ri
-        ws.row_dimensions[r].height = 20
-        rasi_num   = get_rasi(lon)
-        house      = ((rasi_num - lagna_rasi + 12) % 12) + 1
-        nak_name   = get_nak_name(get_nak(lon), lang)
-        pada       = get_pada(lon)
-        rasi_name  = get_rasi_name(rasi_num, lang)
-        deg_str    = fmt_deg(lon)
-        pname_loc  = get_planet_name(pname, lang)
-        p_hex      = P_COLORS.get(pname, BROWN_M)
-
-        row_data = [pname_loc, rasi_name, deg_str, nak_name, str(pada), str(house)]
-        for ci, val in enumerate(row_data):
-            cell = ws.cell(row=r, column=2+ci, value=val)
-            bg   = p_hex if ci == 0 else (CREAM if ri%2==0 else CREAM_D)
-            fg   = WHITE if ci == 0 else BROWN_D
-            cell.font      = font('Calibri', 10 if ci>0 else 11, ci==0, fg)
-            cell.alignment = align('center' if ci>0 else 'left','center')
-            cell.fill      = fill(bg)
-            cell.border    = thin_border()
-
-    # Freeze header
-    ws.freeze_panes = 'B5'
-
-# ── SHEET 3: DASA BHUKTI ──────────────────────────────────────────────────────
-
-def build_dasa_sheet(wb, data, lang):
-    ws = wb.create_sheet(lbl('dasa_bhukti', lang)[:31])
-    ws.sheet_view.showGridLines = False
-
-    for col, w in [(1,2),(2,18),(3,18),(4,14),(5,14),(6,14),(7,2)]:
-        ws.column_dimensions[get_column_letter(col)].width = w
-
-    ws.row_dimensions[1].height = 8
-    ws.row_dimensions[2].height = 28
-    merge_set(ws, 2, 2, 2, 6, lbl('dasa_bhukti', lang),
-              font('Calibri', 14, True, GOLD), align('center','center'), fill(DARK_BG))
-    ws.row_dimensions[3].height = 8
-
-    # Header
-    ws.row_dimensions[4].height = 22
-    headers = [lbl('dasa',lang), lbl('bhukti',lang),
-               lbl('start',lang), lbl('end',lang), lbl('status',lang)]
-    for ci, h in enumerate(headers):
-        cell = ws.cell(row=4, column=2+ci, value=h)
-        cell.font      = font('Calibri', 10, True, GOLD_LT)
-        cell.alignment = align('center','center')
-        cell.fill      = fill(BROWN_M)
-        cell.border    = thin_border()
-
-    today = date.today()
-    r = 5
-    for drow in data['dasas']:
-        bhuktis = build_bhuktis(drow['dasa'], drow['start'], drow['end'])
-        for brow in bhuktis:
-            ws.row_dimensions[r].height = 17
-            is_cur  = brow['start'] <= today <= brow['end']
-            is_past = brow['end'] < today
-
-            if is_cur:   bg, status = CURRENT_Y, lbl('current', lang)
-            elif is_past: bg, status = PAST_G,   lbl('completed', lang)
-            else:         bg, status = FUTURE_B,  lbl('upcoming', lang)
-
-            row_data = [
-                get_planet_name(drow['dasa'],  lang),
-                get_planet_name(brow['bhukti'],lang),
-                fmt_date(brow['start']),
-                fmt_date(brow['end']),
-                status,
-            ]
-            for ci, val in enumerate(row_data):
-                cell = ws.cell(row=r, column=2+ci, value=val)
-                cell.font      = font('Calibri', 10, is_cur, BROWN_D if not is_cur else '5D4037')
-                cell.alignment = align('center','center')
-                cell.fill      = fill(bg)
-                cell.border    = thin_border()
-                # Status column colour
-                if ci == 4:
-                    if is_cur:
-                        cell.font = font('Calibri', 10, True, '8B6914')
-                    elif is_past:
-                        cell.font = font('Calibri', 10, False, '888888')
-                    else:
-                        cell.font = font('Calibri', 10, False, '2980B9')
-            r += 1
-
-    ws.freeze_panes = 'B5'
-
-# ── SHEET 4: YOGAS ────────────────────────────────────────────────────────────
-
-def build_yogas_sheet(wb, data, lang):
-    ws = wb.create_sheet('Yogas')
-    ws.sheet_view.showGridLines = False
-
-    for col, w in [(1,2),(2,28),(3,52),(4,2)]:
-        ws.column_dimensions[get_column_letter(col)].width = w
-
-    ws.row_dimensions[1].height = 8
-    ws.row_dimensions[2].height = 28
-    merge_set(ws, 2, 2, 2, 3, lbl('yogas', lang),
-              font('Calibri', 14, True, GOLD), align('center','center'), fill(DARK_BG))
-    ws.row_dimensions[3].height = 8
-
-    ws.row_dimensions[4].height = 20
-    for ci, h in enumerate(['Yoga Name', 'Significance']):
-        cell = ws.cell(row=4, column=2+ci, value=h)
-        cell.font = font('Calibri', 10, True, GOLD_LT)
-        cell.alignment = align('center','center')
-        cell.fill = fill(BROWN_M)
-        cell.border = thin_border()
-
-    for ri, (yname, ydesc) in enumerate(data['yogas']):
-        r = 5 + ri
-        ws.row_dimensions[r].height = 36
-        bg = CREAM if ri%2==0 else CREAM_D
-        n_cell = ws.cell(row=r, column=2, value=yname)
-        n_cell.font = font('Calibri', 11, True, BROWN_D)
-        n_cell.alignment = align('left','center')
-        n_cell.fill = fill(bg)
-        n_cell.border = thin_border()
-
-        d_cell = ws.cell(row=r, column=3, value=ydesc)
-        d_cell.font = font('Calibri', 9, False, BROWN_D)
-        d_cell.alignment = align('left','center', wrap=True)
-        d_cell.fill = fill(bg)
-        d_cell.border = thin_border()
-
-    # Footer
-    r = 5 + len(data['yogas']) + 2
-    ws.row_dimensions[r].height = 14
-    merge_set(ws, r, 2, r, 3,
-              'Note: Yoga interpretations are based on traditional Vedic astrology principles.',
-              font('Calibri', 8, False, GOLD_DIM, True),
-              align('center','center'), fill(DARK_BG))
-
-# ── MAIN EXCEL GENERATOR ──────────────────────────────────────────────────────
-
-def generate_excel(data, lang='en') -> bytes:
-    wb = Workbook()
     build_summary_sheet(wb, data, lang)
+    build_chart_sheet(wb, data)
     build_planets_sheet(wb, data, lang)
     build_dasa_sheet(wb, data, lang)
-    build_yogas_sheet(wb, data, lang)
+    build_yogas_sheet(wb, data)
 
+    # Save to bytes
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)

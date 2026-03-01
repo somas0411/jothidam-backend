@@ -186,14 +186,28 @@ def build_chart_sheet(wb, data):
     ws.sheet_view.showGridLines = False
 
     # Build house → planet abbreviations map
+    # Handles both dict format {planet, house, ...} and string format
     planets_by_house = {}
     lagna_rasi = data.get('lagnaRasi', 1)
 
-    for p in data.get('planets', []):
-        h = p.get('house', 0)
+    raw_planets = data.get('planets', [])
+    for p in raw_planets:
+        # If planet entry is a dict (from frontend payload or JSON)
+        if isinstance(p, dict):
+            h    = int(p.get('house', 0))
+            name = p.get('planet', p.get('name', ''))
+            abbr = PLANET_ABBR.get(name, name[:2] if name else '??')
+        # If planet entry is a string like "Sun" — fallback
+        elif isinstance(p, str):
+            h    = 0  # unknown house, skip
+            abbr = PLANET_ABBR.get(p, p[:2])
+        else:
+            continue
+
+        if h == 0:
+            continue
         if h not in planets_by_house:
             planets_by_house[h] = []
-        abbr = PLANET_ABBR.get(p['planet'], p['planet'][:2])
         planets_by_house[h].append(abbr)
 
     CELL_COLS = 4   # Excel columns per chart cell
@@ -374,6 +388,8 @@ def build_planets_sheet(wb, data, lang='en'):
     lagna_rasi = data.get('lagnaRasi', 1)
     for ri, p in enumerate(data.get('planets', []), start=4):
         ws.row_dimensions[ri].height = 20
+        if not isinstance(p, dict):
+            continue
         is_lagna = p.get('planet') == 'Lagna'
         bg = LAGNA_BG if is_lagna else (LIGHT_GOLD if ri % 2 == 0 else WHITE)
         row_data = [

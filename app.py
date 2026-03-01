@@ -202,8 +202,7 @@ def download_pdf():
         if not all([name, dob, tob, pob]):
             return jsonify({'error': 'Missing required fields'}), 400
 
-        raw       = compute(name, dob, tob, pob, chart_style, lang)
-        data      = build_report_data(raw, lang)
+        data      = compute(name, dob, tob, pob, chart_style, lang)
         pdf_bytes = generate_pdf(data, lang=lang, chart_style=chart_style)
 
         filename = f"Jothidam_{name.replace(' ','_')}.pdf"

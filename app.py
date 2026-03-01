@@ -85,6 +85,77 @@ def health():
     """Simple health check endpoint"""
     return jsonify({'status': 'ok'})
 
+# ── SHARED DATA BUILDER ───────────────────────────────────────────────────────
+def build_report_data(data, lang='en'):
+    """
+    Transform raw compute() output into a clean, JSON-serialisable dict.
+    Used by /api/horoscope, /api/download/pdf, and /api/download/excel
+    so all three endpoints produce identical structured data.
+    """
+    def d_str(d): return d.strftime('%d/%m/%Y') if hasattr(d, 'strftime') else str(d)
+
+    lagna_rasi = data['lagna_rasi']
+
+    planet_rows = []
+    for pname, lon in data['planet_list']:
+        rn    = get_rasi(lon)
+        house = ((rn - lagna_rasi + 12) % 12) + 1
+        planet_rows.append({
+            'planet':    pname,
+            'rasi':      get_rasi_name(rn, lang),
+            'rasiIndex': rn,
+            'degrees':   fmt_deg(lon),
+            'nakshatra': get_nak_name(get_nak(lon), lang),
+            'pada':      str(get_pada(lon)),
+            'house':     house,
+            'longitude': round(lon, 4),
+        })
+
+    today     = date.today()
+    dasa_rows = []
+    for drow in data['dasas']:
+        bhuktis = build_bhuktis(drow['dasa'], drow['start'], drow['end'])
+        for brow in bhuktis:
+            is_cur  = brow['start'] <= today <= brow['end']
+            is_past = brow['end'] < today
+            dasa_rows.append({
+                'dasa':   drow['dasa'],
+                'bhukti': brow['bhukti'],
+                'start':  d_str(brow['start']),
+                'end':    d_str(brow['end']),
+                'status': 'current' if is_cur else ('completed' if is_past else 'upcoming'),
+            })
+
+    yoga_rows = [{'name': yn, 'description': yd} for yn, yd in data['yogas']]
+
+    return {
+        'name':         data['name'],
+        'dob':          data['dob'],
+        'tob':          data['tob'],
+        'pob':          data['pob'],
+        'lang':         lang,
+        'lagnaRasi':    lagna_rasi,
+        'lagnaName':    get_rasi_name(lagna_rasi, lang),
+        'moonRasi':     data['moon_rasi'],
+        'moonRasiName': get_rasi_name(data['moon_rasi'], lang),
+        'nakNum':       data['nak_num'],
+        'nakName':      get_nak_name(data['nak_num'], lang),
+        'nakPada':      data['nak_pada'],
+        'nakLord':      data['nak_lord'],
+        'curDasa':      {'dasa':   data['cur_dasa']['dasa'],    'end': d_str(data['cur_dasa']['end'])},
+        'curBhukti':    {'bhukti': data['cur_bhukti']['bhukti'],
+                         'start':  d_str(data['cur_bhukti']['start']),
+                         'end':    d_str(data['cur_bhukti']['end'])},
+        'planets':      planet_rows,
+        'dasas':        dasa_rows,
+        'yogas':        yoga_rows,
+        'gemstone':     get_gemstone(data['nak_lord'], lang),
+        'luckyColors':  LUCKY_COLORS.get(data['nak_lord'], 'Gold'),
+        'luckyNumbers': LUCKY_NUMS.get(data['nak_lord'], [1, 4, 7]),
+        'generatedOn':  today.isoformat(),
+    }
+
+
 # ── HOROSCOPE DATA ENDPOINT ────────────────────────────────────────────────────
 @app.route('/api/horoscope', methods=['POST','OPTIONS'])
 def horoscope():
@@ -105,68 +176,7 @@ def horoscope():
             return jsonify({'error': 'Missing required fields'}), 400
 
         data = compute(name, dob, tob, pob, chart_style, lang)
-
-        # Build JSON-serialisable response
-        def d_str(d): return d.isoformat() if isinstance(d, date) else str(d)
-
-        planet_rows = []
-        lagna_rasi = data['lagna_rasi']
-        for pname, lon in data['planet_list']:
-            rn   = get_rasi(lon)
-            house = ((rn - lagna_rasi + 12) % 12) + 1
-            planet_rows.append({
-                'planet':     pname,
-                'planetName': get_planet_name(pname, lang),
-                'rasi':       get_rasi_name(rn, lang),
-                'rasiIndex':  rn,
-                'degrees':    fmt_deg(lon),
-                'nakshatra':  get_nak_name(get_nak(lon), lang),
-                'pada':       get_pada(lon),
-                'house':      house,
-                'longitude':  round(lon, 4),
-            })
-
-        dasa_rows = []
-        for drow in data['dasas']:
-            bhuktis = build_bhuktis(drow['dasa'], drow['start'], drow['end'])
-            today   = date.today()
-            for brow in bhuktis:
-                is_cur  = brow['start'] <= today <= brow['end']
-                is_past = brow['end'] < today
-                dasa_rows.append({
-                    'dasa':    drow['dasa'],
-                    'bhukti':  brow['bhukti'],
-                    'start':   d_str(brow['start']),
-                    'end':     d_str(brow['end']),
-                    'status':  'current' if is_cur else ('completed' if is_past else 'upcoming'),
-                })
-
-        yoga_rows = [{'name': yn, 'description': yd} for yn, yd in data['yogas']]
-
-        resp = {
-            'name':         data['name'],
-            'dob':          data['dob'],
-            'tob':          data['tob'],
-            'pob':          data['pob'],
-            'lang':         lang,
-            'lagnaRasi':    data['lagna_rasi'],
-            'lagnaName':    get_rasi_name(data['lagna_rasi'], lang),
-            'moonRasi':     data['moon_rasi'],
-            'moonRasiName': get_rasi_name(data['moon_rasi'], lang),
-            'nakNum':       data['nak_num'],
-            'nakName':      get_nak_name(data['nak_num'], lang),
-            'nakPada':      data['nak_pada'],
-            'nakLord':      data['nak_lord'],
-            'curDasa':      {'dasa': data['cur_dasa']['dasa'],   'end': d_str(data['cur_dasa']['end'])},
-            'curBhukti':    {'bhukti': data['cur_bhukti']['bhukti'], 'end': d_str(data['cur_bhukti']['end'])},
-            'planets':      planet_rows,
-            'dasas':        dasa_rows,
-            'yogas':        yoga_rows,
-            'gemstone':     get_gemstone(data['nak_lord'], lang),
-            'luckyColors':  LUCKY_COLORS.get(data['nak_lord'],'Gold'),
-            'luckyNumbers': LUCKY_NUMS.get(data['nak_lord'],[1,4,7]),
-            'generatedOn':  date.today().isoformat(),
-        }
+        resp = build_report_data(data, lang)
         return jsonify(resp)
 
     except Exception as e:
@@ -192,7 +202,8 @@ def download_pdf():
         if not all([name, dob, tob, pob]):
             return jsonify({'error': 'Missing required fields'}), 400
 
-        data    = compute(name, dob, tob, pob, chart_style, lang)
+        raw       = compute(name, dob, tob, pob, chart_style, lang)
+        data      = build_report_data(raw, lang)
         pdf_bytes = generate_pdf(data, lang=lang, chart_style=chart_style)
 
         filename = f"Jothidam_{name.replace(' ','_')}.pdf"
@@ -225,7 +236,8 @@ def download_excel():
         if not all([name, dob, tob, pob]):
             return jsonify({'error': 'Missing required fields'}), 400
 
-        data       = compute(name, dob, tob, pob, chart_style, lang)
+        raw        = compute(name, dob, tob, pob, chart_style, lang)
+        data       = build_report_data(raw, lang)
         xlsx_bytes = generate_excel(data, lang=lang)
 
         filename = f"Jothidam_{name.replace(' ','_')}.xlsx"

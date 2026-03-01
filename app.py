@@ -80,6 +80,11 @@ def ping():
         return make_response('', 204)
     return jsonify({'status': 'ok', 'service': 'Jothidam API', 'version': '2.0'})
 
+@app.route('/health', methods=['GET'])
+def health():
+    """Simple health check endpoint"""
+    return jsonify({'status': 'ok'})
+
 # ── HOROSCOPE DATA ENDPOINT ────────────────────────────────────────────────────
 @app.route('/api/horoscope', methods=['POST','OPTIONS'])
 def horoscope():

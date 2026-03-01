@@ -512,13 +512,24 @@ def build_yogas_sheet(wb, data):
     for ri, y in enumerate(data.get('yogas', []), start=4):
         ws.row_dimensions[ri].height = 22
         bg = LIGHT_GOLD if ri % 2 == 0 else WHITE
-        c1 = ws.cell(row=ri, column=2, value=y.get('name', ''))
+
+        # Handle both dict {'name':..,'description':..} and tuple (name, desc)
+        if isinstance(y, dict):
+            y_name = y.get('name', '')
+            y_desc = y.get('description', '')
+        elif isinstance(y, (tuple, list)) and len(y) >= 2:
+            y_name, y_desc = y[0], y[1]
+        else:
+            y_name = str(y)
+            y_desc = ''
+
+        c1 = ws.cell(row=ri, column=2, value=y_name)
         c1.font = Font(bold=True, size=10, color=DARK_BROWN, name='Calibri')
         c1.fill = fill(bg)
         c1.border = thin_border()
         c1.alignment = align(h='left')
 
-        c2 = ws.cell(row=ri, column=3, value=y.get('description', ''))
+        c2 = ws.cell(row=ri, column=3, value=y_desc)
         c2.font = Font(size=9, color='3D2B00', name='Calibri')
         c2.fill = fill(bg)
         c2.border = thin_border()

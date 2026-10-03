@@ -1,336 +1,191 @@
 """
-app.py — Jothidam Backend API Server
-Flask backend for horoscopegen.in
+app.py — HoroscopeGen backend API (Flask).
 
-Endpoints:
-  POST /api/horoscope         — Returns JSON horoscope data
-  POST /api/download/pdf      — Returns PDF binary
-  POST /api/download/excel    — Returns Excel binary
-  POST /api/verify-payment    — Razorpay payment verification
+Endpoints
+  GET  /health, /api/ping      health checks
+  GET  /api/geocode?q=         place search -> name, latitude, longitude, time zone
+  POST /api/horoscope          full horoscope as JSON (Vedic, KP, ALP, charts)
+  POST /api/download/excel     Excel workbook
+  POST /api/download/pdf       PDF report
 
-Deploy to Render.com (free tier):
-  - Build Command: pip install -r requirements.txt
-  - Start Command: gunicorn app:app
+All three horoscope endpoints take the same JSON body and call the same
+compute() function, so the page, the Excel and the PDF always agree.
+
+Nothing is stored: birth details are used for the calculation and discarded.
+
+Deploy (Render): build `pip install -r requirements.txt`, start `gunicorn app:app`.
 """
-
-import os
-import json
-import hmac
-import hashlib
 import logging
-from datetime import date
-from flask import Flask, request, jsonify, send_file, make_response
-import io
+import os
+import re
 
-# Conditional CORS
-try:
-    from flask_cors import CORS
-    HAS_CORS = True
-except ImportError:
-    HAS_CORS = False
+from flask import Flask, jsonify, make_response, request
+from flask_cors import CORS
 
-from astro_engine import (
-    compute, fmt_date, get_rasi_name, get_nak_name, get_planet_name,
-    get_rasi, get_nak, get_pada, fmt_deg, build_bhuktis, lbl,
-    LUCKY_NUMS, LUCKY_COLORS, get_gemstone
-)
-from pdf_generator import generate_pdf
+import charts
+import i18n
+from astro_engine import AYANAMSHAS, InputError, compute, geocode, to_jsonable
 from excel_generator import generate_excel
+from pdf_generator import generate_pdf
 
-# ── APP SETUP ──────────────────────────────────────────────────────────────────
 app = Flask(__name__)
-if HAS_CORS:
-    CORS(app, origins=[
-        'https://horoscopegen.in',
-        'https://www.horoscopegen.in',
-        'https://horoscopesgen.netlify.app',
-        'android-app://com.jothidam.horoscopegen',  # TWA Android app
-        'http://localhost:5500',
-        'http://127.0.0.1:5500',
-    ])
+app.json.ensure_ascii = False
+
+ALLOWED_ORIGINS = [
+    'https://horoscopegen.in',
+    'https://www.horoscopegen.in',
+    'https://horoscopesgen.netlify.app',
+    'android-app://com.jothidam.horoscopegen',
+    'http://localhost:5500', 'http://127.0.0.1:5500',
+    'http://localhost:8000', 'http://127.0.0.1:8000',
+]
+CORS(app, origins=ALLOWED_ORIGINS + [o for o in os.environ.get('EXTRA_ORIGINS', '').split(',') if o],
+     expose_headers=['Content-Disposition'])
 
 logging.basicConfig(level=logging.INFO)
-log = logging.getLogger(__name__)
+log = logging.getLogger('horoscopegen')
 
-RAZORPAY_KEY_SECRET = os.environ.get('RAZORPAY_KEY_SECRET', '')
 
-# ── CORS HEADERS (manual fallback if flask-cors not installed) ─────────────────
-def add_cors(response):
-    origin = request.headers.get('Origin', '')
-    allowed = [
-        'https://horoscopegen.in',
-        'https://www.horoscopegen.in',
-        'https://horoscopesgen.netlify.app',
-        'android-app://com.jothidam.horoscopegen',  # TWA Android app
-        'http://localhost:5500',
-        'http://127.0.0.1:5500',
-    ]
-    if origin in allowed or not HAS_CORS:
-        response.headers['Access-Control-Allow-Origin'] = origin or '*'
-        response.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
-    return response
+# ── HELPERS ───────────────────────────────────────────────────────────────────
 
-@app.after_request
-def after_request(response):
-    return add_cors(response)
+def _num(value):
+    if value in (None, ''):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        raise InputError(f'"{value}" is not a number.')
 
-@app.route('/api/ping', methods=['GET','OPTIONS'])
-def ping():
-    """Health check"""
-    if request.method == 'OPTIONS':
-        return make_response('', 204)
-    return jsonify({'status': 'ok', 'service': 'Jothidam API', 'version': '2.0'})
 
-@app.route('/health', methods=['GET'])
-def health():
-    """Simple health check endpoint"""
-    return jsonify({'status': 'ok'})
+def _compute_from_request():
+    """Read the JSON body and run the engine. Raises InputError on bad input."""
+    body = request.get_json(force=True, silent=True) or {}
+    name = str(body.get('name', '')).strip()
+    dob = str(body.get('dob', '')).strip()
+    tob = str(body.get('tob', '')).strip()
+    pob = str(body.get('pob', '')).strip()
+    if not all([name, dob, tob, pob]):
+        raise InputError('Name, date, time and place of birth are required.')
+    lang = body.get('lang', 'en')
+    if lang not in i18n.LANGS:
+        lang = 'en'
+    res = compute(
+        name=name[:80], dob=dob, tob=tob, pob=pob[:120],
+        lat=_num(body.get('lat')), lon=_num(body.get('lon')),
+        tz=(body.get('tz') or None), utc_offset=_num(body.get('utcOffset')),
+        ayanamsha=body.get('ayanamsha', 'lahiri'), node=body.get('node', 'mean'),
+        gender=str(body.get('gender', ''))[:20], lang=lang,
+        chart_style=body.get('chartStyle', 'south'),
+    )
+    return res, lang
 
-# ── SHARED DATA BUILDER ───────────────────────────────────────────────────────
-def build_report_data(data, lang='en'):
+
+def _filename(name, ext):
+    safe = re.sub(r'[^A-Za-z0-9]+', '_', name).strip('_') or 'Report'
+    return f'HoroscopeGen_{safe}.{ext}'
+
+
+def _file_response(data, filename, mime):
+    resp = make_response(data)
+    resp.headers['Content-Type'] = mime
+    resp.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+    resp.headers['Content-Length'] = len(data)
+    return resp
+
+
+def _guard(fn):
+    """Uniform error handling: 400 for bad input, 500 otherwise."""
+    try:
+        return fn()
+    except InputError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception:
+        log.exception('Unhandled error in %s', request.path)
+        return jsonify({'error': 'The report could not be generated. Please try again.'}), 500
+
+
+def _legacy_fields(res):
     """
-    Transform raw compute() output into a clean, JSON-serialisable dict.
-    Used by /api/horoscope, /api/download/pdf, and /api/download/excel
-    so all three endpoints produce identical structured data.
+    Top-level fields in the shape the previous website expected, so a cached
+    copy of the old page keeps working until it refreshes. Safe to remove once
+    the new website has been live for a while.
     """
-    def d_str(d): return d.strftime('%d/%m/%Y') if hasattr(d, 'strftime') else str(d)
-
-    lagna_rasi = data['lagna_rasi']
-
-    planet_rows = []
-    for pname, lon in data['planet_list']:
-        rn    = get_rasi(lon)
-        house = ((rn - lagna_rasi + 12) % 12) + 1
-        planet_rows.append({
-            'planet':    pname,
-            'rasi':      get_rasi_name(rn, lang),
-            'rasiIndex': rn,
-            'degrees':   fmt_deg(lon),
-            'nakshatra': get_nak_name(get_nak(lon), lang),
-            'pada':      str(get_pada(lon)),
-            'house':     house,
-            'longitude': round(lon, 4),
-        })
-
-    today     = date.today()
-    dasa_rows = []
-    for drow in data['dasas']:
-        bhuktis = build_bhuktis(drow['dasa'], drow['start'], drow['end'])
-        for brow in bhuktis:
-            is_cur  = brow['start'] <= today <= brow['end']
-            is_past = brow['end'] < today
-            dasa_rows.append({
-                'dasa':   drow['dasa'],
-                'bhukti': brow['bhukti'],
-                'start':  d_str(brow['start']),
-                'end':    d_str(brow['end']),
-                'status': 'current' if is_cur else ('completed' if is_past else 'upcoming'),
-            })
-
-    yoga_rows = [{'name': yn, 'description': yd} for yn, yd in data['yogas']]
-
+    v = res['vedic']
+    cur = v['dasa']['current']
+    iso = lambda d: d.strftime('%Y-%m-%d')
+    rows = [{'dasa': d['lord'], 'bhukti': b['lord'], 'start': iso(b['start']), 'end': iso(b['end']),
+             'status': 'current' if b['current'] else 'upcoming'}
+            for d in v['dasa']['dasas'] for b in d['sub']]
+    first = v['dasa']['dasas'][0]
+    cd = cur.get('dasa') or {'lord': first['lord'], 'start': first['start'], 'end': first['end']}
+    cb = cur.get('bhukti') or dict(first['sub'][0])
     return {
-        'name':         data['name'],
-        'dob':          data['dob'],
-        'tob':          data['tob'],
-        'pob':          data['pob'],
-        'lang':         lang,
-        'lagnaRasi':    lagna_rasi,
-        'lagnaName':    get_rasi_name(lagna_rasi, lang),
-        'moonRasi':     data['moon_rasi'],
-        'moonRasiName': get_rasi_name(data['moon_rasi'], lang),
-        'nakNum':       data['nak_num'],
-        'nakName':      get_nak_name(data['nak_num'], lang),
-        'nakPada':      data['nak_pada'],
-        'nakLord':      data['nak_lord'],
-        'curDasa':      {'dasa':   data['cur_dasa']['dasa'],    'end': d_str(data['cur_dasa']['end'])},
-        'curBhukti':    {'bhukti': data['cur_bhukti']['bhukti'],
-                         'start':  d_str(data['cur_bhukti']['start']),
-                         'end':    d_str(data['cur_bhukti']['end'])},
-        'planets':      planet_rows,
-        'dasas':        dasa_rows,
-        'yogas':        yoga_rows,
-        'gemstone':     get_gemstone(data['nak_lord'], lang),
-        'luckyColors':  LUCKY_COLORS.get(data['nak_lord'], 'Gold'),
-        'luckyNumbers': LUCKY_NUMS.get(data['nak_lord'], [1, 4, 7]),
-        'generatedOn':  today.isoformat(),
+        'planets': [{'planet': p['name'], 'longitude': p['lon']} for p in v['planets']],
+        'lagnaRasi': v['lagna_sign'], 'moonRasi': v['moon_sign'], 'nakNum': v['moon_nak'],
+        'nakPada': v['moon_pada'], 'nakLord': v['dasa']['birth_star_lord'],
+        'curDasa': {'dasa': cd['lord'], 'end': iso(cd['end'])},
+        'curBhukti': {'bhukti': cb['lord'], 'start': iso(cb['start']), 'end': iso(cb['end'])},
+        'dasas': rows, 'yogas': [],
     }
 
 
-# ── HOROSCOPE DATA ENDPOINT ────────────────────────────────────────────────────
-@app.route('/api/horoscope', methods=['POST','OPTIONS'])
+# ── ROUTES ────────────────────────────────────────────────────────────────────
+
+@app.route('/health')
+def health():
+    return jsonify({'status': 'ok'})
+
+
+@app.route('/api/ping')
+def ping():
+    return jsonify({'status': 'ok', 'service': 'HoroscopeGen API', 'version': '3.0'})
+
+
+@app.route('/api/options')
+def options():
+    return jsonify({'ayanamshas': {k: v[0] for k, v in AYANAMSHAS.items()},
+                    'languages': i18n.LANGS, 'chartStyles': ['south', 'north'],
+                    'nodes': ['mean', 'true']})
+
+
+@app.route('/api/geocode')
+def geocode_route():
+    """Place search. Called only when the user presses Search (no type-ahead)."""
+    q = request.args.get('q', '').strip()
+    if len(q) < 2:
+        return jsonify({'results': []})
+    return _guard(lambda: jsonify({'results': geocode(q[:120], limit=5)}))
+
+
+@app.route('/api/horoscope', methods=['POST'])
 def horoscope():
-    """Calculate and return full horoscope data as JSON"""
-    if request.method == 'OPTIONS':
-        return make_response('', 204)
+    def run():
+        res, lang = _compute_from_request()
+        out = to_jsonable(res)
+        out['charts'] = charts.build_specs(res, lang)
+        out['names'] = i18n.bundle(lang)
+        out.update(_legacy_fields(res))
+        return jsonify(out)
+    return _guard(run)
 
-    try:
-        body = request.get_json(force=True)
-        name        = body.get('name','').strip()
-        dob         = body.get('dob','').strip()       # YYYY-MM-DD
-        tob         = body.get('tob','').strip()       # HH:MM
-        pob         = body.get('pob','').strip()
-        lang        = body.get('lang','en')
-        chart_style = body.get('chartStyle','south')
 
-        if not all([name, dob, tob, pob]):
-            return jsonify({'error': 'Missing required fields'}), 400
-
-        data = compute(name, dob, tob, pob, chart_style, lang)
-        resp = build_report_data(data, lang)
-        return jsonify(resp)
-
-    except Exception as e:
-        log.exception('Error in /api/horoscope')
-        return jsonify({'error': str(e)}), 500
-
-# ── PDF DOWNLOAD ENDPOINT ──────────────────────────────────────────────────────
-@app.route('/api/download/pdf', methods=['POST','OPTIONS'])
-def download_pdf():
-    """Generate and return PDF"""
-    if request.method == 'OPTIONS':
-        return make_response('', 204)
-
-    try:
-        body = request.get_json(force=True)
-        name        = body.get('name','').strip()
-        dob         = body.get('dob','').strip()
-        tob         = body.get('tob','').strip()
-        pob         = body.get('pob','').strip()
-        lang        = body.get('lang','en')
-        chart_style = body.get('chartStyle','south')
-
-        if not all([name, dob, tob, pob]):
-            return jsonify({'error': 'Missing required fields'}), 400
-
-        data      = compute(name, dob, tob, pob, chart_style, lang)
-        pdf_bytes = generate_pdf(data, lang=lang, chart_style=chart_style)
-
-        filename = f"Jothidam_{name.replace(' ','_')}.pdf"
-        response = make_response(pdf_bytes)
-        response.headers['Content-Type']        = 'application/pdf'
-        response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
-        response.headers['Content-Length']      = len(pdf_bytes)
-        return response
-
-    except Exception as e:
-        log.exception('Error in /api/download/pdf')
-        return jsonify({'error': str(e)}), 500
-
-# ── EXCEL DOWNLOAD ENDPOINT ────────────────────────────────────────────────────
-@app.route('/api/download/excel', methods=['POST','OPTIONS'])
+@app.route('/api/download/excel', methods=['POST'])
 def download_excel():
-    """Generate and return Excel"""
-    if request.method == 'OPTIONS':
-        return make_response('', 204)
+    def run():
+        res, lang = _compute_from_request()
+        return _file_response(generate_excel(res, lang), _filename(res['meta']['name'], 'xlsx'),
+                              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    return _guard(run)
 
-    try:
-        body = request.get_json(force=True)
-        name        = body.get('name','').strip()
-        dob         = body.get('dob','').strip()
-        tob         = body.get('tob','').strip()
-        pob         = body.get('pob','').strip()
-        lang        = body.get('lang','en')
-        chart_style = body.get('chartStyle','south')
 
-        if not all([name, dob, tob, pob]):
-            return jsonify({'error': 'Missing required fields'}), 400
+@app.route('/api/download/pdf', methods=['POST'])
+def download_pdf():
+    def run():
+        res, lang = _compute_from_request()
+        return _file_response(generate_pdf(res, lang), _filename(res['meta']['name'], 'pdf'),
+                              'application/pdf')
+    return _guard(run)
 
-        raw        = compute(name, dob, tob, pob, chart_style, lang)
-        data       = build_report_data(raw, lang)
-        xlsx_bytes = generate_excel(data, lang=lang)
 
-        filename = f"Jothidam_{name.replace(' ','_')}.xlsx"
-        response = make_response(xlsx_bytes)
-        response.headers['Content-Type']        = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
-        response.headers['Content-Length']      = len(xlsx_bytes)
-        return response
-
-    except Exception as e:
-        log.exception('Error in /api/download/excel')
-        return jsonify({'error': str(e)}), 500
-
-# ── RAZORPAY PAYMENT VERIFICATION ─────────────────────────────────────────────
-@app.route('/api/verify-payment', methods=['POST','OPTIONS'])
-def verify_payment():
-    """
-    Verify Razorpay payment signature.
-    Frontend sends: razorpay_order_id, razorpay_payment_id, razorpay_signature
-    """
-    if request.method == 'OPTIONS':
-        return make_response('', 204)
-
-    try:
-        body = request.get_json(force=True)
-        order_id   = body.get('razorpay_order_id','')
-        payment_id = body.get('razorpay_payment_id','')
-        signature  = body.get('razorpay_signature','')
-
-        if not RAZORPAY_KEY_SECRET:
-            # Dev mode — skip verification
-            log.warning('RAZORPAY_KEY_SECRET not set — skipping signature check (dev mode)')
-            return jsonify({'verified': True, 'dev_mode': True})
-
-        # Compute expected signature
-        msg      = f'{order_id}|{payment_id}'.encode('utf-8')
-        expected = hmac.new(RAZORPAY_KEY_SECRET.encode('utf-8'), msg, hashlib.sha256).hexdigest()
-
-        if hmac.compare_digest(expected, signature):
-            return jsonify({'verified': True})
-        else:
-            return jsonify({'verified': False, 'error': 'Signature mismatch'}), 400
-
-    except Exception as e:
-        log.exception('Error in /api/verify-payment')
-        return jsonify({'error': str(e)}), 500
-
-# ── CREATE RAZORPAY ORDER ──────────────────────────────────────────────────────
-@app.route('/api/create-order', methods=['POST','OPTIONS'])
-def create_order():
-    """
-    Create Razorpay order.
-    Requires: RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET env vars
-    """
-    if request.method == 'OPTIONS':
-        return make_response('', 204)
-
-    try:
-        import razorpay
-    except ImportError:
-        # Dev mode without razorpay installed
-        return jsonify({
-            'order_id': 'order_dev_mode_test',
-            'amount':   4900,
-            'currency': 'INR',
-            'dev_mode': True
-        })
-
-    try:
-        body     = request.get_json(force=True)
-        amount   = body.get('amount', 4900)  # in paise (₹49 = 4900)
-        currency = body.get('currency', 'INR')
-
-        key_id     = os.environ.get('RAZORPAY_KEY_ID','')
-        key_secret = os.environ.get('RAZORPAY_KEY_SECRET','')
-
-        if not key_id or not key_secret:
-            return jsonify({'order_id': 'order_dev_no_keys', 'amount': amount, 'currency': currency, 'dev_mode': True})
-
-        client = razorpay.Client(auth=(key_id, key_secret))
-        order  = client.order.create({
-            'amount':   amount,
-            'currency': currency,
-            'payment_capture': 1,
-        })
-        return jsonify({'order_id': order['id'], 'amount': amount, 'currency': currency})
-
-    except Exception as e:
-        log.exception('Error in /api/create-order')
-        return jsonify({'error': str(e)}), 500
-
-# ── MAIN ──────────────────────────────────────────────────────────────────────
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)

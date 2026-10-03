@@ -1,892 +1,699 @@
 """
-pdf_generator.py — Professional Vedic Horoscope PDF Generator
-Uses ReportLab to draw proper South/North Indian Rasi charts
+pdf_generator.py — HoroscopeGen PDF report.
+
+Same content and order as the Excel workbook: summary, Vedic, KP, ALP,
+dasa tables, notes. White pages for printing. Text is laid out with fpdf2
+and shaped by HarfBuzz, with Noto fonts embedded, so Tamil and the other
+Indian scripts are joined correctly instead of printing as boxes.
 """
-import io
-import math
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import mm
-from reportlab.pdfgen import canvas as rl_canvas
-from reportlab.lib.utils import ImageReader
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-from datetime import date
-
-from astro_engine import (
-    get_rasi, get_deg, fmt_deg, get_nak, get_pada,
-    get_rasi_name, get_nak_name, get_planet_name, get_planet_abbr,
-    get_navamsa_rasi, fmt_date, lbl,
-    RASIS_FULL, NAKS, NAKS_TA, PLANET_COLORS, DASA_ORDER,
-    LUCKY_NUMS, LUCKY_COLORS, get_gemstone,
-    LABELS
-)
-
-# ── COLOUR PALETTE ─────────────────────────────────────────────────────────────
-DARK_BG    = colors.HexColor('#0D0600')
-GOLD       = colors.HexColor('#C9A03A')
-GOLD_LIGHT = colors.HexColor('#E8C96B')
-GOLD_DIM   = colors.HexColor('#7A6020')
-CREAM      = colors.HexColor('#FFF8E8')
-CREAM_DARK = colors.HexColor('#F5EDCF')
-BROWN_DARK = colors.HexColor('#1A0A00')
-BROWN_MID  = colors.HexColor('#3D2000')
-WHITE      = colors.white
-RED_ACCENT = colors.HexColor('#C0392B')
-BLUE_ACCENT= colors.HexColor('#2980B9')
-GREEN_ACC  = colors.HexColor('#27AE60')
-PURPLE_ACC = colors.HexColor('#8E44AD')
-
-# Planet chip colours
-P_COLORS = {
-    'Lagna':   (colors.HexColor('#E8871A'), WHITE),
-    'Sun':     (colors.HexColor('#E8871A'), WHITE),
-    'Moon':    (colors.HexColor('#2980B9'), WHITE),
-    'Mars':    (colors.HexColor('#C0392B'), WHITE),
-    'Mercury': (colors.HexColor('#27AE60'), WHITE),
-    'Jupiter': (colors.HexColor('#8B6914'), WHITE),
-    'Venus':   (colors.HexColor('#8E44AD'), WHITE),
-    'Saturn':  (colors.HexColor('#5D6D7E'), WHITE),
-    'Rahu':    (colors.HexColor('#2C3E50'), colors.HexColor('#DDD')),
-    'Ketu':    (colors.HexColor('#7F8C8D'), WHITE),
-}
-
-W, H = A4
-M    = 15*mm   # page margin
-
-# South Indian Rasi positions in 4x4 grid (0-indexed row,col)
-# Row 0=top, Col 0=left
-SOUTH_POS = {
-    0:  (0,1), 1:  (0,2), 2:  (0,3), 3:  (1,3),
-    4:  (2,3), 5:  (3,3), 6:  (3,2), 7:  (3,1),
-    8:  (3,0), 9:  (2,0), 10: (1,0), 11: (0,0),
-}
-
-# ── FONT SETUP ──────────────────────────────────────────────────────────────────
-
-_fonts_registered = False
-
-def register_fonts():
-    global _fonts_registered
-    if _fonts_registered:
-        return
-    # Register DejaVu for Unicode (Tamil, Hindi etc)
-    # We'll use built-in Helvetica for ASCII and embed Unicode safely
-    try:
-        import urllib.request, os, tempfile
-        # Try to use system fonts
-        import platform
-        font_paths = []
-        if platform.system() == 'Linux':
-            font_paths = [
-                '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-                '/usr/share/fonts/truetype/freefont/FreeSans.ttf',
-                '/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf',
-                '/usr/share/fonts/opentype/noto/NotoSansTamil-Regular.otf',
-            ]
-        for fp in font_paths:
-            if os.path.exists(fp):
-                try:
-                    pdfmetrics.registerFont(TTFont('Unicode', fp))
-                    _fonts_registered = True
-                    return
-                except:
-                    continue
-    except:
-        pass
-    _fonts_registered = True
-
-def get_font(lang='en', bold=False):
-    """Return best font for the language"""
-    register_fonts()
-    # For complex scripts, try Unicode font
-    if lang in ['ta','hi','te','kn','ml','mr','bn']:
-        try:
-            pdfmetrics.getFont('Unicode')
-            return 'Unicode'
-        except:
-            pass
-    return 'Helvetica-Bold' if bold else 'Helvetica'
-
-def safe_text(c, text, x, y, font='Helvetica', size=10, color=colors.black):
-    """Draw text safely, falling back to ASCII if Unicode font unavailable"""
-    c.setFont(font, size)
-    c.setFillColor(color)
-    try:
-        c.drawString(x, y, text)
-    except Exception:
-        # Fallback: encode as ASCII with replacement
-        c.setFont('Helvetica', size)
-        ascii_text = text.encode('ascii', 'replace').decode('ascii')
-        c.drawString(x, y, ascii_text)
-
-def draw_text_centered(c, text, x, y, font='Helvetica', size=10, color=colors.black):
-    c.setFont(font, size)
-    c.setFillColor(color)
-    try:
-        c.drawCentredString(x, y, text)
-    except:
-        c.setFont('Helvetica', size)
-        c.drawCentredString(x, y, text.encode('ascii','replace').decode())
-
-# ── PAGE SETUP HELPERS ─────────────────────────────────────────────────────────
-
-def new_page(c, page_num, total_pages, data, lang):
-    """Draw page border, header strip, footer"""
-    # Subtle background
-    c.setFillColor(CREAM)
-    c.rect(0, 0, W, H, fill=1, stroke=0)
-
-    # Top gold band
-    c.setFillColor(DARK_BG)
-    c.rect(0, H-18*mm, W, 18*mm, fill=1, stroke=0)
-
-    # OM symbol + title
-    f = get_font(lang)
-    draw_text_centered(c, '🕉  JOTHIDAM · ஜோதிடம்', W/2, H-10*mm, 'Helvetica-Bold', 13, GOLD)
-    draw_text_centered(c, lbl('report_title', lang), W/2, H-15*mm, f, 8, GOLD_LIGHT)
-
-    # Side decorative lines
-    c.setStrokeColor(GOLD_DIM)
-    c.setLineWidth(0.5)
-    c.line(M, H-20*mm, W-M, H-20*mm)
-
-    # Footer band
-    c.setFillColor(DARK_BG)
-    c.rect(0, 0, W, 12*mm, fill=1, stroke=0)
-    f_sm = 'Helvetica'
-    c.setFont(f_sm, 7)
-    c.setFillColor(GOLD_DIM)
-    c.drawString(M, 4*mm, f'{lbl("generated", lang)}: {date.today().strftime("%d %b %Y")} · horoscopegen.in')
-    c.drawRightString(W-M, 4*mm, f'{lbl("page", lang)} {page_num} {lbl("of", lang)} {total_pages}')
-    c.setFillColor(GOLD_DIM)
-    c.drawCentredString(W/2, 4*mm, lbl('footer_note', lang))
-
-    # Border
-    c.setStrokeColor(GOLD_DIM)
-    c.setLineWidth(0.7)
-    c.rect(M/2, 12*mm + 2, W-M, H-18*mm - 12*mm - 4, stroke=1, fill=0)
-
-    return H - 22*mm  # return starting Y for content
-
-# ── COVER PAGE ────────────────────────────────────────────────────────────────
-
-def draw_cover(c, data, lang):
-    # Full dark background
-    c.setFillColor(DARK_BG)
-    c.rect(0, 0, W, H, fill=1, stroke=0)
-
-    # Decorative golden border
-    c.setStrokeColor(GOLD)
-    c.setLineWidth(2)
-    c.rect(10*mm, 10*mm, W-20*mm, H-20*mm, stroke=1, fill=0)
-    c.setLineWidth(0.5)
-    c.rect(12*mm, 12*mm, W-24*mm, H-24*mm, stroke=1, fill=0)
-
-    # Top decorative strip
-    c.setFillColor(GOLD)
-    c.rect(10*mm, H-40*mm, W-20*mm, 3*mm, fill=1, stroke=0)
-    c.rect(10*mm, H-44*mm, W-20*mm, 0.5*mm, fill=1, stroke=0)
-
-    # OM symbol large
-    draw_text_centered(c, '🕉', W/2, H-70*mm, 'Helvetica-Bold', 36, GOLD)
-
-    # Title
-    draw_text_centered(c, 'JOTHIDAM', W/2, H-88*mm, 'Helvetica-Bold', 32, GOLD)
-    draw_text_centered(c, 'ஜோதிடம்  ·  ज्योतिषम्', W/2, H-96*mm, get_font('ta'), 14, GOLD_LIGHT)
-
-    # Divider
-    c.setStrokeColor(GOLD)
-    c.setLineWidth(0.7)
-    c.line(M*3, H-102*mm, W-M*3, H-102*mm)
-
-    # Report type
-    draw_text_centered(c, lbl('report_title', lang), W/2, H-112*mm, 'Helvetica-Bold', 16, GOLD_LIGHT)
-
-    # Name
-    c.setFillColor(GOLD)
-    c.rect(M*2, H-140*mm, W-M*4, 20*mm, fill=1, stroke=0)
-    draw_text_centered(c, data['name'], W/2, H-132*mm, 'Helvetica-Bold', 18, DARK_BG)
-
-    # Birth details box
-    c.setFillColor(BROWN_MID)
-    c.rect(M*2, H-195*mm, W-M*4, 48*mm, fill=1, stroke=0)
-    c.setStrokeColor(GOLD_DIM)
-    c.setLineWidth(0.5)
-    c.rect(M*2, H-195*mm, W-M*4, 48*mm, stroke=1, fill=0)
-
-    bf = get_font(lang)
-    y = H-157*mm
-    for key, val in [
-        (lbl('dob', lang), data['dob']),
-        (lbl('tob', lang), data['tob']),
-        (lbl('pob', lang), data['pob']),
-    ]:
-        c.setFont('Helvetica', 9)
-        c.setFillColor(GOLD_DIM)
-        c.drawString(M*3, y, key + ' :')
-        c.setFont(bf, 10)
-        c.setFillColor(GOLD_LIGHT)
-        c.drawString(M*3 + 45*mm, y, val)
-        y -= 13*mm
-
-    # Bottom astro info
-    lagna_name = get_rasi_name(data['lagna_rasi'], lang)
-    rasi_name  = get_rasi_name(data['moon_rasi'],  lang)
-    nak_name   = get_nak_name(data['nak_num'], lang)
-    c.setFillColor(BROWN_MID)
-    c.rect(M*2, H-255*mm, W-M*4, 50*mm, fill=1, stroke=0)
-    c.setStrokeColor(GOLD_DIM)
-    c.rect(M*2, H-255*mm, W-M*4, 50*mm, stroke=1, fill=0)
-
-    box_items = [
-        (lbl('lagna', lang),    lagna_name),
-        (lbl('janma_rasi',lang), rasi_name),
-        (lbl('janma_nak',lang),  f'{nak_name} - {lbl("pada",lang)} {data["nak_pada"]}'),
-        (lbl('cur_dasa',lang),   f'{data["cur_dasa"]["dasa"]} → {data["cur_bhukti"]["bhukti"]}'),
-    ]
-    y = H-223*mm
-    for key, val in box_items:
-        c.setFont('Helvetica', 8)
-        c.setFillColor(GOLD_DIM)
-        c.drawString(M*3, y, key + ' :')
-        c.setFont(bf, 10)
-        c.setFillColor(GOLD_LIGHT)
-        c.drawString(M*3 + 55*mm, y, str(val))
-        y -= 10*mm
-
-    # Bottom note
-    draw_text_centered(c, 'horoscopegen.in', W/2, 35*mm, 'Helvetica', 9, GOLD_DIM)
-    draw_text_centered(c, 'Generated by Jothidam · Vedic Astrology', W/2, 28*mm, 'Helvetica', 8, GOLD_DIM)
-
-    c.showPage()
-
-# ── SOUTH INDIAN RASI CHART DRAWER ────────────────────────────────────────────
-
-def draw_south_chart(c, data, ox, oy, size, lang, is_navamsa=False):
-    """
-    Draw proper South Indian square chart.
-    ox,oy = bottom-left corner of the chart square
-    size  = side length of the entire chart
-    """
-    # Background
-    c.setFillColor(DARK_BG)
-    c.rect(ox, oy, size, size, fill=1, stroke=0)
-
-    # Outer border
-    c.setStrokeColor(GOLD)
-    c.setLineWidth(1.5)
-    c.rect(ox, oy, size, size, stroke=1, fill=0)
-
-    # Inner grid lines (4x4)
-    cell = size / 4
-    c.setStrokeColor(GOLD_DIM)
-    c.setLineWidth(0.6)
-
-    # Vertical lines at 1/4, 1/2, 3/4
-    for i in [1,2,3]:
-        c.line(ox + i*cell, oy, ox + i*cell, oy+size)
-    # Horizontal lines at 1/4, 1/2, 3/4
-    for i in [1,2,3]:
-        c.line(ox, oy + i*cell, ox+size, oy + i*cell)
-
-    # Diagonal lines in corner cells
-    diag_pairs = {
-        (0,0): ((ox+cell, oy+3*cell), (ox, oy+4*cell)),        # top-left: TL→BR becomes ↘
-        (0,3): ((ox+3*cell, oy+3*cell), (ox+4*cell, oy+4*cell)), # top-right
-        (3,0): ((ox, oy), (ox+cell, oy+cell)),                  # bottom-left
-        (3,3): ((ox+3*cell, oy), (ox+4*cell, oy+cell)),         # bottom-right
-    }
-    c.setStrokeColor(GOLD_DIM)
-    c.setLineWidth(0.8)
-    # Corner diagonal lines (cross pattern)
-    # Top-left corner
-    c.line(ox, oy+3*cell, ox+cell, oy+4*cell)
-    c.line(ox, oy+4*cell, ox+cell, oy+3*cell)
-    # Top-right corner
-    c.line(ox+3*cell, oy+3*cell, ox+4*cell, oy+4*cell)
-    c.line(ox+3*cell, oy+4*cell, ox+4*cell, oy+3*cell)
-    # Bottom-left corner
-    c.line(ox, oy, ox+cell, oy+cell)
-    c.line(ox, oy+cell, ox+cell, oy)
-    # Bottom-right corner
-    c.line(ox+3*cell, oy, ox+4*cell, oy+cell)
-    c.line(ox+3*cell, oy+cell, ox+4*cell, oy)
-
-    # Center 2×2 block — fill with dark and draw birth details
-    cx_left  = ox + cell
-    cy_bottom = oy + cell
-    c.setFillColor(BROWN_MID)
-    c.rect(cx_left, cy_bottom, 2*cell, 2*cell, fill=1, stroke=0)
-    c.setStrokeColor(GOLD)
-    c.setLineWidth(0.8)
-    c.rect(cx_left, cy_bottom, 2*cell, 2*cell, stroke=1, fill=0)
-
-    # Center text
-    cx = ox + 2*cell  # horizontal center
-    if not is_navamsa:
-        bf = get_font(lang)
-        draw_text_centered(c, data['name'], cx, oy+2*cell+8*mm, 'Helvetica-Bold', 7, GOLD)
-        dob_parts = data['dob'].split('-')
-        dob_str = f"{dob_parts[2]}-{dob_parts[1]}-{dob_parts[0]}" if len(dob_parts)==3 else data['dob']
-        draw_text_centered(c, dob_str, cx, oy+2*cell+3*mm, 'Helvetica', 6, GOLD_LIGHT)
-        draw_text_centered(c, data['tob'], cx, oy+2*cell-1*mm, 'Helvetica', 6, GOLD_DIM)
-        nak_n = get_nak_name(data['nak_num'], lang)
-        draw_text_centered(c, f'{nak_n}-{data["nak_pada"]}', cx, oy+2*cell-6*mm, get_font(lang), 5.5, GOLD_DIM)
-        # "ராசி" label
-        chart_label = lbl('south_indian', lang) if lang != 'en' else 'Rasi'
-        draw_text_centered(c, chart_label, cx, oy+cell+2*mm, get_font(lang), 5.5, GOLD_DIM)
-    else:
-        draw_text_centered(c, 'D9', cx, oy+2*cell+2*mm, 'Helvetica-Bold', 9, GOLD)
-        draw_text_centered(c, 'Navamsa', cx, oy+2*cell-4*mm, 'Helvetica', 7, GOLD_LIGHT)
-
-    # Determine which planets go in which cell
-    if is_navamsa:
-        # Use navamsa positions
-        rasi_planets = [[] for _ in range(12)]
-        for pname, lon in data['planet_list']:
-            nav_rasi = get_navamsa_rasi(lon)
-            rasi_planets[nav_rasi].append(pname)
-        lagna_rasi = get_navamsa_rasi(data['planets']['lag'])
-    else:
-        rasi_planets = [[] for _ in range(12)]
-        for pname, lon in data['planet_list']:
-            rasi_planets[get_rasi(lon)].append(pname)
-        lagna_rasi = data['lagna_rasi']
-
-    # Draw each cell
-    abbr_font = get_font(lang)
-    for rasi_idx, (row, col) in SOUTH_POS.items():
-        # Grid in ReportLab: row 0 = top → in RL coords: oy + (3-row)*cell
-        cell_x = ox + col*cell
-        cell_y = oy + (3-row)*cell
-
-        # Skip center cells
-        if (row in [1,2]) and (col in [1,2]):
-            continue
-
-        is_lagna = (rasi_idx == lagna_rasi)
-
-        # Cell background highlight for lagna
-        if is_lagna:
-            c.setFillColor(colors.HexColor('#2A1500'))
-            c.rect(cell_x, cell_y, cell, cell, fill=1, stroke=0)
-
-        # Rasi name (top-left of cell)
-        rasi_short = get_rasi_name(rasi_idx, lang, short=True)
-        c.setFont(abbr_font, 5)
-        c.setFillColor(GOLD_DIM if not is_lagna else GOLD)
-        try:
-            c.drawString(cell_x + 1.5*mm, cell_y + cell - 4*mm, rasi_short)
-        except:
-            c.setFont('Helvetica', 5)
-            c.drawString(cell_x + 1.5*mm, cell_y + cell - 4*mm, RASIS_FULL['en'][rasi_idx][:4])
-
-        # House number (top-right)
-        house_num = ((rasi_idx - lagna_rasi + 12) % 12) + 1
-        c.setFont('Helvetica', 4.5)
-        c.setFillColor(GOLD_DIM)
-        c.drawRightString(cell_x + cell - 1.5*mm, cell_y + cell - 4*mm, str(house_num))
-
-        # Planet chips — vertical stack
-        planets_here = rasi_planets[rasi_idx]
-        chip_h   = 3.8*mm
-        chip_w   = cell - 3*mm
-        start_y  = cell_y + cell - 8*mm  # start below rasi name
-
-        for pi, pname in enumerate(planets_here[:5]):  # max 5 planets per cell
-            py = start_y - pi * (chip_h + 0.5*mm)
-            if py < cell_y + 1*mm:
-                break
-            bg_col, fg_col = P_COLORS.get(pname, (BROWN_MID, GOLD_LIGHT))
-
-            # Draw chip background
-            c.setFillColor(bg_col)
-            c.roundRect(cell_x + 1.5*mm, py - chip_h + 0.5*mm, chip_w, chip_h, 1*mm, fill=1, stroke=0)
-
-            # Planet abbreviation
-            abbr = get_planet_abbr(pname, lang)
-            c.setFont(abbr_font, 5)
-            c.setFillColor(fg_col)
-            try:
-                c.drawCentredString(cell_x + cell/2, py - chip_h + 1.5*mm, abbr)
-            except:
-                c.setFont('Helvetica', 5)
-                c.drawCentredString(cell_x + cell/2, py - chip_h + 1.5*mm, pname[:2])
-
-    # Lagna marker (bold border on lagna cell)
-    if lagna_rasi in SOUTH_POS:
-        row, col = SOUTH_POS[lagna_rasi]
-        lx = ox + col*cell
-        ly = oy + (3-row)*cell
-        c.setStrokeColor(GOLD)
-        c.setLineWidth(1.5)
-        c.rect(lx, ly, cell, cell, stroke=1, fill=0)
-
-# ── PLANET TABLE ───────────────────────────────────────────────────────────────
-
-def draw_planet_table(c, data, y, lang):
-    """Draw planet positions table, returns new Y"""
-    f  = get_font(lang)
-    W_inner = W - 2*M
-
-    # Section header
-    c.setFillColor(DARK_BG)
-    c.rect(M, y-8*mm, W_inner, 8*mm, fill=1, stroke=0)
-    draw_text_centered(c, lbl('planet_positions', lang), W/2, y-5.5*mm, 'Helvetica-Bold', 11, GOLD)
-    y -= 8*mm
-
-    # Column widths
-    cols = [32*mm, 34*mm, 22*mm, 40*mm, 14*mm, 16*mm]
-    headers = [lbl('planet',lang), lbl('rasi',lang), lbl('degrees',lang),
-               lbl('nakshatra',lang), lbl('pada',lang), lbl('house',lang)]
-
-    # Header row
-    c.setFillColor(BROWN_MID)
-    c.rect(M, y-7*mm, W_inner, 7*mm, fill=1, stroke=0)
-    x = M
-    for i, h in enumerate(headers):
-        c.setFont(f, 8)
-        c.setFillColor(GOLD_LIGHT)
-        try:
-            c.drawString(x + 2*mm, y-5*mm, h)
-        except:
-            c.setFont('Helvetica', 8)
-            c.drawString(x + 2*mm, y-5*mm, h.encode('ascii','replace').decode())
-        x += cols[i]
-    y -= 7*mm
-
-    # Rows
-    lagna_rasi = data['lagna_rasi']
-    for ri, (pname, lon) in enumerate(data['planet_list']):
-        rasi_num  = get_rasi(lon)
-        house     = ((rasi_num - lagna_rasi + 12) % 12) + 1
-        nak_n     = get_nak_name(get_nak(lon), lang)
-        pada      = get_pada(lon)
-        rasi_name = get_rasi_name(rasi_num, lang)
-        deg_str   = fmt_deg(lon)
-        pname_loc = get_planet_name(pname, lang)
-        abbr_loc  = get_planet_abbr(pname, lang)
-
-        # Row background
-        bg = CREAM if ri % 2 == 0 else CREAM_DARK
-        c.setFillColor(bg)
-        c.rect(M, y-6.5*mm, W_inner, 6.5*mm, fill=1, stroke=0)
-
-        # Planet name with colour chip
-        chip_col, _ = P_COLORS.get(pname, (BROWN_MID, WHITE))
-        c.setFillColor(chip_col)
-        c.roundRect(M+1*mm, y-5.5*mm, 5*mm, 4.5*mm, 1*mm, fill=1, stroke=0)
-        c.setFont('Helvetica-Bold', 6)
-        c.setFillColor(WHITE)
-        c.drawCentredString(M+3.5*mm, y-4*mm, pname[:2])
-
-        # Planet full name
-        c.setFont(f, 8.5)
-        c.setFillColor(BROWN_DARK)
-        try:
-            c.drawString(M+7*mm, y-4.5*mm, pname_loc)
-        except:
-            c.setFont('Helvetica', 8.5)
-            c.drawString(M+7*mm, y-4.5*mm, pname)
-
-        # Other columns
-        row_data = [None, rasi_name, deg_str, nak_n, str(pada), str(house)]
-        x = M
-        for ci, val in enumerate(row_data):
-            if ci == 0:
-                x += cols[0]; continue
-            c.setFont(f, 8)
-            c.setFillColor(BROWN_DARK)
-            try:
-                c.drawString(x + 2*mm, y-4.5*mm, str(val) if val else '')
-            except:
-                c.setFont('Helvetica', 8)
-                c.drawString(x + 2*mm, y-4.5*mm, str(val).encode('ascii','replace').decode() if val else '')
-            x += cols[ci]
-
-        # Row border
-        c.setStrokeColor(colors.HexColor('#DDDBC0'))
-        c.setLineWidth(0.3)
-        c.line(M, y-6.5*mm, M+W_inner, y-6.5*mm)
-        y -= 6.5*mm
-
-    # Table border
-    c.setStrokeColor(GOLD_DIM)
-    c.setLineWidth(0.6)
-    table_height = 7*mm + len(data['planet_list'])*6.5*mm
-    c.rect(M, y, W_inner, table_height, stroke=1, fill=0)
-
-    return y - 4*mm
-
-# ── DASA BHUKTI TABLE ──────────────────────────────────────────────────────────
-
-def draw_dasa_table(c, data, y, lang, max_rows=None):
-    """Draw Dasa-Bhukti table. Returns new Y."""
-    f  = get_font(lang)
-    today = date.today()
-    W_inner = W - 2*M
-
-    # Section header
-    c.setFillColor(DARK_BG)
-    c.rect(M, y-8*mm, W_inner, 8*mm, fill=1, stroke=0)
-    draw_text_centered(c, lbl('dasa_bhukti', lang), W/2, y-5.5*mm, 'Helvetica-Bold', 11, GOLD)
-    y -= 8*mm
-
-    cols = [34*mm, 34*mm, 32*mm, 32*mm, 26*mm]
-    headers = [lbl('dasa',lang), lbl('bhukti',lang), lbl('start',lang), lbl('end',lang), lbl('status',lang)]
-
-    # Header
-    c.setFillColor(BROWN_MID)
-    c.rect(M, y-7*mm, W_inner, 7*mm, fill=1, stroke=0)
-    x = M
-    for i, h in enumerate(headers):
-        c.setFont(f, 8)
-        c.setFillColor(GOLD_LIGHT)
-        try:
-            c.drawString(x + 2*mm, y-5*mm, h)
-        except:
-            c.setFont('Helvetica', 8)
-            c.drawString(x + 2*mm, y-5*mm, h.encode('ascii','replace').decode())
-        x += cols[i]
-    y -= 7*mm
-
-    # All bhukti rows
-    from astro_engine import build_bhuktis, DASA_ORDER, DASA_YRS
-    rows_drawn = 0
-    for drow in data['dasas']:
-        bhuktis = build_bhuktis(drow['dasa'], drow['start'], drow['end'])
-        for brow in bhuktis:
-            if max_rows and rows_drawn >= max_rows:
-                return y
-            is_cur = (brow['start'] <= today <= brow['end'])
-            is_past = brow['end'] < today
-
-            if is_cur:
-                bg = colors.HexColor('#FFF3CD')
-                status_text = lbl('current', lang)
-                status_col  = colors.HexColor('#8B6914')
-            elif is_past:
-                bg = CREAM_DARK
-                status_text = lbl('completed', lang)
-                status_col  = BROWN_MID
+import os
+
+from fpdf import FPDF
+
+import charts
+import i18n
+
+FONT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fonts')
+SCRIPT_FONTS = {'tamil': 'NotoSansTamil', 'devanagari': 'NotoSansDevanagari', 'telugu': 'NotoSansTelugu',
+                'kannada': 'NotoSansKannada', 'malayalam': 'NotoSansMalayalam', 'bengali': 'NotoSansBengali'}
+
+INK = (43, 27, 14)
+MUTED = (122, 106, 88)
+BAND = (90, 42, 12)
+HEAD = (138, 75, 20)
+ACCENT = (200, 129, 26)
+RULE = (201, 183, 156)
+ALT = (251, 245, 234)
+SOFT = (244, 231, 207)
+LAGNA = (255, 226, 168)
+CURRENT = (255, 241, 184)
+WHITE = (255, 255, 255)
+
+MARGIN = 12.0
+PAGE_W = 210.0
+BODY_W = PAGE_W - 2 * MARGIN
+DATE = '%d-%m-%Y'
+
+
+class Report(FPDF):
+    def __init__(self, res, lang):
+        super().__init__(orientation='P', unit='mm', format='A4')
+        self.res, self.lang = res, lang
+        self.set_margins(MARGIN, 16, MARGIN)
+        self.set_auto_page_break(True, margin=16)
+        self.add_font('main', '', os.path.join(FONT_DIR, 'NotoSans-Regular.ttf'))
+        self.add_font('main', 'B', os.path.join(FONT_DIR, 'NotoSans-Bold.ttf'))
+        script = i18n.script_of(lang)
+        if script in SCRIPT_FONTS:
+            base = SCRIPT_FONTS[script]
+            self.add_font(script, '', os.path.join(FONT_DIR, f'{base}-Regular.ttf'))
+            self.add_font(script, 'B', os.path.join(FONT_DIR, f'{base}-Bold.ttf'))
+            self.set_fallback_fonts([script], exact_match=False)
+        self.set_text_shaping(True)
+        self.set_title(f"HoroscopeGen - {res['meta']['name']}")
+        self.set_author('horoscopegen.in')
+        self.set_creator('HoroscopeGen')
+        self.alias_nb_pages()
+
+    # -- page furniture -------------------------------------------------------
+    def header(self):
+        self.set_font('main', 'B', 8)
+        self.set_text_color(*BAND)
+        self.set_xy(MARGIN, 7)
+        self.cell(BODY_W / 2, 5, f"HoroscopeGen  ·  {i18n.L('report_title', self.lang)}")
+        self.set_font('main', '', 8)
+        self.set_text_color(*MUTED)
+        self.cell(BODY_W / 2, 5, self.res['meta']['name'], align='R')
+        self.set_draw_color(*ACCENT)
+        self.set_line_width(0.4)
+        self.line(MARGIN, 12.5, PAGE_W - MARGIN, 12.5)
+        self.set_y(16)
+
+    def footer(self):
+        self.set_y(-12)
+        self.set_font('main', '', 7)
+        self.set_text_color(*MUTED)
+        self.cell(BODY_W / 3, 5, 'horoscopegen.in')
+        self.cell(BODY_W / 3, 5, f"{i18n.Lv('page', self.lang)} {self.page_no()} / {{nb}}", align='C')
+        self.cell(BODY_W / 3, 5, self.res['meta']['generated_at'].strftime(DATE), align='R')
+
+    # -- blocks ---------------------------------------------------------------
+    def band(self, text, sub=None):
+        self.set_fill_color(*BAND)
+        self.set_text_color(*WHITE)
+        self.set_font('main', 'B', 14)
+        self.set_x(MARGIN)
+        self.cell(BODY_W, 10, text, fill=True, align='C', new_x='LMARGIN', new_y='NEXT')
+        if sub:
+            self.set_fill_color(*SOFT)
+            self.set_text_color(*MUTED)
+            self.set_font('main', '', 8)
+            self.cell(BODY_W, 6, sub, fill=True, align='C', new_x='LMARGIN', new_y='NEXT')
+        self.ln(3)
+
+    def section(self, text, x=MARGIN, w=BODY_W, need=30):
+        """Section heading; starts a new page when fewer than `need` mm remain."""
+        if self.get_y() + need > self.h - 16:
+            self.add_page()
+        self.set_x(x)
+        self.set_fill_color(*HEAD)
+        self.set_text_color(*WHITE)
+        self.set_font('main', 'B', 9.5)
+        self.cell(w, 6.5, '  ' + self._fit(text, w - 4), fill=True, new_x='LMARGIN', new_y='NEXT')
+
+    def pairs(self, x, y, w, items, label_w=0.42, row_h=5.6):
+        """Label / value box. Returns the y below it."""
+        self.set_draw_color(*RULE)
+        self.set_line_width(0.15)
+        if self.lang == 'bi':
+            label_w = max(label_w, 0.54)
+        lw = w * label_w
+        for label, value in items:
+            self.set_xy(x, y)
+            self.set_font('main', 'B', 7.6)
+            self.set_text_color(*MUTED)
+            self.set_fill_color(*SOFT)
+            self.cell(lw, row_h, ' ' + self._fit(label, lw - 2), border=1, fill=True)
+            self.set_font('main', '', 8.2)
+            self.set_text_color(*INK)
+            self.cell(w - lw, row_h, ' ' + self._fit(str(value), w - lw - 2), border=1)
+            y += row_h
+        return y
+
+    def _fit(self, text, width):
+        """Shrink the current font until text fits the width (never clips)."""
+        size = self.font_size_pt
+        while self.get_string_width(text) > width and size > 4.4:
+            size -= 0.3
+            self.set_font_size(size)
+        return text
+
+    def table(self, cols, rows, current=None, font_size=None, line_h=4.6, wrap=False):
+        """
+        cols: [(heading, relative width, align)]; rows: list of value lists.
+        Headings repeat on every page and a row never splits across pages.
+        Normal rows are one line each, with text shrunk to fit its column;
+        wrap=True lays long text out on several lines (small tables only).
+        """
+        if font_size is None:
+            # Indian scripts set wider than Latin; bilingual cells carry two names.
+            font_size = {'en': 7.6, 'bi': 6.4}.get(self.lang, 7.0)
+        total = sum(c[1] for c in cols)
+        widths = [BODY_W * c[1] / total for c in cols]
+        aligns = [c[2][0] for c in cols]
+        has_head = any(c[0] for c in cols)
+        bottom = self.h - 16
+        self.set_draw_color(*RULE)
+        self.set_line_width(0.15)
+
+        def lines_for(text, w, style):
+            self.set_font('main', style, font_size)
+            return self.multi_cell(w, line_h, text, dry_run=True, output='LINES', padding=(0, 1))
+
+        def head_row():
+            if not has_head:
+                return
+            self.set_font('main', 'B', font_size)
+            n = max(len(lines_for(c[0], w, 'B')) for c, w in zip(cols, widths))
+            h = n * line_h + 1.6
+            x, y = MARGIN, self.get_y()
+            self.set_fill_color(*HEAD)
+            self.set_text_color(*WHITE)
+            for c, w in zip(cols, widths):
+                self.rect(x, y, w, h, style='DF')
+                k = len(lines_for(c[0], w, 'B'))
+                self.set_xy(x, y + (h - k * line_h) / 2)
+                self.multi_cell(w, line_h, c[0], align='C', padding=(0, 1))
+                x += w
+            self.set_xy(MARGIN, y + h)
+
+        head_row()
+        for i, row in enumerate(rows):
+            is_cur = bool(current) and i in current
+            vals = ['' if v is None else str(v) for v in row]
+            if wrap:
+                counts = [len(lines_for(v, w, 'B' if (is_cur or (not has_head and j == 0)) else ''))
+                          for j, (v, w) in enumerate(zip(vals, widths))]
+                h = max(counts) * line_h + 1.4
             else:
-                bg = CREAM if rows_drawn % 2 == 0 else CREAM_DARK
-                status_text = lbl('upcoming', lang)
-                status_col  = BLUE_ACCENT
+                h = line_h + 0.6
+            if self.get_y() + h > bottom:
+                self.add_page()
+                head_row()
+            x, y = MARGIN, self.get_y()
+            for j, (v, w, al) in enumerate(zip(vals, widths, aligns)):
+                label = not has_head and j == 0
+                self.set_fill_color(*(CURRENT if is_cur else SOFT if label else ALT if i % 2 else WHITE))
+                self.set_text_color(*(MUTED if label else INK))
+                self.set_font('main', 'B' if (is_cur or label) else '', font_size)
+                if wrap:
+                    self.rect(x, y, w, h, style='DF')
+                    self.set_xy(x, y + 0.7)
+                    self.multi_cell(w, line_h, v, align=al, padding=(0, 1))
+                else:
+                    # Measure only when the text could be too wide (saves shaping work).
+                    if len(v) * font_size * 0.26 > w - 2:
+                        self._fit(v, w - 2)
+                    self.set_xy(x, y)
+                    self.cell(w, h, v, border=1, fill=True, align=al)
+                x += w
+            self.set_xy(MARGIN, y + h)
+        self.ln(3)
 
-            c.setFillColor(bg)
-            c.rect(M, y-6*mm, W_inner, 6*mm, fill=1, stroke=0)
+    # -- charts ---------------------------------------------------------------
+    def chart(self, x, y, size, spec, style='south'):
+        """Title strip plus chart. Returns the y below it."""
+        self.set_xy(x, y)
+        self.set_fill_color(*HEAD)
+        self.set_text_color(*WHITE)
+        self.set_font('main', 'B', 8.5)
+        self.cell(size, 5.5, self._fit(spec['title'], size - 2), fill=True, align='C')
+        y += 5.5
+        # Chart text is placed with cell() so the script fonts are used; a chart
+        # near the foot of the page must not trigger an automatic page break.
+        self.set_auto_page_break(False)
+        if style == 'north':
+            self._north(x, y, size, spec)
+        else:
+            self._south(x, y, size, spec)
+        self.set_auto_page_break(True, margin=16)
+        return y + size + 4
 
-            # Gold bar for current
-            if is_cur:
-                c.setFillColor(GOLD)
-                c.rect(M, y-6*mm, 1.5*mm, 6*mm, fill=1, stroke=0)
+    def _put(self, x, y, w, h, text, align='L'):
+        # local_context isolates the font switch made for script (fallback)
+        # fonts, which would otherwise leak into the next piece of text.
+        with self.local_context():
+            self.set_xy(x, y)
+            self.cell(w, h, text, align=align)
 
-            row_vals = [
-                get_planet_name(drow['dasa'], lang),
-                get_planet_name(brow['bhukti'], lang),
-                fmt_date(brow['start']),
-                fmt_date(brow['end']),
-                status_text,
-            ]
-            x = M
-            for ci, val in enumerate(row_vals):
-                font_w = 'Helvetica-Bold' if is_cur else f
-                c.setFont(font_w, 7.5 if ci < 2 else 7)
-                c.setFillColor(status_col if ci == 4 else BROWN_DARK)
-                try:
-                    c.drawString(x + 2*mm, y-4.5*mm, str(val))
-                except:
-                    c.setFont('Helvetica', 7.5)
-                    c.drawString(x + 2*mm, y-4.5*mm, str(val).encode('ascii','replace').decode())
-                x += cols[ci]
+    def _centered(self, cx, cy, lines, size_pt, bold=True, color=INK, lead=1.25, max_w=None):
+        self.set_font('main', 'B' if bold else '', size_pt)
+        if max_w:
+            while size_pt > 5 and max(self.get_string_width(ln_) for ln_ in lines) > max_w:
+                size_pt -= 0.3
+                self.set_font_size(size_pt)
+        self.set_text_color(*color)
+        lh = size_pt * 0.3528 * lead
+        y = cy - lh * len(lines) / 2
+        for ln_ in lines:
+            w = self.get_string_width(ln_) + 4
+            self._put(cx - w / 2, y, w, lh, ln_, 'C')
+            y += lh
 
-            c.setStrokeColor(colors.HexColor('#DDDBC0'))
-            c.setLineWidth(0.3)
-            c.line(M, y-6*mm, M+W_inner, y-6*mm)
-            y -= 6*mm
-            rows_drawn += 1
-
-    return y - 3*mm
-
-# ── YOGAS PAGE ────────────────────────────────────────────────────────────────
-
-def draw_yogas_section(c, data, y, lang):
-    f = get_font(lang)
-    W_inner = W - 2*M
-
-    c.setFillColor(DARK_BG)
-    c.rect(M, y-8*mm, W_inner, 8*mm, fill=1, stroke=0)
-    draw_text_centered(c, lbl('yogas', lang), W/2, y-5.5*mm, 'Helvetica-Bold', 11, GOLD)
-    y -= 8*mm
-
-    for i, (yoga_name, yoga_desc) in enumerate(data['yogas']):
-        box_h = 18*mm
-        bg    = CREAM if i % 2 == 0 else CREAM_DARK
-        c.setFillColor(bg)
-        c.rect(M, y-box_h, W_inner, box_h, fill=1, stroke=0)
-
-        # Yoga name
-        c.setFillColor(GOLD)
-        c.rect(M, y-box_h, 2*mm, box_h, fill=1, stroke=0)
-        c.setFont('Helvetica-Bold', 10)
-        c.setFillColor(BROWN_DARK)
-        c.drawString(M+5*mm, y-8*mm, yoga_name)
-
-        # Description
-        c.setFont('Helvetica', 8)
-        c.setFillColor(BROWN_MID)
-        # Simple word wrap
-        words = yoga_desc.split()
-        line = ''
-        ly   = y - 13*mm
-        for w in words:
-            test = (line + ' ' + w).strip()
-            if len(test) * 3.5 > (W_inner - 10*mm):
-                c.drawString(M+5*mm, ly, line)
-                ly -= 4*mm
-                line = w
+    def _wrap(self, tokens, max_w, size_pt):
+        """Greedy wrap of planet tokens into lines no wider than max_w."""
+        self.set_font('main', 'B', size_pt)
+        lines, cur = [], ''
+        for t in tokens:
+            trial = (cur + ' ' + t).strip()
+            if cur and self.get_string_width(trial) > max_w:
+                lines.append(cur)
+                cur = t
             else:
-                line = test
-        if line:
-            c.drawString(M+5*mm, ly, line)
+                cur = trial
+        if cur:
+            lines.append(cur)
+        return lines
 
-        c.setStrokeColor(colors.HexColor('#DDDBC0'))
-        c.setLineWidth(0.3)
-        c.line(M, y-box_h, M+W_inner, y-box_h)
-        y -= box_h
+    def _south(self, x, y, size, spec):
+        c = size / 4.0
+        self.set_line_width(0.2)
+        self.set_draw_color(*INK)
+        for cell in spec['signs']:
+            gr, gc = charts.SOUTH_POS[cell['sign']]
+            cx, cy = x + gc * c, y + gr * c
+            if cell['lagna']:
+                self.set_fill_color(*LAGNA)
+                self.rect(cx, cy, c, c, style='DF')
+            else:
+                self.rect(cx, cy, c, c)
+            self.set_font('main', 'B' if cell['lagna'] else '', 5.6)
+            self.set_text_color(*MUTED)
+            self._put(cx + 0.2, cy + 0.6, c / 2, 3, cell['label'], 'L')
+            self._put(cx + c / 2, cy + 0.6, c / 2 - 0.2, 3, cell['tag'], 'R')
+            size_pt = 8.4
+            lines = self._wrap(cell['planets'], c - 2, size_pt)
+            while len(lines) > 3 and size_pt > 6:
+                size_pt -= 0.6
+                lines = self._wrap(cell['planets'], c - 2, size_pt)
+            if lines:
+                self._centered(cx + c / 2, cy + c / 2 + 1.2, lines, size_pt)
+        self.set_fill_color(*SOFT)
+        self.rect(x + c, y + c, 2 * c, 2 * c, style='DF')
+        self._centered(x + 2 * c, y + 2 * c, spec['center'], 8.2, color=BAND, max_w=2 * c - 3)
+        self.set_line_width(0.5)
+        self.rect(x, y, size, size)
 
-    return y - 4*mm
+    def _north(self, x, y, size, spec):
+        self.set_draw_color(*INK)
+        self.set_line_width(0.2)
+        for (x1, y1), (x2, y2) in charts.NORTH_LINES:
+            self.line(x + x1 * size, y + y1 * size, x + x2 * size, y + y2 * size)
+        for h in spec['houses']:
+            ax, ay, _ = charts.NORTH_HOUSES[h['house']]
+            nx, ny = charts.NORTH_NUM[h['house']]
+            diamond = h['house'] in (1, 4, 7, 10)
+            side = h['house'] in (3, 5, 9, 11)
+            if side:
+                lines = h['planets']
+                size_pt = 7.4 if len(lines) <= 4 else 6.2
+            else:
+                max_w = size * (0.30 if diamond else 0.26)
+                size_pt = 8.2
+                lines = self._wrap(h['planets'], max_w, size_pt)
+                while len(lines) > (3 if diamond else 2) and size_pt > 5.8:
+                    size_pt -= 0.6
+                    lines = self._wrap(h['planets'], max_w, size_pt)
+            if lines:
+                self._centered(x + ax * size, y + ay * size, lines, size_pt)
+            first = h['house'] == 1
+            self._centered(x + nx * size, y + ny * size, [str(h['sign_num'])], 6.2, bold=first,
+                           color=ACCENT if first else MUTED)
+        self.set_line_width(0.5)
+        self.rect(x, y, size, size)
 
-# ── LUCKY INFO BOX ────────────────────────────────────────────────────────────
 
-def draw_lucky_section(c, data, y, lang):
-    f = get_font(lang)
-    W_inner = W - 2*M
-    nak_lord = data['nak_lord']
+# ── VALUE HELPERS ─────────────────────────────────────────────────────────────
 
-    c.setFillColor(DARK_BG)
-    c.rect(M, y-8*mm, W_inner, 8*mm, fill=1, stroke=0)
-    draw_text_centered(c, 'Auspicious Details', W/2, y-5.5*mm, 'Helvetica-Bold', 11, GOLD)
-    y -= 8*mm
+def _state(p, lang):
+    bits = []
+    if p.get('retro'):
+        bits.append(i18n.L('retro', lang))
+    if p.get('combust'):
+        bits.append(i18n.L('combust', lang))
+    if p.get('dignity'):
+        bits.append(i18n.word(p['dignity'], lang))
+    return ', '.join(bits) if bits else '—'
 
+
+def _status(row, now, lang):
+    if row.get('current'):
+        return i18n.L('current', lang)
+    return i18n.L('completed', lang) if row['end'] <= now else i18n.L('upcoming', lang)
+
+
+def _balance(bal, lang):
+    return (f"{i18n.planet(bal['lord'], lang)}: {bal['y']} {i18n.Lv('y', lang)} "
+            f"{bal['m']} {i18n.Lv('m', lang)} {bal['d']} {i18n.Lv('d', lang)}")
+
+
+def _houses(nums):
+    return ', '.join(str(n) for n in nums) if nums else '—'
+
+
+def _age(start, birth):
+    return f"{(start - birth).days / 365.25:.2f}"
+
+
+def _hm(dt):
+    return dt.strftime('%H:%M:%S') if dt else '—'
+
+
+# ── PAGES ─────────────────────────────────────────────────────────────────────
+
+def _summary(pdf, specs):
+    res, lang = pdf.res, pdf.lang
+    m, v, kp, alp = res['meta'], res['vedic'], res['kp'], res['alp']
+    L = lambda k: i18n.L(k, lang)
+    pc, lagna, cur, al = v['panchangam'], v['planets'][0], v['dasa']['current'], alp['lagna']
+
+    pdf.add_page()
+    pdf.band(f"HoroscopeGen  ·  {L('report_title')}", f"{m['name']}  ·  {L('subtitle')}")
+    half = (BODY_W - 4) / 2
+    rx = MARGIN + half + 4
+
+    pdf.section(L('birth_details'))
+    y = pdf.get_y()
+    left = [(L('name'), m['name']), (L('dob'), m['local_dt'].strftime(DATE)),
+            (L('tob'), m['local_dt'].strftime('%H:%M:%S')), (L('pob'), m['pob']),
+            (L('lat'), f"{m['lat']:.4f}°"), (L('lon'), f"{m['lon']:.4f}°")]
+    if m.get('gender'):
+        left.append((L('gender'), i18n.word(m['gender'].title(), lang)))
+    right = [(L('tz'), f"{m['tz']} ({m['utc_offset_str']})"),
+             (L('ayanamsha'), f"{m['ayanamsha_name']}  {v['ayanamsha_dms']}"),
+             (L('kp_ayanamsha'), kp['ayanamsha_dms']),
+             (L('nodes'), i18n.word('True' if m['node'] == 'true' else 'Mean', lang)),
+             (L('sunrise'), _hm(pc['sunrise'])), (L('sunset'), _hm(pc['sunset']))]
+    y = max(pdf.pairs(MARGIN, y, half, left), pdf.pairs(rx, y, half, right)) + 3
+
+    pdf.set_y(y)
+    pdf.section(L('core'))
+    y = pdf.get_y()
+    left = [(L('lagna'), f"{i18n.rasi(lagna['sign'], lang)}  {lagna['dms']}"),
+            (L('janma_rasi'), i18n.rasi(v['moon_sign'], lang)),
+            (L('nakshatra'), f"{i18n.nak(v['moon_nak'], lang)} - {i18n.Lv('pada', lang)} {v['moon_pada']}"),
+            (L('nak_lord'), i18n.planet(v['dasa']['birth_star_lord'], lang)),
+            (L('tithi'), f"{i18n.word(pc['paksha'], lang)} {i18n.tithi(pc['tithi'], lang)}"),
+            (L('vara'), i18n.weekday(pc['vara'], lang))]
+    right = [(L('dasa_balance'), _balance(v['dasa']['balance'], lang))]
+    for key, lab in (('dasa', 'dasa'), ('bhukti', 'bhukti'), ('antaram', 'antara')):
+        if lab in cur:
+            right.append((i18n.Lj(['current', key], lang),
+                          f"{i18n.planet(cur[lab]['lord'], lang)}  ({i18n.Lv('until', lang)} "
+                          f"{cur[lab]['end'].strftime(DATE)})"))
+    right.append((L('alp_lagna_now'), f"{i18n.rasi(al['sign'], lang)}  {al['dms']}"))
+    right.append((L('as_of'), m['generated_at'].strftime(DATE)))
+    y = max(pdf.pairs(MARGIN, y, half, left), pdf.pairs(rx, y, half, right)) + 4
+
+    size = min(half, (pdf.h - 18 - y - 2 * 10) / 2)
+    off = (half - size) / 2
+    style = m['chart_style']
+    pdf.chart(MARGIN + off, y, size, specs['d1'], style)
+    y2 = pdf.chart(rx + off, y, size, specs['d9'], style)
+    pdf.chart(MARGIN + off, y2, size, specs['kp'], style)
+    pdf.chart(rx + off, y2, size, specs['alp'], style)
+
+
+def _vedic(pdf, specs):
+    res, lang = pdf.res, pdf.lang
+    m, v = res['meta'], res['vedic']
+    L = lambda k: i18n.L(k, lang)
+    P = lambda n: i18n.planet(n, lang)
+    pc = v['panchangam']
+    style = m['chart_style']
+
+    pdf.add_page()
+    pdf.band(f"{L('vedic')}  ·  {m['name']}", f"{L('ayanamsha')}: {m['ayanamsha_name']} {v['ayanamsha_dms']}")
+    half = (BODY_W - 4) / 2
+    rx = MARGIN + half + 4
+    size = 78.0
+    off = (half - size) / 2
+    y = pdf.get_y()
+    pdf.chart(MARGIN + off, y, size, specs['d1'], style)
+    y = pdf.chart(rx + off, y, size, specs['d9'], style)
+    y_after = pdf.chart(MARGIN + off, y, size, specs['bhava'], style)
+    pdf.set_y(y)
+    pdf.section(L('panchangam'), x=rx, w=half)
+    pdf.pairs(rx, pdf.get_y(), half, [
+        (L('tithi'), f"{i18n.word(pc['paksha'], lang)} {i18n.tithi(pc['tithi'], lang)}"),
+        (L('vara'), i18n.weekday(pc['vara'], lang)),
+        (L('nakshatra'), f"{i18n.nak(pc['nak'], lang)} - {i18n.Lv('pada', lang)} {pc['pada']}"),
+        (L('yoga'), pc['yoga']), (L('karana'), pc['karana']),
+        (L('sunrise'), _hm(pc['sunrise'])), (L('sunset'), _hm(pc['sunset'])),
+        (L('dasa_balance'), _balance(v['dasa']['balance'], lang)),
+    ], row_h=6.4)
+    pdf.set_y(y_after)
+
+    pdf.add_page()
+    pdf.section(L('planet_positions'))
+    cols = [(L('planet'), 12, 'LEFT'), (L('rasi'), 12, 'LEFT'), (L('degree'), 11, 'CENTER'),
+            (L('nakshatra'), 15, 'LEFT'), (L('pada'), 7, 'CENTER'), (L('rasi_lord'), 11, 'LEFT'),
+            (L('star_lord'), 11, 'LEFT'), (L('house'), 7, 'CENTER'), (L('bhava'), 7, 'CENTER'),
+            (L('navamsa'), 11, 'LEFT'), (f"{L('retro')} / {L('combust')} / {L('dignity')}", 17, 'LEFT')]
+    rows = [[P(p['name']), i18n.rasi(p['sign'], lang), p['dms'], i18n.nak(p['nak'], lang), p['pada'],
+             P(p['sign_lord']), P(p['star_lord']), p['house'], p['bhava'], i18n.rasi(p['navamsa'], lang),
+             _state(p, lang)] for p in v['planets']]
+    pdf.table(cols, rows)
+
+    pdf.section(L('bhava_table'), need=70)
+    by_bhava = {}
+    for p in v['planets']:
+        by_bhava.setdefault(p['bhava'], []).append(P(p['name']))
+    cols = [(L('bhava'), 8, 'CENTER'), (L('bhava_start'), 26, 'LEFT'), (L('bhava_mid'), 26, 'LEFT'),
+            (L('planet'), 40, 'LEFT')]
+    rows = [[b['house'], f"{i18n.rasi(b['start_sign'], lang)}  {b['start_dms']}",
+             f"{i18n.rasi(b['madhya_sign'], lang)}  {b['madhya_dms']}",
+             ', '.join(by_bhava.get(b['house'], [])) or '—'] for b in v['bhavas']]
+    pdf.table(cols, rows)
+
+
+def _kp(pdf, specs):
+    res, lang = pdf.res, pdf.lang
+    m, kp = res['meta'], res['kp']
+    L = lambda k: i18n.L(k, lang)
+    P = lambda n: i18n.planet(n, lang)
+    now = m['generated_at']
+
+    pdf.add_page()
+    pdf.band(f"{L('kp')}  ·  {m['name']}",
+             f"{L('kp_ayanamsha')}: {kp['ayanamsha_dms']}  ·  {L('house_system')}: {i18n.word(kp['house_system'], lang)}")
+    half = (BODY_W - 4) / 2
+    rx = MARGIN + half + 4
+    size = 78.0
+    y = pdf.get_y()
+    y_after = pdf.chart(MARGIN + (half - size) / 2, y, size, specs['kp'], m['chart_style'])
+    rp = kp['ruling_planets']
+    pdf.set_y(y)
+    pdf.section(L('ruling_planets'), x=rx, w=half)
+    pdf.pairs(rx, pdf.get_y(), half, [(L(k), P(rp[k])) for k in (
+        'day_lord', 'moon_sign_lord', 'moon_star_lord', 'moon_sub_lord',
+        'lagna_sign_lord', 'lagna_star_lord', 'lagna_sub_lord')], label_w=0.55, row_h=6.4)
+    pdf.set_y(y_after)
+
+    pdf.section(L('node_agents'))
+    pdf.table([(L('node'), 14, 'LEFT'), (L('rasi_lord'), 18, 'LEFT'), (L('star_lord'), 18, 'LEFT'),
+               (L('conjoined'), 50, 'LEFT')],
+              [[P(a['node']), P(a['sign_lord']), P(a['star_lord']), i18n.planets(a['conjoined'], lang)]
+               for a in kp['node_agents']])
+
+    pdf.section(L('cusps'), need=75)
+    cols = [(L('cusp'), 7, 'CENTER'), (L('rasi'), 14, 'LEFT'), (L('degree'), 12, 'CENTER'),
+            (L('nakshatra'), 19, 'LEFT'), (L('rasi_lord'), 12, 'LEFT'), (L('star_lord'), 12, 'LEFT'),
+            (L('sub_lord'), 12, 'LEFT'), (L('subsub_lord'), 12, 'LEFT')]
+    pdf.table(cols, [[c['house'], i18n.rasi(c['sign'], lang), c['dms'], i18n.nak(c['nak'], lang),
+                      P(c['sign_lord']), P(c['star_lord']), P(c['sub_lord']), P(c['subsub_lord'])]
+                     for c in kp['cusps']])
+
+    pdf.section(L('kp_planets'), need=65)
+    cols = [(L('planet'), 12, 'LEFT'), (L('rasi'), 12, 'LEFT'), (L('degree'), 11, 'CENTER'),
+            (L('nakshatra'), 16, 'LEFT'), (L('rasi_lord'), 10, 'LEFT'), (L('star_lord'), 10, 'LEFT'),
+            (L('sub_lord'), 10, 'LEFT'), (L('subsub_lord'), 10, 'LEFT'), (L('house'), 6, 'CENTER'),
+            (L('retro'), 7, 'CENTER')]
+    pdf.table(cols, [[P(p['name']), i18n.rasi(p['sign'], lang), p['dms'], i18n.nak(p['nak'], lang),
+                      P(p['sign_lord']), P(p['star_lord']), P(p['sub_lord']), P(p['subsub_lord']), p['house'],
+                      i18n.retro_mark(lang).strip('()') if p['retro'] else '—'] for p in kp['planets']])
+
+    pdf.section(L('planet_sig'), need=65)
+    cols = [(L('planet'), 13, 'LEFT'), (L('star_lord'), 13, 'LEFT'), (L('sub_lord'), 13, 'LEFT'),
+            (L('level1'), 15, 'CENTER'), (L('level2'), 15, 'CENTER'), (L('level3'), 15, 'CENTER'),
+            (L('level4'), 15, 'CENTER')]
+    pdf.table(cols, [[P(s['planet']), P(s['star_lord']), P(s['sub_lord']), _houses(s['l1']), _houses(s['l2']),
+                      _houses(s['l3']), _houses(s['l4'])] for s in kp['planet_significators']], wrap=True)
+
+    pdf.section(L('house_sig'), need=80)
+    cols = [(L('house'), 7, 'CENTER'), (L('sig_a'), 29, 'LEFT'), (L('sig_b'), 24, 'LEFT'),
+            (L('sig_c'), 27, 'LEFT'), (L('sig_d'), 13, 'LEFT')]
+    pdf.table(cols, [[s['house'], i18n.planets(s['a'], lang), i18n.planets(s['b'], lang),
+                      i18n.planets(s['c'], lang), i18n.planets(s['d'], lang)] for s in kp['house_significators']],
+              wrap=True)
+
+    pdf.add_page()
+    pdf.section(f"{L('kp_dasa')}  ·  {L('dasa_balance')}: {_balance(kp['dasa']['balance'], lang)}")
+    _dasa_bhukti_table(pdf, kp['dasa'], m, now)
+
+
+def _dasa_bhukti_table(pdf, dasa, m, now):
+    lang = pdf.lang
+    L = lambda k: i18n.L(k, lang)
+    P = lambda n: i18n.planet(n, lang)
+    cols = [(L('dasa'), 18, 'LEFT'), (L('bhukti'), 18, 'LEFT'), (L('start'), 16, 'CENTER'),
+            (L('end'), 16, 'CENTER'), (L('age'), 12, 'CENTER'), (L('status'), 20, 'CENTER')]
+    rows, current = [], set()
+    for d in dasa['dasas']:
+        for b in d['sub']:
+            if b['current']:
+                current.add(len(rows))
+            rows.append([P(d['lord']), P(b['lord']), b['start'].strftime(DATE), b['end'].strftime(DATE),
+                         _age(b['start'], m['local_dt']), _status(b, now, lang)])
+    pdf.table(cols, rows, current=current)
+
+
+def _alp(pdf, specs):
+    res, lang = pdf.res, pdf.lang
+    m, v, alp = res['meta'], res['vedic'], res['alp']
+    L = lambda k: i18n.L(k, lang)
+    P = lambda n: i18n.planet(n, lang)
+    now = m['generated_at']
+    al, lagna = alp['lagna'], v['planets'][0]
+
+    pdf.add_page()
+    pdf.band(f"{L('alp_title')}  ·  {m['name']}", alp['rate'])
+    half = (BODY_W - 4) / 2
+    rx = MARGIN + half + 4
+    size = 78.0
+    y = pdf.get_y()
+    y_after = pdf.chart(MARGIN + (half - size) / 2, y, size, specs['alp'], m['chart_style'])
+    pdf.set_y(y)
+    pdf.section(L('alp_lagna_now'), x=rx, w=half)
+    pdf.pairs(rx, pdf.get_y(), half, [
+        (L('alp_birth_lagna'), f"{i18n.rasi(lagna['sign'], lang)}  {lagna['dms']}"),
+        (L('as_of'), now.strftime(DATE)),
+        (L('age'), f"{alp['age_years']:.2f} {i18n.Lv('years', lang)}"),
+        (L('alp_lagna_now'), f"{i18n.rasi(al['sign'], lang)}  {al['dms']}"),
+        (L('nakshatra'), f"{i18n.nak(al['nak'], lang)} - {i18n.Lv('pada', lang)} {al['pada']}"),
+        (L('rasi_lord'), P(al['sign_lord'])), (L('star_lord'), P(al['star_lord'])),
+        (L('sub_lord'), P(al['sub_lord'])),
+    ], row_h=6.4)
+    pdf.set_y(y_after)
+
+    pdf.section(L('alp_sign_periods'), need=80)
+    cols = [(L('from'), 15, 'CENTER'), (L('to'), 15, 'CENTER'), (L('age_from'), 11, 'CENTER'),
+            (L('age_to'), 11, 'CENTER'), (L('rasi'), 17, 'LEFT'), (L('rasi_lord'), 16, 'LEFT'),
+            (L('status'), 15, 'CENTER')]
+    rows, current = [], set()
+    for s in alp['sign_periods']:
+        if s['current']:
+            current.add(len(rows))
+        rows.append([s['start'].strftime(DATE), s['end'].strftime(DATE), f"{s['age_from']:.2f}",
+                     f"{s['age_to']:.2f}", i18n.rasi(s['sign'], lang), P(s['sign_lord']), _status(s, now, lang)])
+    pdf.table(cols, rows, current=current)
+
+    pdf.add_page()
+    pdf.section(L('alp_pada_periods'))
+    cols = [(L('from'), 12, 'CENTER'), (L('to'), 12, 'CENTER'), (L('age_from'), 8, 'CENTER'),
+            (L('age_to'), 8, 'CENTER'), (L('rasi'), 12, 'LEFT'), (L('nakshatra'), 16, 'LEFT'),
+            (L('pada'), 6, 'CENTER'), (L('rasi_lord'), 10, 'LEFT'), (L('star_lord'), 10, 'LEFT'),
+            (L('status'), 12, 'CENTER')]
+    rows, current = [], set()
+    for s in alp['pada_periods']:
+        if s['current']:
+            current.add(len(rows))
+        rows.append([s['start'].strftime(DATE), s['end'].strftime(DATE), f"{s['age_from']:.2f}",
+                     f"{s['age_to']:.2f}", i18n.rasi(s['sign'], lang), i18n.nak(s['nak'], lang), s['pada'],
+                     P(s['sign_lord']), P(s['star_lord']), _status(s, now, lang)])
+    pdf.table(cols, rows, current=current)
+
+
+def _dasa(pdf):
+    res, lang = pdf.res, pdf.lang
+    m, v = res['meta'], res['vedic']
+    L = lambda k: i18n.L(k, lang)
+    P = lambda n: i18n.planet(n, lang)
+    now = m['generated_at']
+    dasa = v['dasa']
+
+    pdf.add_page()
+    pdf.band(f"{L('vim_dasa')}  ·  {m['name']}",
+             f"{L('dasa_balance')}: {_balance(dasa['balance'], lang)}  ·  {L('ayanamsha')}: {m['ayanamsha_name']}")
+    pdf.section(f"{L('dasa')} / {L('bhukti')}")
+    _dasa_bhukti_table(pdf, dasa, m, now)
+
+    # Antaram detail for the dasa now running (or the first one for a future birth date)
+    cd = next((d for d in dasa['dasas'] if d['current']), dasa['dasas'][0])
+    pdf.add_page()
+    pdf.section(f"{L('antaram')}  ·  {P(cd['lord'])} {L('dasa')}  "
+                f"({cd['start'].strftime(DATE)} - {cd['end'].strftime(DATE)})")
+    cols = [(L('bhukti'), 18, 'LEFT'), (L('antaram'), 18, 'LEFT'), (L('start'), 16, 'CENTER'),
+            (L('end'), 16, 'CENTER'), (L('age'), 12, 'CENTER'), (L('status'), 20, 'CENTER')]
+    rows, current = [], set()
+    for b in cd['sub']:
+        for a in b['sub']:
+            if a['current']:
+                current.add(len(rows))
+            rows.append([P(b['lord']), P(a['lord']), a['start'].strftime(DATE), a['end'].strftime(DATE),
+                         _age(a['start'], m['local_dt']), _status(a, now, lang)])
+    pdf.table(cols, rows, current=current)
+
+
+def _notes(pdf):
+    res, lang = pdf.res, pdf.lang
+    m, v, kp = res['meta'], res['vedic'], res['kp']
+    L = lambda k: i18n.L(k, lang)
+    pdf.add_page()
+    pdf.band(f"{L('notes')}  ·  {m['name']}")
+    pdf.section(L('how_calculated'))
+    node = 'True node' if m['node'] == 'true' else 'Mean node'
     items = [
-        (lbl('gemstone', lang),   get_gemstone(nak_lord, lang)),
-        (lbl('lucky_color', lang), LUCKY_COLORS.get(nak_lord, 'Gold, Yellow')),
-        (lbl('lucky_num', lang),   ', '.join(str(n) for n in LUCKY_NUMS.get(nak_lord, [1,4,7]))),
-        ('Nakshatra Lord',          get_planet_name(nak_lord, lang)),
-        (lbl('dasa_ends', lang),   fmt_date(data['cur_dasa']['end'])),
-        (lbl('bhukti_ends', lang), fmt_date(data['cur_bhukti']['end'])),
+        ('Ephemeris', f"{m['engine']}. Positions are geocentric, apparent, sidereal."),
+        ('Birth moment', f"Local time {m['local_dt'].strftime('%d-%m-%Y %H:%M:%S')} at {m['tz']} "
+                         f"({m['utc_offset_str']}) = UT {m['ut_dt'].strftime('%d-%m-%Y %H:%M:%S')}; "
+                         f"Julian day (UT) {m['jd_ut']}."),
+        ('Place', f"{m['pob']} - latitude {m['lat']:.4f}°, longitude {m['lon']:.4f}°. If these are not the "
+                  'birth place, the lagna and house cusps will be wrong.'),
+        ('Vedic ayanamsha', f"{m['ayanamsha_name']}: {v['ayanamsha_dms']} at birth."),
+        ('KP ayanamsha', f"Krishnamurti: {kp['ayanamsha_dms']} at birth. The KP pages use this value "
+                         'throughout, so KP positions differ slightly from the Vedic pages.'),
+        ('Rahu / Ketu', f"{node}. Ketu is exactly opposite Rahu."),
+        ('Vedic houses', 'House = whole sign counted from the lagna sign. Bhava = Sripati: the Porphyry cusps '
+                         'are the bhava centres and each bhava begins midway between two centres.'),
+        ('KP houses', f"{kp['house_system']} cusps; a planet belongs to the house whose cusp it has passed. "
+                      'Star, sub and sub-sub lords divide each nakshatra in Vimshottari proportion.'),
+        ('KP significators', 'Planet levels 1-4: house occupied by its star lord; house it occupies; houses '
+                             'owned by its star lord; houses it owns. House levels A-D: planets in the star of '
+                             'occupants; occupants; planets in the star of the owner; the owner. Rahu and Ketu '
+                             'own no houses and also act for their sign lord and for planets in the same sign.'),
+        ('Vimshottari', f"Year of {m['year_days']} days. Balance at birth from the Moon's position in its "
+                        'nakshatra. Periods that ended before birth are not listed. The Excel workbook lists '
+                        'antaram for every dasa; this PDF lists it for the dasa now running.'),
+        ('Panchangam', 'Tithi, yoga and karana at the birth moment. Sunrise and sunset are for the visible '
+                       'upper limb with standard refraction. The weekday runs from sunrise to sunrise.'),
+        ('Combustion', 'Orbs from the Sun: Moon 12°, Mars 17°, Mercury 14° (12° retrograde), Jupiter 11°, '
+                       'Venus 10° (8° retrograde), Saturn 15°.'),
+        ('Dignity', 'Only exaltation, debilitation and own sign are marked.'),
+        ('ALP', 'Akshaya Lagna Paddhati: the birth lagna advances 30° every 10 years (3° a year), so one '
+                f"nakshatra pada lasts 1 year 1 month 10 days. Year of {m['year_days']} days."),
+        ('Generated', m['generated_at'].strftime('%d-%m-%Y %H:%M') + f" ({m['utc_offset_str']})"),
     ]
+    pdf.table([('', 22, 'LEFT'), ('', 78, 'LEFT')], items, font_size=8, line_h=4.8, wrap=True)
 
-    col_w   = (W_inner) / 2
-    row_h   = 12*mm
-    for i, (key, val) in enumerate(items):
-        row = i // 2
-        col = i %  2
-        bx  = M + col*col_w
-        by  = y - row*row_h
-
-        bg = CREAM if (row+col)%2==0 else CREAM_DARK
-        c.setFillColor(bg)
-        c.rect(bx, by-row_h, col_w, row_h, fill=1, stroke=0)
-
-        c.setFont('Helvetica', 7.5)
-        c.setFillColor(GOLD_DIM)
-        try:
-            c.drawString(bx+3*mm, by-6*mm, key)
-        except:
-            c.setFont('Helvetica', 7.5)
-            c.drawString(bx+3*mm, by-6*mm, key.encode('ascii','replace').decode())
-
-        c.setFont('Helvetica-Bold', 9)
-        c.setFillColor(BROWN_DARK)
-        try:
-            c.drawString(bx+3*mm, by-11*mm, str(val))
-        except:
-            c.setFont('Helvetica-Bold', 9)
-            c.drawString(bx+3*mm, by-11*mm, str(val).encode('ascii','replace').decode())
-
-        c.setStrokeColor(colors.HexColor('#DDDBC0'))
-        c.setLineWidth(0.3)
-        c.rect(bx, by-row_h, col_w, row_h, stroke=1, fill=0)
-
-    return y - (len(items)//2 + len(items)%2) * row_h - 4*mm
-
-# ── MAIN PDF GENERATOR ────────────────────────────────────────────────────────
-
-def generate_pdf(data, lang='en', chart_style='south') -> bytes:
-    """Generate complete professional horoscope PDF. Returns bytes."""
-    register_fonts()
-    buf    = io.BytesIO()
-    c      = rl_canvas.Canvas(buf, pagesize=A4)
-    c.setTitle(f'Jothidam — {data["name"]}')
-    c.setAuthor('Jothidam · horoscopegen.in')
-    c.setSubject('Vedic Horoscope Report')
-
-    total_pages = 4
-
-    # ── PAGE 1: Cover ─────────────────────────────────────────────────────────
-    draw_cover(c, data, lang)
-
-    # ── PAGE 2: Charts ────────────────────────────────────────────────────────
-    y = new_page(c, 2, total_pages, data, lang)
-
-    # Name & birth summary strip
-    c.setFillColor(DARK_BG)
-    c.rect(M, y-20*mm, W-2*M, 20*mm, fill=1, stroke=0)
-    bf = get_font(lang)
-    draw_text_centered(c, data['name'], W/2, y-9*mm, 'Helvetica-Bold', 14, GOLD)
-    summary_line = f"{data['dob']}  ·  {data['tob']}  ·  {data['pob']}"
-    draw_text_centered(c, summary_line, W/2, y-16*mm, 'Helvetica', 8, GOLD_DIM)
-    y -= 22*mm
-
-    # Tags row: Lagna / Rasi / Nak / Dasa
-    tag_items = [
-        (lbl('lagna', lang),     get_rasi_name(data['lagna_rasi'], lang)),
-        (lbl('janma_rasi',lang), get_rasi_name(data['moon_rasi'], lang)),
-        (lbl('janma_nak',lang),  f'{get_nak_name(data["nak_num"],lang)}-{data["nak_pada"]}'),
-        (lbl('cur_dasa', lang),  f'{data["cur_dasa"]["dasa"]}→{data["cur_bhukti"]["bhukti"]}'),
+    pdf.section(L('abbreviations'), need=45)
+    names = ['Lagna', 'Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu', 'ALP']
+    items = [
+        (L('planet'), '   '.join(f"{i18n.abbr(n, lang)} = "
+                                 f"{i18n.planet(n, lang) if n != 'ALP' else L('alp_lagna_now')}" for n in names)),
+        (L('retro'), f"{i18n.retro_mark(lang)} after a planet = retrograde"),
+        (L('rasi'), '   '.join(f"{i + 1} = {i18n.rasi(i, lang)}" for i in range(12))),
+        (L('kp_chart'), 'Roman numerals I-XII mark the sign in which each house cusp falls.'),
     ]
-    tag_w = (W-2*M) / len(tag_items)
-    for ti, (tlabel, tval) in enumerate(tag_items):
-        tx = M + ti*tag_w
-        c.setFillColor(BROWN_MID)
-        c.rect(tx, y-14*mm, tag_w-1*mm, 14*mm, fill=1, stroke=0)
-        c.setFont('Helvetica', 6.5)
-        c.setFillColor(GOLD_DIM)
-        try:
-            c.drawCentredString(tx + tag_w/2, y-7*mm, tlabel)
-        except:
-            c.setFont('Helvetica', 6.5)
-            c.drawCentredString(tx + tag_w/2, y-7*mm, tlabel.encode('ascii','replace').decode())
-        c.setFont(bf, 8.5)
-        c.setFillColor(GOLD_LIGHT)
-        try:
-            c.drawCentredString(tx + tag_w/2, y-12*mm, str(tval))
-        except:
-            c.setFont('Helvetica', 8.5)
-            c.drawCentredString(tx + tag_w/2, y-12*mm, str(tval).encode('ascii','replace').decode())
-    y -= 16*mm
+    pdf.table([('', 22, 'LEFT'), ('', 78, 'LEFT')], items, font_size=8, line_h=4.8, wrap=True)
+    pdf.set_font('main', '', 7.5)
+    pdf.set_text_color(*MUTED)
+    pdf.multi_cell(BODY_W, 4.5, L('disclaimer'), align='C')
 
-    # Two charts side by side
-    chart_size = (W - 2*M - 5*mm) / 2
-    y -= 2*mm
 
-    # South Indian Rasi Chart (left)
-    chart_label_y = y - 6*mm
-    c.setFont('Helvetica-Bold', 9)
-    c.setFillColor(BROWN_DARK)
-    c.drawCentredString(M + chart_size/2, chart_label_y, lbl('rasi_chart', lang))
-    chart_top_y = chart_label_y - 3*mm
-    draw_south_chart(c, data, M, chart_top_y - chart_size, chart_size, lang, is_navamsa=False)
+# ── ENTRY POINT ───────────────────────────────────────────────────────────────
 
-    # Navamsa Chart (right)
-    nav_x = M + chart_size + 5*mm
-    c.setFont('Helvetica-Bold', 9)
-    c.setFillColor(BROWN_DARK)
-    c.drawCentredString(nav_x + chart_size/2, chart_label_y, lbl('navamsa_chart', lang))
-    draw_south_chart(c, data, nav_x, chart_top_y - chart_size, chart_size, lang, is_navamsa=True)
-
-    y = chart_top_y - chart_size - 4*mm
-
-    # Brief planet summary below charts
-    c.setFont('Helvetica', 7)
-    c.setFillColor(BROWN_MID)
-    summary_planets = []
-    for pname, lon in data['planet_list'][:4]:
-        rn = get_rasi_name(get_rasi(lon), lang, short=True)
-        summary_planets.append(f'{get_planet_abbr(pname,"en")}: {rn}')
-    c.drawCentredString(W/2, y-3*mm, '  ·  '.join(summary_planets))
-
-    c.showPage()
-
-    # ── PAGE 3: Planet Table + Dasa Table (first portion) ────────────────────
-    y = new_page(c, 3, total_pages, data, lang)
-    y -= 3*mm
-    y = draw_planet_table(c, data, y, lang)
-    y -= 5*mm
-
-    # How many dasa rows fit on this page?
-    remaining = y - 18*mm  # footer space
-    rows_fit  = int(remaining / 6)
-    y = draw_dasa_table(c, data, y, lang, max_rows=rows_fit)
-
-    c.showPage()
-
-    # ── PAGE 4: Remaining Dasa + Yogas + Lucky Info ───────────────────────────
-    y = new_page(c, 4, total_pages, data, lang)
-    y -= 3*mm
-
-    # Count how many bhukti rows were already drawn
-    from astro_engine import build_bhuktis
-    total_bhuktis = sum(len(build_bhuktis(d['dasa'], d['start'], d['end'])) for d in data['dasas'])
-    already_shown = rows_fit
-    remaining_rows = total_bhuktis - already_shown
-
-    if remaining_rows > 0:
-        # Draw remaining dasa rows — skip first already_shown
-        from astro_engine import build_bhuktis as bb
-        today = date.today()
-        skipped = 0
-        W_inner = W - 2*M
-        f  = get_font(lang)
-        cols = [34*mm, 34*mm, 32*mm, 32*mm, 26*mm]
-        # Header
-        c.setFillColor(DARK_BG)
-        c.rect(M, y-8*mm, W_inner, 8*mm, fill=1, stroke=0)
-        draw_text_centered(c, lbl('dasa_bhukti', lang) + ' (contd.)', W/2, y-5.5*mm, 'Helvetica-Bold', 10, GOLD)
-        y -= 8*mm
-        # Header row
-        c.setFillColor(BROWN_MID)
-        c.rect(M, y-7*mm, W_inner, 7*mm, fill=1, stroke=0)
-        x = M
-        for i, h in enumerate([lbl('dasa',lang),lbl('bhukti',lang),lbl('start',lang),lbl('end',lang),lbl('status',lang)]):
-            c.setFont(f, 8); c.setFillColor(GOLD_LIGHT)
-            try: c.drawString(x+2*mm, y-5*mm, h)
-            except: c.setFont('Helvetica',8); c.drawString(x+2*mm, y-5*mm, h.encode('ascii','replace').decode())
-            x += cols[i]
-        y -= 7*mm
-
-        drawn = 0
-        for drow in data['dasas']:
-            bhuktis = bb(drow['dasa'], drow['start'], drow['end'])
-            for brow in bhuktis:
-                if skipped < already_shown:
-                    skipped += 1; continue
-                if y < 22*mm: break
-                is_cur  = (brow['start'] <= today <= brow['end'])
-                is_past = brow['end'] < today
-                if is_cur:   bg, sc, st = colors.HexColor('#FFF3CD'), colors.HexColor('#8B6914'), lbl('current',lang)
-                elif is_past: bg, sc, st = CREAM_DARK, BROWN_MID, lbl('completed',lang)
-                else:         bg, sc, st = (CREAM if drawn%2==0 else CREAM_DARK), BLUE_ACCENT, lbl('upcoming',lang)
-                c.setFillColor(bg); c.rect(M, y-6*mm, W_inner, 6*mm, fill=1, stroke=0)
-                if is_cur: c.setFillColor(GOLD); c.rect(M, y-6*mm, 1.5*mm, 6*mm, fill=1, stroke=0)
-                row_vals = [get_planet_name(drow['dasa'],lang), get_planet_name(brow['bhukti'],lang),
-                            fmt_date(brow['start']), fmt_date(brow['end']), st]
-                x = M
-                for ci, val in enumerate(row_vals):
-                    c.setFont('Helvetica-Bold' if is_cur else f, 7.5 if ci<2 else 7)
-                    c.setFillColor(sc if ci==4 else BROWN_DARK)
-                    try: c.drawString(x+2*mm, y-4.5*mm, val)
-                    except: c.setFont('Helvetica',7); c.drawString(x+2*mm, y-4.5*mm, val.encode('ascii','replace').decode())
-                    x += cols[ci]
-                c.setStrokeColor(colors.HexColor('#DDDBC0')); c.setLineWidth(0.3)
-                c.line(M, y-6*mm, M+W_inner, y-6*mm)
-                y -= 6*mm; drawn += 1
-
-    y -= 6*mm
-
-    # Yogas
-    if y > 60*mm:
-        y = draw_yogas_section(c, data, y, lang)
-
-    # Lucky details
-    if y > 50*mm:
-        y = draw_lucky_section(c, data, y, lang)
-
-    c.showPage()
-    c.save()
-    buf.seek(0)
-    return buf.read()
+def generate_pdf(res, lang=None):
+    """Build the PDF from compute() output. Returns bytes."""
+    lang = lang or res['meta'].get('lang', 'en')
+    if lang not in i18n.LANGS:
+        lang = 'en'
+    specs = charts.build_specs(res, lang)
+    pdf = Report(res, lang)
+    _summary(pdf, specs)
+    _vedic(pdf, specs)
+    _kp(pdf, specs)
+    _alp(pdf, specs)
+    _dasa(pdf)
+    _notes(pdf)
+    return bytes(pdf.output())

@@ -1,595 +1,762 @@
 """
-excel_generator.py — Professional Excel Horoscope Generator
-Generates a multi-sheet Excel with:
-  Sheet 1: Summary
-  Sheet 2: Rasi Chart (South Indian square drawn with cells)
-  Sheet 3: Planet Positions
-  Sheet 4: Vimshottari Dasa Bhukti
-  Sheet 5: Yogas
+excel_generator.py — HoroscopeGen Excel workbook.
+
+Sheets: Summary, Vedic, KP, ALP, Dasa, Notes.
+
+Charts are drawn with real cells (merged cells, borders and diagonal
+borders), never pasted images, on a grid of narrow columns: every chart is
+12 x 12 small cells, two charts side by side. Tables on the chart sheets use
+merged spans of that grid; the Dasa sheet uses ordinary columns so it can be
+sorted and filtered. Dates are real Excel dates. Every sheet is set up for
+A4 portrait, one page wide.
 """
-
 import io
-from datetime import date
+from datetime import datetime, time
+from functools import lru_cache
+
 import openpyxl
-from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.pagebreak import Break
+
+import charts
+import i18n
+from astro_engine import fmt_dms, fmt_sign_dms
+
+# ── PALETTE (print-friendly: white paper, dark ink, one accent) ───────────────
+INK = '2B1B0E'
+MUTED = '7A6A58'
+BAND = '5A2A0C'          # title bands
+HEAD = '8A4B14'          # table headers
+ACCENT = 'C8811A'
+RULE = 'C9B79C'          # thin borders
+ALT = 'FBF5EA'           # zebra rows
+SOFT = 'F4E7CF'          # label cells, chart centre
+LAGNA = 'FFE2A8'         # lagna cell
+CURRENT = 'FFF1B8'       # current period
+WHITE = 'FFFFFF'
+
+FONT = 'Calibri'
+GRID_W = 4.0             # width of one narrow grid column
+CELL_H = 24.0            # height of one chart row (roughly square cells)
+ROW_H = 17.0
+COL0 = 2                 # first grid column (B); column A is a margin
+GRID_N = 25              # 12 + 1 gap + 12
+RIGHT0 = COL0 + 13       # first column of the right-hand chart
+
+DATE_FMT = 'dd-mm-yyyy'
+TIME_FMT = 'hh:mm:ss'
+
+_thin = Side(style='thin', color=RULE)
+_med = Side(style='medium', color=INK)
+_diag = Side(style='thin', color=INK)
 
 
-# ── CONSTANTS ─────────────────────────────────────────────────────────────────
-GOLD        = 'FFD700'
-DARK_BROWN  = '1A0A00'
-LIGHT_GOLD  = 'FFF8E6'
-LAGNA_BG    = 'FFE5B4'
-CENTER_BG   = 'F5E6C8'
-HEADER_BG   = '2C1810'
-CURRENT_BG  = 'FFF3CD'
-COMPLETED_BG= 'F0F0F0'
-WHITE       = 'FFFFFF'
-CREAM       = 'FFFEF5'
-
-# South Indian grid: house numbers, -1 = center block
-CHART_GRID = [
-    [12,  1,  2,  3],
-    [11, -1, -1,  4],
-    [10, -1, -1,  5],
-    [ 9,  8,  7,  6],
-]
-
-RASI_SHORT = {
-    1:'Pis', 2:'Ari', 3:'Tau', 4:'Gem',
-    5:'Can', 6:'Leo', 7:'Vir', 8:'Lib',
-    9:'Sco', 10:'Sag', 11:'Cap', 12:'Aqu',
-}
-
-RASI_FULL = {
-    1:'Meena (Pisces)',     2:'Mesha (Aries)',      3:'Vrishabha (Taurus)',
-    4:'Mithuna (Gemini)',   5:'Kataka (Cancer)',    6:'Simha (Leo)',
-    7:'Kanya (Virgo)',      8:'Tula (Libra)',        9:'Vrischika (Scorpio)',
-    10:'Dhanus (Sagittarius)', 11:'Makara (Capricorn)', 12:'Kumbha (Aquarius)',
-}
-
-PLANET_ABBR = {
-    'Lagna':'La', 'Sun':'Su', 'Moon':'Mo', 'Mars':'Ma',
-    'Mercury':'Me', 'Jupiter':'Ju', 'Venus':'Ve',
-    'Saturn':'Sa', 'Rahu':'Ra', 'Ketu':'Ke',
-}
-
-
-# ── STYLE HELPERS ─────────────────────────────────────────────────────────────
-def thin_border(color=GOLD):
-    s = Side(style='thin', color=color)
-    return Border(left=s, right=s, top=s, bottom=s)
-
-def thick_border(color=DARK_BROWN):
-    s = Side(style='medium', color=color)
-    return Border(left=s, right=s, top=s, bottom=s)
-
-def fill(color):
+@lru_cache(maxsize=None)
+def _fill(color):
     return PatternFill('solid', fgColor=color)
 
-def font(bold=False, size=10, color=DARK_BROWN, italic=False):
-    return Font(bold=bold, size=size, color=color, italic=italic, name='Calibri')
 
-def align(h='center', v='center', wrap=False):
-    return Alignment(horizontal=h, vertical=v, wrap_text=wrap)
-
-def set_cell(ws, row, col, value='', bold=False, size=10, color=DARK_BROWN,
-             bg=None, h_align='left', v_align='center', wrap=False,
-             italic=False, border=None):
-    cell = ws.cell(row=row, column=col, value=value)
-    cell.font      = font(bold=bold, size=size, color=color, italic=italic)
-    cell.alignment = align(h=h_align, v=v_align, wrap=wrap)
-    if bg:
-        cell.fill = fill(bg)
-    if border:
-        cell.border = border
-    return cell
+@lru_cache(maxsize=None)
+def _font(size=9, bold=False, color=INK, italic=False):
+    return Font(name=FONT, size=size, bold=bold, color=color, italic=italic)
 
 
-# ── SHEET 1: SUMMARY ─────────────────────────────────────────────────────────
-def build_summary_sheet(wb, data, lang='en'):
-    ws = wb.active
-    ws.title = 'Summary'
-    ws.sheet_view.showGridLines = False
-
-    # Column widths
-    ws.column_dimensions['A'].width = 2
-    ws.column_dimensions['B'].width = 26
-    ws.column_dimensions['C'].width = 32
-    ws.column_dimensions['D'].width = 18
-    ws.column_dimensions['E'].width = 18
-
-    # Row 1: Main title banner
-    ws.merge_cells('B1:E1')
-    ws.row_dimensions[1].height = 36
-    set_cell(ws, 1, 2, '🕉  JOTHIDAM  ·  VEDIC HOROSCOPE REPORT',
-             bold=True, size=16, color=DARK_BROWN, bg=GOLD, h_align='center',
-             border=thick_border())
-
-    ws.row_dimensions[2].height = 8
-
-    # Row 3: subtitle
-    ws.merge_cells('B3:E3')
-    ws.row_dimensions[3].height = 20
-    set_cell(ws, 3, 2,
-             f"Generated: {date.today().strftime('%d %b %Y')}  ·  horoscopegen.in",
-             italic=True, size=9, color='7A5C2E', bg=LIGHT_GOLD, h_align='center')
-
-    ws.row_dimensions[4].height = 10
-
-    # Section: Birth Details
-    def section_header(row, title):
-        ws.merge_cells(f'B{row}:E{row}')
-        ws.row_dimensions[row].height = 22
-        set_cell(ws, row, 2, f'  {title}', bold=True, size=11,
-                 color=GOLD, bg=HEADER_BG, h_align='left',
-                 border=thick_border(GOLD))
-
-    def data_row(row, label, value, highlight=False):
-        ws.row_dimensions[row].height = 20
-        bg = CURRENT_BG if highlight else LIGHT_GOLD
-        set_cell(ws, row, 2, label, bold=True, size=10, color='5C3D11',
-                 bg=bg, h_align='left', border=thin_border())
-        ws.merge_cells(f'C{row}:E{row}')
-        set_cell(ws, row, 3, value, size=10, color=DARK_BROWN,
-                 bg=WHITE if not highlight else CURRENT_BG,
-                 h_align='left', border=thin_border())
-
-    r = 5
-    section_header(r, '👤  BIRTH DETAILS')
-    r += 1
-    data_row(r, 'Full Name',      data.get('name', ''));           r += 1
-    data_row(r, 'Date of Birth',  data.get('dob', ''));            r += 1
-    data_row(r, 'Time of Birth',  data.get('tob', ''));            r += 1
-    data_row(r, 'Place of Birth', data.get('pob', ''));            r += 1
-
-    r += 1
-    section_header(r, '🔷  CORE ASTROLOGICAL DETAILS')
-    r += 1
-    data_row(r, 'Lagna (Ascendant)',  data.get('lagnaName', '')); r += 1
-    data_row(r, 'Janma Rasi',         data.get('moonRasiName', '')); r += 1
-    data_row(r, 'Janma Nakshatra',
-             f"{data.get('nakName','')} - Pada {data.get('nakPada','')}"); r += 1
-    data_row(r, 'Nakshatra Lord',     data.get('nakLord', '')); r += 1
-
-    r += 1
-    section_header(r, '📅  CURRENT DASA PERIOD')
-    r += 1
-    cur_dasa   = data.get('curDasa', {})
-    cur_bhukti = data.get('curBhukti', {})
-    data_row(r, 'Current Dasa',
-             f"{cur_dasa.get('dasa','')}  (ends {cur_dasa.get('end','')})",
-             highlight=True); r += 1
-    data_row(r, 'Current Bhukti',
-             f"{cur_bhukti.get('bhukti','')}  (ends {cur_bhukti.get('end','')})",
-             highlight=True); r += 1
-
-    r += 1
-    section_header(r, '💎  AUSPICIOUS DETAILS')
-    r += 1
-    data_row(r, 'Recommended Gemstone', data.get('gemstone', '')); r += 1
-    data_row(r, 'Lucky Colors',         data.get('luckyColors', '')); r += 1
-    lucky = data.get('luckyNumbers', [])
-    data_row(r, 'Lucky Numbers',
-             ', '.join(str(n) for n in lucky) if isinstance(lucky, list) else str(lucky))
-
-    r += 2
-    ws.merge_cells(f'B{r}:E{r}')
-    set_cell(ws, r, 2,
-             'This report is based on Vedic astrology principles. For guidance only.',
-             italic=True, size=8, color='999999', h_align='center')
+@lru_cache(maxsize=None)
+def _align(h='left', v='center', wrap=False, shrink=False, indent=0):
+    return Alignment(horizontal=h, vertical=v, wrap_text=wrap, shrink_to_fit=shrink, indent=indent)
 
 
-# ── SHEET 2: RASI CHART ───────────────────────────────────────────────────────
-def build_chart_sheet(wb, data):
-    ws = wb.create_sheet('Rasi Chart')
-    ws.sheet_view.showGridLines = False
+_BOX = Border(left=_thin, right=_thin, top=_thin, bottom=_thin)
 
-    # Build house → planet abbreviations map
-    # Handles both dict format {planet, house, ...} and string format
-    planets_by_house = {}
-    lagna_rasi = data.get('lagnaRasi', 1)
 
-    raw_planets = data.get('planets', [])
-    for p in raw_planets:
-        # If planet entry is a dict (from frontend payload or JSON)
-        if isinstance(p, dict):
-            h    = int(p.get('house', 0))
-            name = p.get('planet', p.get('name', ''))
-            abbr = PLANET_ABBR.get(name, name[:2] if name else '??')
-        # If planet entry is a string like "Sun" — fallback
-        elif isinstance(p, str):
-            h    = 0  # unknown house, skip
-            abbr = PLANET_ABBR.get(p, p[:2])
+def _sheet_name(key, lang):
+    name = i18n.LABELS['en'][key] if lang == 'bi' else i18n.L(key, lang)
+    for ch in '[]:*?/\\':
+        name = name.replace(ch, ' ')
+    return name[:31]
+
+
+def _d(dt):
+    """Naive datetime -> date for a real Excel date cell."""
+    return dt.date() if isinstance(dt, datetime) else dt
+
+
+def _t(dt):
+    return time(dt.hour, dt.minute, dt.second) if isinstance(dt, datetime) else dt
+
+
+class Grid:
+    """Thin helper around a worksheet laid out on the narrow column grid."""
+
+    def __init__(self, wb, title, lang, first=False):
+        self.ws = wb.active if first else wb.create_sheet()
+        self.ws.title = title
+        self.lang = lang
+        ws = self.ws
+        ws.sheet_view.showGridLines = False
+        ws.column_dimensions['A'].width = 1.5
+        for c in range(COL0, COL0 + GRID_N):
+            ws.column_dimensions[get_column_letter(c)].width = GRID_W
+        self.wrap = lang == 'bi'
+
+    # -- primitives -----------------------------------------------------------
+    def put(self, r, c, value, span=1, rows=1, size=9, bold=False, color=INK, fill=None,
+            h='left', v='center', wrap=None, border=True, fmt=None, italic=False, shrink=False):
+        ws = self.ws
+        if span > 1 or rows > 1:
+            ws.merge_cells(start_row=r, start_column=c, end_row=r + rows - 1, end_column=c + span - 1)
+        cell = ws.cell(row=r, column=c, value=value)
+        cell.font = _font(size, bold, color, italic)
+        do_wrap = self.wrap if wrap is None else wrap
+        cell.alignment = _align(h, v, do_wrap, shrink and not do_wrap, 1 if h == 'left' else 0)
+        if fmt:
+            cell.number_format = fmt
+        for rr in range(r, r + rows):
+            for cc in range(c, c + span):
+                x = ws.cell(row=rr, column=cc)
+                if fill:
+                    x.fill = _fill(fill)
+                if border:
+                    x.border = _BOX
+        return cell
+
+    def height(self, r, h):
+        self.ws.row_dimensions[r].height = h
+
+    def title(self, r, text, sub=None):
+        self.height(r, 30)
+        self.put(r, COL0, text, span=GRID_N, size=15, bold=True, color=WHITE, fill=BAND, h='center',
+                 wrap=False, border=False)
+        if sub:
+            self.height(r + 1, 18)
+            self.put(r + 1, COL0, sub, span=GRID_N, size=9, color=MUTED, fill=SOFT, h='center',
+                     wrap=False, border=False, italic=True)
+            return r + 3
+        return r + 2
+
+    def page_break(self, r):
+        """Start a new printed page at row r."""
+        self.ws.row_breaks.append(Break(id=r - 1))
+
+    def section(self, r, text, c=COL0, span=GRID_N, keep_height=False):
+        if not keep_height:
+            self.height(r, 20)
+        self.put(r, c, text, span=span, size=10.5, bold=True, color=WHITE, fill=HEAD, wrap=False, border=False)
+        return r + 1
+
+    def pairs(self, r, c, items, label_span=5, value_span=7, keep_height=False):
+        """
+        Label / value rows inside a 12-column half. items: (label, value[, fmt]).
+        keep_height: the rows are shared with a chart, so leave their height alone.
+        """
+        for it in items:
+            label, value = it[0], it[1]
+            fmt = it[2] if len(it) > 2 else None
+            if not keep_height:
+                self.height(r, ROW_H + (9 if self.wrap else 0))
+            self.put(r, c, label, span=label_span, bold=True, color=MUTED, fill=SOFT)
+            self.put(r, c + label_span, value, span=value_span, fmt=fmt, shrink=True)
+            r += 1
+        return r
+
+    def table(self, r, cols, rows, current=None, c=COL0, row_h=None, tall=None):
+        """
+        cols: [(header, span, align)], rows: list of value lists.
+        A value may be (value, number_format). current: set of row indexes to highlight.
+        """
+        self.height(r, 26 if self.lang == 'en' else 38)
+        cc = c
+        for head, span, _ in cols:
+            self.put(r, cc, head, span=span, size=7 if span == 1 else 8.5, bold=True, color=WHITE, fill=HEAD,
+                     h='center', wrap=span > 1)
+            cc += span
+        r += 1
+        for i, row in enumerate(rows):
+            is_cur = bool(current) and i in current
+            fill = CURRENT if is_cur else (ALT if i % 2 else WHITE)
+            is_tall = bool(tall) and i in tall
+            self.height(r, 28 if is_tall else (row_h or (ROW_H + (10 if self.wrap else 0))))
+            cc = c
+            for (head, span, align), val in zip(cols, row):
+                fmt = None
+                if isinstance(val, tuple):
+                    val, fmt = val
+                self.put(r, cc, val, span=span, fill=fill, h=align, bold=is_cur, fmt=fmt,
+                         wrap=True if is_tall else None, shrink=True)
+                cc += span
+            r += 1
+        return r
+
+    # -- charts ---------------------------------------------------------------
+    def chart(self, r, c, spec, style='south'):
+        """Draw one 12x12-cell chart with its title row. Returns the next free row."""
+        self.height(r, 20)
+        self.put(r, c, spec['title'], span=12, size=10, bold=True, color=WHITE, fill=HEAD, h='center',
+                 wrap=False, border=False)
+        top = r + 1
+        for rr in range(top, top + 12):
+            self.height(rr, CELL_H)
+        if style == 'north':
+            self._north(top, c, spec)
         else:
-            continue
+            self._south(top, c, spec)
+        self._outline(top, c)
+        return top + 13
 
-        if h == 0:
-            continue
-        if h not in planets_by_house:
-            planets_by_house[h] = []
-        planets_by_house[h].append(abbr)
+    def _outline(self, top, c):
+        ws = self.ws
+        for i in range(12):
+            for (rr, cc, side) in ((top, c + i, 'top'), (top + 11, c + i, 'bottom'),
+                                   (top + i, c, 'left'), (top + i, c + 11, 'right')):
+                cell = ws.cell(row=rr, column=cc)
+                b = cell.border
+                kw = dict(left=b.left, right=b.right, top=b.top, bottom=b.bottom,
+                          diagonal=b.diagonal, diagonalUp=b.diagonalUp, diagonalDown=b.diagonalDown)
+                kw[side] = _med
+                cell.border = Border(**kw)
 
-    CELL_COLS = 4   # Excel columns per chart cell
-    CELL_ROWS = 5   # Excel rows per chart cell
-    START_COL = 2
-    START_ROW = 4
+    def _south(self, top, c, spec):
+        ws = self.ws
+        for cell in spec['signs']:
+            gr, gc = charts.SOUTH_POS[cell['sign']]
+            r0, c0 = top + gr * 3, c + gc * 3
+            fill = LAGNA if cell['lagna'] else WHITE
+            tag = cell['tag']
+            self.put(r0, c0, f"{cell['label']}   {tag}".rstrip(), span=3, size=7, color=MUTED, fill=fill,
+                     wrap=False, border=False, bold=cell['lagna'])
+            self.put(r0 + 1, c0, ' '.join(cell['planets']), span=3, rows=2, size=9, bold=True, fill=fill,
+                     h='center', v='top', wrap=True, border=False)
+            ink = Side(style='thin', color=INK)
+            for i in range(3):
+                for (rr, cc, side) in ((r0, c0 + i, 'top'), (r0 + 2, c0 + i, 'bottom'),
+                                       (r0 + i, c0, 'left'), (r0 + i, c0 + 2, 'right')):
+                    x = ws.cell(row=rr, column=cc)
+                    b = x.border
+                    kw = dict(left=b.left, right=b.right, top=b.top, bottom=b.bottom)
+                    kw[side] = ink
+                    x.border = Border(**kw)
+        self.put(top + 3, c + 3, '\n'.join(spec['center']), span=6, rows=6, size=10, bold=True,
+                 fill=SOFT, h='center', v='center', wrap=True, border=False)
 
-    # Set column/row sizes
-    ws.column_dimensions['A'].width = 2
-    for c in range(START_COL, START_COL + 4 * CELL_COLS + 2):
-        ws.column_dimensions[get_column_letter(c)].width = 9
-    for r in range(START_ROW, START_ROW + 4 * CELL_ROWS + 1):
-        ws.row_dimensions[r].height = 24
+    # North Indian layout on the 12x12 small-cell grid:
+    # house -> (planet rect, sign-number rect), each rect = (r0, c0, r1, c1)
+    NORTH_CELLS = {
+        1:  ((2, 4, 3, 7),   (4, 5, 4, 6)),
+        2:  ((0, 1, 0, 4),   (1, 2, 1, 3)),
+        3:  ((1, 0, 4, 0),   (2, 1, 3, 1)),
+        4:  ((4, 2, 7, 3),   (5, 4, 6, 4)),
+        5:  ((7, 0, 10, 0),  (8, 1, 9, 1)),
+        6:  ((11, 1, 11, 4), (10, 2, 10, 3)),
+        7:  ((8, 4, 9, 7),   (7, 5, 7, 6)),
+        8:  ((11, 7, 11, 10), (10, 8, 10, 9)),
+        9:  ((7, 11, 10, 11), (8, 10, 9, 10)),
+        10: ((4, 8, 7, 9),   (5, 7, 6, 7)),
+        11: ((1, 11, 4, 11), (2, 10, 3, 10)),
+        12: ((0, 7, 0, 10),  (1, 8, 1, 9)),
+    }
 
-    name    = data.get('name', '')
-    dob     = data.get('dob', '')
-    tob     = data.get('tob', '')
-    pob     = data.get('pob', '')
-    nak     = data.get('nakName', '')
-    nakpada = data.get('nakPada', '')
-    lagna   = data.get('lagnaName', '')
+    def _north(self, top, c, spec):
+        ws = self.ws
+        # Diagonals: each 3x3 block carries one diagonal, drawn cell by cell.
+        for br in range(4):
+            for bc in range(4):
+                down = (br + bc) % 2 == 0
+                for i in range(3):
+                    rr = top + br * 3 + i
+                    cc = c + bc * 3 + (i if down else 2 - i)
+                    ws.cell(row=rr, column=cc).border = Border(diagonal=_diag, diagonalDown=down,
+                                                               diagonalUp=not down)
+        for h in spec['houses']:
+            (pr0, pc0, pr1, pc1), (nr0, nc0, nr1, nc1) = self.NORTH_CELLS[h['house']]
+            tall = pc0 == pc1          # side triangles: stack the planets
+            text = ('\n' if tall else ' ').join(h['planets'])
+            self.put(top + pr0, c + pc0, text, span=pc1 - pc0 + 1, rows=pr1 - pr0 + 1,
+                     size=8 if tall else 9, bold=True, h='center', v='center', wrap=True, border=False)
+            self.put(top + nr0, c + nc0, h['sign_num'], span=nc1 - nc0 + 1, rows=nr1 - nr0 + 1,
+                     size=7.5, color=ACCENT if h['house'] == 1 else MUTED, bold=h['house'] == 1,
+                     h='center', v='center', wrap=False, border=False)
 
-    # Title row
-    ws.merge_cells(start_row=1, start_column=START_COL,
-                   end_row=1,   end_column=START_COL + 4*CELL_COLS - 1)
+
+# ── PAGE SETUP ────────────────────────────────────────────────────────────────
+
+PRINT_W = 525.0     # usable A4 width in points with the margins below
+PRINT_H = 745.0     # usable A4 height in points
+
+
+def _page_setup(ws, name, last_col, title_rows=None, one_page=False):
+    """
+    A4 portrait, one page wide. The scale is computed from the column widths
+    rather than using fit-to-page, because Excel ignores manual page breaks
+    in fit-to-page mode. one_page also fits the sheet to a single page tall.
+    """
+    width_px = 0
+    for c in range(2, last_col + 1):
+        w = ws.column_dimensions[get_column_letter(c)].width or 8.43
+        width_px += int(w * 7 + 5)
+    scale = PRINT_W / (width_px * 0.75) * 100
+    if one_page:
+        height = sum((ws.row_dimensions[r].height or 15) for r in range(1, ws.max_row + 1))
+        scale = min(scale, PRINT_H / height * 100)
+    ws.page_setup.paperSize = ws.PAPERSIZE_A4
+    ws.page_setup.orientation = 'portrait'
+    ws.page_setup.scale = max(40, min(100, int(scale)))
+    ws.print_options.horizontalCentered = True
+    ws.page_margins.left = ws.page_margins.right = 0.4
+    ws.page_margins.top = 0.5
+    ws.page_margins.bottom = 0.6
+    ws.oddFooter.left.text = 'horoscopegen.in'
+    ws.oddFooter.center.text = '&P / &N'
+    ws.oddFooter.right.text = name
+    for part in (ws.oddFooter.left, ws.oddFooter.center, ws.oddFooter.right):
+        part.size = 8
+    ws.print_area = f'B1:{get_column_letter(last_col)}{ws.max_row}'
+    if title_rows:
+        ws.print_title_rows = title_rows
+
+
+# ── VALUE HELPERS ─────────────────────────────────────────────────────────────
+
+def _state(p, lang):
+    bits = []
+    if p.get('retro'):
+        bits.append(i18n.L('retro', lang))
+    if p.get('combust'):
+        bits.append(i18n.L('combust', lang))
+    if p.get('dignity'):
+        bits.append(i18n.word(p['dignity'], lang))
+    return ', '.join(bits) if bits else '—'
+
+
+def _status(row, now, lang):
+    if row.get('current'):
+        return i18n.L('current', lang)
+    return i18n.L('completed', lang) if row['end'] <= now else i18n.L('upcoming', lang)
+
+
+def _balance_text(bal, lang):
+    return (f"{i18n.planet(bal['lord'], lang)}: {bal['y']} {i18n.Lv('y', lang)} "
+            f"{bal['m']} {i18n.Lv('m', lang)} {bal['d']} {i18n.Lv('d', lang)}")
+
+
+def _houses(nums):
+    return ', '.join(str(n) for n in nums) if nums else '—'
+
+
+def _age(start, birth):
+    return round((start - birth).days / 365.25, 2)
+
+
+# ── SHEETS ────────────────────────────────────────────────────────────────────
+
+def _summary(wb, res, specs, lang):
+    g = Grid(wb, _sheet_name('summary', lang), lang, first=True)
+    m, v, kp, alp = res['meta'], res['vedic'], res['kp'], res['alp']
+    L = lambda k: i18n.L(k, lang)
+    pc = v['panchangam']
+    lagna = v['planets'][0]
+    cur = v['dasa']['current']
+
+    r = g.title(1, f"{L('brand')}  ·  {L('report_title')}",
+                f"{m['name']}  ·  {L('subtitle')}  ·  horoscopegen.in")
+
+    g.section(r, L('birth_details'))
+    r += 1
+    left = [(L('name'), m['name']),
+            (L('dob'), m['local_dt'].date(), DATE_FMT),
+            (L('tob'), _t(m['local_dt']), TIME_FMT),
+            (L('pob'), m['pob']),
+            (L('lat'), f"{m['lat']:.4f}°"),
+            (L('lon'), f"{m['lon']:.4f}°")]
+    right = [(L('tz'), f"{m['tz']} ({m['utc_offset_str']})"),
+             (L('ayanamsha'), f"{m['ayanamsha_name']}  {v['ayanamsha_dms']}"),
+             (L('kp_ayanamsha'), kp['ayanamsha_dms']),
+             (L('nodes'), i18n.word('True' if m['node'] == 'true' else 'Mean', lang)),
+             (L('sunrise'), _t(pc['sunrise']) if pc['sunrise'] else '—', TIME_FMT),
+             (L('sunset'), _t(pc['sunset']) if pc['sunset'] else '—', TIME_FMT)]
+    if m.get('gender'):
+        left.append((L('gender'), i18n.word(m['gender'].title(), lang)))
+    r = max(g.pairs(r, COL0, left), g.pairs(r, RIGHT0, right)) + 1
+
+    g.section(r, L('core'))
+    r += 1
+    left = [(L('lagna'), f"{i18n.rasi(lagna['sign'], lang)}  {lagna['dms']}"),
+            (L('janma_rasi'), i18n.rasi(v['moon_sign'], lang)),
+            (L('nakshatra'), f"{i18n.nak(v['moon_nak'], lang)} - {i18n.Lv('pada', lang)} {v['moon_pada']}"),
+            (L('nak_lord'), i18n.planet(v['dasa']['birth_star_lord'], lang)),
+            (L('tithi'), f"{i18n.word(pc['paksha'], lang)} {i18n.tithi(pc['tithi'], lang)}"),
+            (L('vara'), i18n.weekday(pc['vara'], lang))]
+    al = alp['lagna']
+    right = [(L('dasa_balance'), _balance_text(v['dasa']['balance'], lang))]
+    for key, lab in (('dasa', 'dasa'), ('bhukti', 'bhukti'), ('antaram', 'antara')):
+        if lab in cur:
+            right.append((i18n.Lj(['current', key], lang),
+                          f"{i18n.planet(cur[lab]['lord'], lang)}  ({i18n.Lv('until', lang)} "
+                          f"{cur[lab]['end'].strftime('%d-%m-%Y')})"))
+    right.append((L('alp_lagna_now'), f"{i18n.rasi(al['sign'], lang)}  {al['dms']}"))
+    right.append((L('as_of'), m['generated_at'].date(), DATE_FMT))
+    r = max(g.pairs(r, COL0, left), g.pairs(r, RIGHT0, right)) + 1
+
+    style = m['chart_style']
+    g.chart(r, COL0, specs['d1'], style)
+    r = g.chart(r, RIGHT0, specs['d9'], style)
+    g.chart(r, COL0, specs['kp'], style)
+    r = g.chart(r, RIGHT0, specs['alp'], style)
+
+    g.put(r, COL0, L('disclaimer'), span=GRID_N, size=8, color=MUTED, h='center', italic=True, border=False,
+          wrap=False)
+    g.ws.freeze_panes = 'A3'
+    _page_setup(g.ws, m['name'], COL0 + GRID_N - 1, one_page=True)
+
+
+def _vedic(wb, res, specs, lang):
+    g = Grid(wb, _sheet_name('vedic', lang), lang)
+    m, v = res['meta'], res['vedic']
+    L = lambda k: i18n.L(k, lang)
+    pc = v['panchangam']
+    style = m['chart_style']
+
+    r = g.title(1, f"{L('vedic')}  ·  {m['name']}",
+                f"{L('ayanamsha')}: {m['ayanamsha_name']} {v['ayanamsha_dms']}")
+    g.chart(r, COL0, specs['d1'], style)
+    r = g.chart(r, RIGHT0, specs['d9'], style)
+
+    top = r
+    g.chart(top, COL0, specs['bhava'], style)
+    rr = g.section(top, L('panchangam'), c=RIGHT0, span=12, keep_height=True)
+    rr = g.pairs(rr, RIGHT0, keep_height=True, items=[
+        (L('tithi'), f"{i18n.word(pc['paksha'], lang)} {i18n.tithi(pc['tithi'], lang)}"),
+        (L('vara'), i18n.weekday(pc['vara'], lang)),
+        (L('nakshatra'), f"{i18n.nak(pc['nak'], lang)} - {i18n.Lv('pada', lang)} {pc['pada']}"),
+        (L('yoga'), pc['yoga']),
+        (L('karana'), pc['karana']),
+        (L('sunrise'), _t(pc['sunrise']) if pc['sunrise'] else '—', TIME_FMT),
+        (L('sunset'), _t(pc['sunset']) if pc['sunset'] else '—', TIME_FMT),
+        (L('dasa_balance'), _balance_text(v['dasa']['balance'], lang)),
+    ])
+    r = top + 14
+
+    g.page_break(r)
+    r = g.section(r, L('planet_positions'))
+    cols = [(L('planet'), 3, 'left'), (L('rasi'), 3, 'left'), (L('degree'), 3, 'center'),
+            (L('nakshatra'), 4, 'left'), (L('pada'), 1, 'center'), (L('rasi_lord'), 2, 'left'),
+            (L('star_lord'), 2, 'left'), (L('house'), 1, 'center'), (L('bhava'), 1, 'center'),
+            (L('navamsa'), 2, 'left'), (f"{L('retro')} / {L('combust')} / {L('dignity')}", 3, 'left')]
+    rows = [[i18n.planet(p['name'], lang), i18n.rasi(p['sign'], lang), p['dms'], i18n.nak(p['nak'], lang),
+             p['pada'], i18n.planet(p['sign_lord'], lang), i18n.planet(p['star_lord'], lang),
+             p['house'], p['bhava'], i18n.rasi(p['navamsa'], lang),
+             _state(p, lang)] for p in v['planets']]
+    tall = {i for i, p in enumerate(v['planets'])
+            if sum(bool(p.get(k)) for k in ('retro', 'combust', 'dignity')) > 1}
+    r = g.table(r, cols, rows, tall=tall) + 1
+
+    r = g.section(r, L('bhava_table'))
+    by_bhava = {}
+    for p in v['planets']:
+        by_bhava.setdefault(p['bhava'], []).append(i18n.planet(p['name'], lang))
+    cols = [(L('bhava'), 2, 'center'), (L('bhava_start'), 6, 'left'), (L('bhava_mid'), 6, 'left'),
+            (L('planet'), 11, 'left')]
+    rows = [[b['house'], f"{i18n.rasi(b['start_sign'], lang)}  {b['start_dms']}",
+             f"{i18n.rasi(b['madhya_sign'], lang)}  {b['madhya_dms']}",
+             ', '.join(by_bhava.get(b['house'], [])) or '—'] for b in v['bhavas']]
+    g.table(r, cols, rows)
+    g.ws.freeze_panes = 'A3'
+    _page_setup(g.ws, m['name'], COL0 + GRID_N - 1)
+
+
+def _kp(wb, res, specs, lang):
+    g = Grid(wb, _sheet_name('kp', lang), lang)
+    m, kp = res['meta'], res['kp']
+    L = lambda k: i18n.L(k, lang)
+    P = lambda n: i18n.planet(n, lang)
+    now = m['generated_at']
+
+    r = g.title(1, f"{L('kp')}  ·  {m['name']}",
+                f"{L('kp_ayanamsha')}: {kp['ayanamsha_dms']}  ·  {L('house_system')}: {i18n.word(kp['house_system'], lang)}")
+    top = r
+    g.chart(top, COL0, specs['kp'], m['chart_style'])
+    rp = kp['ruling_planets']
+    rr = g.section(top, L('ruling_planets'), c=RIGHT0, span=12, keep_height=True)
+    rr = g.pairs(rr, RIGHT0, [(L(k), P(rp[k])) for k in
+                              ('day_lord', 'moon_sign_lord', 'moon_star_lord', 'moon_sub_lord',
+                               'lagna_sign_lord', 'lagna_star_lord', 'lagna_sub_lord')],
+                 label_span=6, value_span=6, keep_height=True)
+    r = top + 14
+
+    r = g.section(r, L('node_agents'))
+    cols = [(L('node'), 4, 'left'), (L('rasi_lord'), 5, 'left'), (L('star_lord'), 5, 'left'),
+            (L('conjoined'), 11, 'left')]
+    r = g.table(r, cols, [[P(a['node']), P(a['sign_lord']), P(a['star_lord']),
+                           i18n.planets(a['conjoined'], lang)] for a in kp['node_agents']]) + 1
+
+    lord_cols = [(L('rasi_lord'), 3, 'left'), (L('star_lord'), 3, 'left'),
+                 (L('sub_lord'), 3, 'left'), (L('subsub_lord'), 3, 'left')]
+    r = g.section(r, L('cusps'))
+    cols = [(L('cusp'), 2, 'center'), (L('rasi'), 3, 'left'), (L('degree'), 3, 'center'),
+            (L('nakshatra'), 5, 'left')] + lord_cols
+    rows = [[c['house'], i18n.rasi(c['sign'], lang), c['dms'], i18n.nak(c['nak'], lang),
+             P(c['sign_lord']), P(c['star_lord']), P(c['sub_lord']), P(c['subsub_lord'])] for c in kp['cusps']]
+    r = g.table(r, cols, rows) + 1
+
+    g.page_break(r)
+    r = g.section(r, L('kp_planets'))
+    cols = [(L('planet'), 3, 'left'), (L('rasi'), 3, 'left'), (L('degree'), 3, 'center'),
+            (L('nakshatra'), 4, 'left'), (L('rasi_lord'), 2, 'left'), (L('star_lord'), 2, 'left'),
+            (L('sub_lord'), 2, 'left'), (L('subsub_lord'), 2, 'left'), (L('house'), 2, 'center'),
+            (L('retro'), 2, 'center')]
+    rows = [[P(p['name']), i18n.rasi(p['sign'], lang), p['dms'], i18n.nak(p['nak'], lang),
+             P(p['sign_lord']), P(p['star_lord']), P(p['sub_lord']), P(p['subsub_lord']), p['house'],
+             i18n.retro_mark(lang).strip('()') if p['retro'] else '—'] for p in kp['planets']]
+    r = g.table(r, cols, rows) + 1
+
+    r = g.section(r, L('planet_sig'))
+    cols = [(L('planet'), 3, 'left'), (L('star_lord'), 3, 'left'), (L('sub_lord'), 3, 'left'),
+            (L('level1'), 4, 'center'), (L('level2'), 4, 'center'), (L('level3'), 4, 'center'),
+            (L('level4'), 4, 'center')]
+    rows = [[P(s['planet']), P(s['star_lord']), P(s['sub_lord']), _houses(s['l1']), _houses(s['l2']),
+             _houses(s['l3']), _houses(s['l4'])] for s in kp['planet_significators']]
+    r = g.table(r, cols, rows) + 1
+    g.height(r - len(rows) - 2, 44)
+
+    r = g.section(r, L('house_sig'))
+    cols = [(L('house'), 2, 'center'), (L('sig_a'), 7, 'left'), (L('sig_b'), 6, 'left'),
+            (L('sig_c'), 7, 'left'), (L('sig_d'), 3, 'left')]
+    rows = [[s['house'], i18n.planets(s['a'], lang), i18n.planets(s['b'], lang), i18n.planets(s['c'], lang),
+             i18n.planets(s['d'], lang)] for s in kp['house_significators']]
+    hdr = r
+    r = g.table(r, cols, rows, row_h=30 if lang == 'bi' else 22) + 1
+    g.height(hdr, 38)
+    for rr in range(hdr + 1, hdr + 1 + len(rows)):
+        for cc in range(COL0, COL0 + GRID_N):
+            cell = g.ws.cell(row=rr, column=cc)
+            cell.alignment = Alignment(horizontal=cell.alignment.horizontal, vertical='center',
+                                       wrap_text=True, indent=cell.alignment.indent)
+
+    bal = kp['dasa']['balance']
+    g.page_break(r)
+    r = g.section(r, f"{L('kp_dasa')}  ·  {L('dasa_balance')}: {_balance_text(bal, lang)}")
+    cols = [(L('dasa'), 5, 'left'), (L('bhukti'), 5, 'left'), (L('start'), 4, 'center'),
+            (L('end'), 4, 'center'), (L('age'), 3, 'center'), (L('status'), 4, 'center')]
+    rows, current = [], set()
+    for d in kp['dasa']['dasas']:
+        for b in d['sub']:
+            if b['current']:
+                current.add(len(rows))
+            rows.append([P(d['lord']), P(b['lord']), (_d(b['start']), DATE_FMT), (_d(b['end']), DATE_FMT),
+                         _age(b['start'], m['local_dt']), _status(b, now, lang)])
+    g.table(r, cols, rows, current=current)
+    g.ws.freeze_panes = 'A3'
+    _page_setup(g.ws, m['name'], COL0 + GRID_N - 1)
+
+
+def _alp(wb, res, specs, lang):
+    g = Grid(wb, _sheet_name('alp', lang), lang)
+    m, v, alp = res['meta'], res['vedic'], res['alp']
+    L = lambda k: i18n.L(k, lang)
+    P = lambda n: i18n.planet(n, lang)
+    now = m['generated_at']
+    al, lagna = alp['lagna'], v['planets'][0]
+
+    r = g.title(1, f"{L('alp_title')}  ·  {m['name']}", alp['rate'])
+    top = r
+    g.chart(top, COL0, specs['alp'], m['chart_style'])
+    rr = g.section(top, L('alp_lagna_now'), c=RIGHT0, span=12, keep_height=True)
+    rr = g.pairs(rr, RIGHT0, keep_height=True, items=[
+        (L('alp_birth_lagna'), f"{i18n.rasi(lagna['sign'], lang)}  {lagna['dms']}"),
+        (L('as_of'), now.date(), DATE_FMT),
+        (L('age'), f"{alp['age_years']:.2f} {i18n.Lv('years', lang)}"),
+        (L('alp_lagna_now'), f"{i18n.rasi(al['sign'], lang)}  {al['dms']}"),
+        (L('nakshatra'), f"{i18n.nak(al['nak'], lang)} - {i18n.Lv('pada', lang)} {al['pada']}"),
+        (L('rasi_lord'), P(al['sign_lord'])),
+        (L('star_lord'), P(al['star_lord'])),
+        (L('sub_lord'), P(al['sub_lord'])),
+    ])
+    r = top + 14
+
+    r = g.section(r, L('alp_sign_periods'))
+    cols = [(L('from'), 4, 'center'), (L('to'), 4, 'center'), (L('age_from'), 3, 'center'),
+            (L('age_to'), 3, 'center'), (L('rasi'), 4, 'left'), (L('rasi_lord'), 4, 'left'),
+            (L('status'), 3, 'center')]
+    rows, current = [], set()
+    for s in alp['sign_periods']:
+        if s['current']:
+            current.add(len(rows))
+        rows.append([(_d(s['start']), DATE_FMT), (_d(s['end']), DATE_FMT), s['age_from'], s['age_to'],
+                     i18n.rasi(s['sign'], lang), P(s['sign_lord']), _status(s, now, lang)])
+    r = g.table(r, cols, rows, current=current) + 1
+
+    g.page_break(r)
+    r = g.section(r, L('alp_pada_periods'))
+    cols = [(L('from'), 3, 'center'), (L('to'), 3, 'center'), (L('age_from'), 2, 'center'),
+            (L('age_to'), 2, 'center'), (L('rasi'), 3, 'left'), (L('nakshatra'), 4, 'left'),
+            (L('pada'), 1, 'center'), (L('rasi_lord'), 2, 'left'), (L('star_lord'), 2, 'left'),
+            (L('status'), 3, 'center')]
+    rows, current = [], set()
+    for s in alp['pada_periods']:
+        if s['current']:
+            current.add(len(rows))
+        rows.append([(_d(s['start']), DATE_FMT), (_d(s['end']), DATE_FMT), s['age_from'], s['age_to'],
+                     i18n.rasi(s['sign'], lang), i18n.nak(s['nak'], lang), s['pada'],
+                     P(s['sign_lord']), P(s['star_lord']), _status(s, now, lang)])
+    g.table(r, cols, rows, current=current)
+    g.ws.freeze_panes = 'A3'
+    _page_setup(g.ws, m['name'], COL0 + GRID_N - 1)
+
+
+def _dasa(wb, res, lang):
+    """Vimshottari dasa / bhukti / antaram in ordinary columns (sortable, filterable)."""
+    ws = wb.create_sheet(_sheet_name('dasa_sheet', lang))
+    ws.sheet_view.showGridLines = False
+    m, v = res['meta'], res['vedic']
+    L = lambda k: i18n.L(k, lang)
+    P = lambda n: i18n.planet(n, lang)
+    now = m['generated_at']
+    wide = 24 if lang == 'bi' else 15
+    widths = [1.5, wide, wide, wide, 13, 13, 9, 9, 14]
+    for i, w in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+    border = Border(left=_thin, right=_thin, top=_thin, bottom=_thin)
+
+    ws.merge_cells(start_row=1, start_column=2, end_row=1, end_column=9)
     ws.row_dimensions[1].height = 30
-    t = ws.cell(row=1, column=START_COL,
-                value='🕉  RASI CHART (South Indian Style)')
-    t.font      = Font(bold=True, size=14, color=DARK_BROWN, name='Calibri')
-    t.alignment = align(h='center')
-    t.fill      = fill(GOLD)
-    t.border    = thick_border()
+    c = ws.cell(row=1, column=2, value=f"{L('vim_dasa')}  ·  {m['name']}")
+    c.font, c.fill = _font(15, True, WHITE), _fill(BAND)
+    c.alignment = Alignment(horizontal='center', vertical='center')
+    ws.merge_cells(start_row=2, start_column=2, end_row=2, end_column=9)
+    c = ws.cell(row=2, column=2, value=f"{L('dasa_balance')}: {_balance_text(v['dasa']['balance'], lang)}"
+                                       f"  ·  {L('ayanamsha')}: {m['ayanamsha_name']}")
+    c.font, c.fill = _font(9, False, MUTED, True), _fill(SOFT)
+    c.alignment = Alignment(horizontal='center', vertical='center')
 
-    ws.merge_cells(start_row=2, start_column=START_COL,
-                   end_row=2,   end_column=START_COL + 4*CELL_COLS - 1)
-    ws.row_dimensions[2].height = 18
-    s = ws.cell(row=2, column=START_COL,
-                value=f'{name}  ·  {dob}  ·  {tob}  ·  {pob}  ·  Lagna: {lagna}')
-    s.font      = Font(italic=True, size=9, color='5C3D11', name='Calibri')
-    s.alignment = align(h='center')
-    s.fill      = fill(LIGHT_GOLD)
-    ws.row_dimensions[3].height = 6
-
-    thin  = Side(style='thin',   color=GOLD)
-    thick = Side(style='medium', color=DARK_BROWN)
-
-    center_merged = False
-
-    for grid_row in range(4):
-        for grid_col in range(4):
-            house = CHART_GRID[grid_row][grid_col]
-            er    = START_ROW + grid_row * CELL_ROWS
-            ec    = START_COL + grid_col * CELL_COLS
-
-            if house == -1:
-                # Center 2x2 block — merge once
-                if not center_merged:
-                    cr = START_ROW + CELL_ROWS
-                    cc = START_COL + CELL_COLS
-                    ws.merge_cells(
-                        start_row=cr, start_column=cc,
-                        end_row=cr + 2*CELL_ROWS - 1,
-                        end_column=cc + 2*CELL_COLS - 1
-                    )
-                    c = ws.cell(row=cr, column=cc)
-                    c.value     = f'🕉\n{name}\n\n{lagna}\nLagna\n\n{nak}\nPada {nakpada}'
-                    c.font      = Font(bold=True, size=11, color=DARK_BROWN, name='Calibri')
-                    c.alignment = align(h='center', v='center', wrap=True)
-                    c.fill      = fill(CENTER_BG)
-                    c.border    = Border(
-                        left=Side(style='medium', color=DARK_BROWN),
-                        right=Side(style='medium', color=DARK_BROWN),
-                        top=Side(style='medium', color=DARK_BROWN),
-                        bottom=Side(style='medium', color=DARK_BROWN),
-                    )
-                    center_merged = True
-                continue
-
-            # Merge the house cell block
-            ws.merge_cells(
-                start_row=er, start_column=ec,
-                end_row=er + CELL_ROWS - 1,
-                end_column=ec + CELL_COLS - 1
-            )
-
-            planets = planets_by_house.get(house, [])
-            short   = RASI_SHORT.get(house, '')
-            content = short + ('\n' + '  '.join(planets) if planets else '')
-
-            is_lagna = (house == lagna_rasi)
-            bg_color = LAGNA_BG if is_lagna else (CREAM if planets else LIGHT_GOLD)
-
-            cell = ws.cell(row=er, column=ec, value=content)
-            cell.font = Font(
-                bold=bool(planets) or is_lagna,
-                size=11 if planets else 9,
-                color='8B0000' if is_lagna else (DARK_BROWN if planets else '8B6914'),
-                name='Calibri'
-            )
-            cell.alignment = align(h='center', v='center', wrap=True)
-            cell.fill      = fill(bg_color)
-            cell.border    = Border(
-                left=Side(style='thin', color=GOLD),
-                right=Side(style='thin', color=GOLD),
-                top=Side(style='thin', color=GOLD),
-                bottom=Side(style='thin', color=GOLD),
-            )
-
-    # Thick outer border
-    chart_end_row = START_ROW + 4 * CELL_ROWS - 1
-    chart_end_col = START_COL + 4 * CELL_COLS - 1
-    for r in range(START_ROW, chart_end_row + 1):
-        for c_idx in range(START_COL, chart_end_col + 1):
-            cell = ws.cell(row=r, column=c_idx)
-            left   = Side(style='medium', color=DARK_BROWN) if c_idx == START_COL    else cell.border.left
-            right  = Side(style='medium', color=DARK_BROWN) if c_idx == chart_end_col else cell.border.right
-            top    = Side(style='medium', color=DARK_BROWN) if r == START_ROW         else cell.border.top
-            bottom = Side(style='medium', color=DARK_BROWN) if r == chart_end_row     else cell.border.bottom
-            cell.border = Border(left=left, right=right, top=top, bottom=bottom)
-
-    # Legend
-    leg_row = chart_end_row + 3
-    ws.merge_cells(start_row=leg_row, start_column=START_COL,
-                   end_row=leg_row,   end_column=START_COL + 4*CELL_COLS - 1)
-    ws.row_dimensions[leg_row].height = 18
-    h = ws.cell(row=leg_row, column=START_COL, value='PLANET ABBREVIATIONS')
-    h.font = Font(bold=True, size=9, color=DARK_BROWN)
-    h.fill = fill(LIGHT_GOLD)
-
-    abbrevs = 'La=Lagna  ·  Su=Sun  ·  Mo=Moon  ·  Ma=Mars  ·  Me=Mercury  ·  Ju=Jupiter  ·  Ve=Venus  ·  Sa=Saturn  ·  Ra=Rahu  ·  Ke=Ketu'
-    ws.merge_cells(start_row=leg_row+1, start_column=START_COL,
-                   end_row=leg_row+1,   end_column=START_COL + 4*CELL_COLS - 1)
-    ws.row_dimensions[leg_row+1].height = 16
-    a = ws.cell(row=leg_row+1, column=START_COL, value=abbrevs)
-    a.font = Font(italic=True, size=8, color='5C3D11')
-
-    ws.merge_cells(start_row=leg_row+2, start_column=START_COL,
-                   end_row=leg_row+2,   end_column=START_COL + 4*CELL_COLS - 1)
-    n = ws.cell(row=leg_row+2, column=START_COL,
-                value='★ Peach highlighted house = Lagna (Ascendant)')
-    n.font = Font(italic=True, size=8, color='8B4513')
-
-
-# ── SHEET 3: PLANET POSITIONS ────────────────────────────────────────────────
-def build_planets_sheet(wb, data, lang='en'):
-    ws = wb.create_sheet('Planet Positions')
-    ws.sheet_view.showGridLines = False
-
-    ws.column_dimensions['A'].width = 2
-    ws.column_dimensions['B'].width = 16
-    ws.column_dimensions['C'].width = 20
-    ws.column_dimensions['D'].width = 14
-    ws.column_dimensions['E'].width = 22
-    ws.column_dimensions['F'].width = 8
-    ws.column_dimensions['G'].width = 8
-
-    # Title
-    ws.merge_cells('B1:G1')
-    ws.row_dimensions[1].height = 28
-    t = ws.cell(row=1, column=2, value='🌟  PLANET POSITIONS')
-    t.font = Font(bold=True, size=13, color=DARK_BROWN, name='Calibri')
-    t.alignment = align(h='center')
-    t.fill = fill(GOLD)
-    t.border = thick_border()
-
-    # Header row
-    ws.row_dimensions[2].height = 6
-    headers = ['Planet', 'Rasi', 'Degrees', 'Nakshatra', 'Pada', 'House']
-    ws.row_dimensions[3].height = 22
-    for i, h in enumerate(headers, start=2):
+    heads = [L('dasa'), L('bhukti'), L('antaram'), L('start'), L('end'),
+             i18n.Lj(['age', 'start'], lang), L('years'), L('status')]
+    ws.row_dimensions[3].height = 30 if lang == 'bi' else 22
+    for i, h in enumerate(heads, start=2):
         c = ws.cell(row=3, column=i, value=h)
-        c.font      = Font(bold=True, size=10, color=GOLD, name='Calibri')
-        c.alignment = align(h='center')
-        c.fill      = fill(HEADER_BG)
-        c.border    = thin_border(GOLD)
+        c.font, c.fill, c.border = _font(9, True, WHITE), _fill(HEAD), border
+        c.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
-    # Data rows
-    lagna_rasi = data.get('lagnaRasi', 1)
-    for ri, p in enumerate(data.get('planets', []), start=4):
-        ws.row_dimensions[ri].height = 20
-        if not isinstance(p, dict):
-            continue
-        is_lagna = p.get('planet') == 'Lagna'
-        bg = LAGNA_BG if is_lagna else (LIGHT_GOLD if ri % 2 == 0 else WHITE)
-        row_data = [
-            p.get('planet', ''),
-            p.get('rasi', ''),
-            p.get('degrees', ''),
-            p.get('nakshatra', ''),
-            str(p.get('pada', '')),
-            str(p.get('house', '')),
-        ]
-        for ci, val in enumerate(row_data, start=2):
-            c = ws.cell(row=ri, column=ci, value=val)
-            c.font      = Font(bold=is_lagna, size=10, color=DARK_BROWN, name='Calibri')
-            c.alignment = align(h='center' if ci > 3 else 'left')
-            c.fill      = fill(bg)
-            c.border    = thin_border()
+    r = 4
+    for d in v['dasa']['dasas']:
+        for b in d['sub']:
+            for a in b['sub']:
+                cur = a['current']
+                fill = _fill(CURRENT if cur else (ALT if r % 2 else WHITE))
+                vals = [P(d['lord']), P(b['lord']), P(a['lord']), _d(a['start']), _d(a['end']),
+                        _age(a['start'], m['local_dt']), round(a['years'], 3), _status(a, now, lang)]
+                for i, val in enumerate(vals, start=2):
+                    c = ws.cell(row=r, column=i, value=val)
+                    c.font, c.fill, c.border = _font(9, cur), fill, border
+                    c.alignment = _align('left' if i <= 4 else 'center', 'center', False, False,
+                                         1 if i <= 4 else 0)
+                    if i in (5, 6):
+                        c.number_format = DATE_FMT
+                    elif i == 7:
+                        c.number_format = '0.00'
+                    elif i == 8:
+                        c.number_format = '0.000'
+                r += 1
+    ws.auto_filter.ref = f'B3:I{r - 1}'
+    ws.freeze_panes = 'A4'
+    _page_setup(ws, m['name'], 9, title_rows='1:3')
 
 
-# ── SHEET 4: DASA BHUKTI ─────────────────────────────────────────────────────
-def build_dasa_sheet(wb, data, lang='en'):
-    ws = wb.create_sheet('Vimshottari Dasa Bhukti')
+def _notes(wb, res, lang):
+    ws = wb.create_sheet(_sheet_name('notes', lang))
     ws.sheet_view.showGridLines = False
+    m, v, kp = res['meta'], res['vedic'], res['kp']
+    L = lambda k: i18n.L(k, lang)
+    ws.column_dimensions['A'].width = 1.5
+    ws.column_dimensions['B'].width = 30
+    ws.column_dimensions['C'].width = 78
+    border = Border(left=_thin, right=_thin, top=_thin, bottom=_thin)
 
-    ws.column_dimensions['A'].width = 2
-    ws.column_dimensions['B'].width = 16
-    ws.column_dimensions['C'].width = 16
-    ws.column_dimensions['D'].width = 14
-    ws.column_dimensions['E'].width = 14
-    ws.column_dimensions['F'].width = 14
+    def band(r, text, fill=HEAD, size=10.5, h=20):
+        ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=3)
+        ws.row_dimensions[r].height = h
+        c = ws.cell(row=r, column=2, value=text)
+        c.font, c.fill = _font(size, True, WHITE), _fill(fill)
+        c.alignment = Alignment(horizontal='left' if size < 14 else 'center', vertical='center', indent=1)
+        return r + 1
 
-    ws.merge_cells('B1:F1')
-    ws.row_dimensions[1].height = 28
-    t = ws.cell(row=1, column=2, value='📅  VIMSHOTTARI DASA BHUKTI')
-    t.font = Font(bold=True, size=13, color=DARK_BROWN, name='Calibri')
-    t.alignment = align(h='center')
-    t.fill = fill(GOLD)
-    t.border = thick_border()
+    def row(r, k, val):
+        a = ws.cell(row=r, column=2, value=k)
+        a.font, a.fill, a.border = _font(9, True, MUTED), _fill(SOFT), border
+        a.alignment = Alignment(vertical='top', wrap_text=True, indent=1)
+        b = ws.cell(row=r, column=3, value=val)
+        b.font, b.border = _font(9), border
+        b.alignment = Alignment(vertical='top', wrap_text=True, indent=1)
+        lines = max(1, -(-len(str(val)) // 95), -(-len(str(k)) // 34))
+        ws.row_dimensions[r].height = 14 * lines + 4
+        return r + 1
 
-    ws.row_dimensions[2].height = 6
-    headers = ['Dasa', 'Bhukti', 'Start', 'End', 'Status']
-    ws.row_dimensions[3].height = 22
-    for i, h in enumerate(headers, start=2):
-        c = ws.cell(row=3, column=i, value=h)
-        c.font      = Font(bold=True, size=10, color=GOLD, name='Calibri')
-        c.alignment = align(h='center')
-        c.fill      = fill(HEADER_BG)
-        c.border    = thin_border(GOLD)
+    r = band(1, f"{L('notes')}  ·  {m['name']}", fill=BAND, size=15, h=30) + 1
+    r = band(r, L('how_calculated'))
+    node = 'True node' if m['node'] == 'true' else 'Mean node'
+    for k, val in [
+        ('Ephemeris', f"{m['engine']}. Positions are geocentric, apparent, sidereal."),
+        ('Birth moment', f"Local time {m['local_dt'].strftime('%d-%m-%Y %H:%M:%S')} at {m['tz']} "
+                         f"({m['utc_offset_str']}) = UT {m['ut_dt'].strftime('%d-%m-%Y %H:%M:%S')}; "
+                         f"Julian day (UT) {m['jd_ut']}."),
+        ('Place', f"{m['pob']} — latitude {m['lat']:.4f}°, longitude {m['lon']:.4f}°. "
+                  "If these are not the birth place, the lagna and house cusps will be wrong."),
+        ('Vedic ayanamsha', f"{m['ayanamsha_name']}: {v['ayanamsha_dms']} at birth."),
+        ('KP ayanamsha', f"Krishnamurti: {kp['ayanamsha_dms']} at birth. The KP sheet uses this value throughout, "
+                         "so KP positions differ slightly from the Vedic sheet."),
+        ('Rahu / Ketu', f"{node}. Ketu is exactly opposite Rahu."),
+        ('Vedic houses', 'House = whole sign counted from the lagna sign. Bhava = Sripati: the Porphyry cusps '
+                         'are the bhava centres and each bhava begins midway between two centres.'),
+        ('KP houses', f"{kp['house_system']} cusps; a planet belongs to the house whose cusp it has passed. "
+                      'Star, sub and sub-sub lords divide each nakshatra in Vimshottari proportion.'),
+        ('KP significators', 'Planet levels 1-4: house occupied by its star lord; house it occupies; houses '
+                             'owned by its star lord; houses it owns. House levels A-D: planets in the star of '
+                             'occupants; occupants; planets in the star of the owner; the owner. '
+                             'Rahu and Ketu own no houses and also act for their sign lord and for planets '
+                             'in the same sign (listed separately).'),
+        ('Vimshottari', f"Year of {m['year_days']} days. Balance at birth from the Moon's position in its "
+                        'nakshatra. Periods that ended before birth are not listed.'),
+        ('Panchangam', 'Tithi, yoga and karana at the birth moment. Sunrise and sunset are for the visible '
+                       'upper limb with standard refraction. The weekday runs from sunrise to sunrise.'),
+        ('Combustion', 'Orbs from the Sun: Moon 12°, Mars 17°, Mercury 14° (12° retrograde), Jupiter 11°, '
+                       'Venus 10° (8° retrograde), Saturn 15°.'),
+        ('Dignity', 'Only exaltation, debilitation and own sign are marked.'),
+        ('ALP', 'Akshaya Lagna Paddhati: the birth lagna advances 30° every 10 years (3° a year), so one '
+                f"nakshatra pada lasts 1 year 1 month 10 days. Year of {m['year_days']} days."),
+        ('Generated', m['generated_at'].strftime('%d-%m-%Y %H:%M') + f" ({m['utc_offset_str']})"),
+    ]:
+        r = row(r, k, val)
 
-    for ri, d in enumerate(data.get('dasas', []), start=4):
-        ws.row_dimensions[ri].height = 20
-        status = d.get('status', '')
-        if status == 'current':
-            bg = CURRENT_BG
-            st_color = '856404'
-        elif status == 'completed':
-            bg = COMPLETED_BG
-            st_color = '6C757D'
-        else:
-            bg = WHITE
-            st_color = '155724'
-
-        row_data = [
-            d.get('dasa', ''),
-            d.get('bhukti', ''),
-            d.get('start', ''),
-            d.get('end', ''),
-            status.capitalize(),
-        ]
-        for ci, val in enumerate(row_data, start=2):
-            c = ws.cell(row=ri, column=ci, value=val)
-            c.font      = Font(
-                bold=(status == 'current'),
-                size=10,
-                color=st_color if ci == 6 else DARK_BROWN,
-                name='Calibri'
-            )
-            c.alignment = align(h='center')
-            c.fill      = fill(bg)
-            c.border    = thin_border()
-
-        # Gold left bar for current
-        if status == 'current':
-            ws.cell(row=ri, column=2).border = Border(
-                left=Side(style='medium', color=GOLD),
-                right=Side(style='thin', color=GOLD),
-                top=Side(style='thin', color=GOLD),
-                bottom=Side(style='thin', color=GOLD),
-            )
-
-
-# ── SHEET 5: YOGAS ───────────────────────────────────────────────────────────
-def build_yogas_sheet(wb, data):
-    ws = wb.create_sheet('Yogas & Remedies')
-    ws.sheet_view.showGridLines = False
-
-    ws.column_dimensions['A'].width = 2
-    ws.column_dimensions['B'].width = 28
-    ws.column_dimensions['C'].width = 52
-    ws.column_dimensions['D'].width = 14
-
-    ws.merge_cells('B1:C1')
-    ws.row_dimensions[1].height = 28
-    t = ws.cell(row=1, column=2, value='✨  PLANETARY YOGAS & AUSPICIOUS DETAILS')
-    t.font = Font(bold=True, size=13, color=DARK_BROWN, name='Calibri')
-    t.alignment = align(h='center')
-    t.fill = fill(GOLD)
-    t.border = thick_border()
-
-    ws.row_dimensions[2].height = 6
-
-    headers = ['Yoga Name', 'Significance']
-    ws.row_dimensions[3].height = 22
-    for i, h in enumerate(headers, start=2):
-        c = ws.cell(row=3, column=i, value=h)
-        c.font = Font(bold=True, size=10, color=GOLD, name='Calibri')
-        c.alignment = align(h='center')
-        c.fill = fill(HEADER_BG)
-        c.border = thin_border(GOLD)
-
-    for ri, y in enumerate(data.get('yogas', []), start=4):
-        ws.row_dimensions[ri].height = 22
-        bg = LIGHT_GOLD if ri % 2 == 0 else WHITE
-
-        # Handle both dict {'name':..,'description':..} and tuple (name, desc)
-        if isinstance(y, dict):
-            y_name = y.get('name', '')
-            y_desc = y.get('description', '')
-        elif isinstance(y, (tuple, list)) and len(y) >= 2:
-            y_name, y_desc = y[0], y[1]
-        else:
-            y_name = str(y)
-            y_desc = ''
-
-        c1 = ws.cell(row=ri, column=2, value=y_name)
-        c1.font = Font(bold=True, size=10, color=DARK_BROWN, name='Calibri')
-        c1.fill = fill(bg)
-        c1.border = thin_border()
-        c1.alignment = align(h='left')
-
-        c2 = ws.cell(row=ri, column=3, value=y_desc)
-        c2.font = Font(size=9, color='3D2B00', name='Calibri')
-        c2.fill = fill(bg)
-        c2.border = thin_border()
-        c2.alignment = align(h='left', wrap=True)
-
-    # Auspicious details section
-    ri = 4 + len(data.get('yogas', [])) + 2
-    ws.merge_cells(f'B{ri}:C{ri}')
-    ws.row_dimensions[ri].height = 22
-    h = ws.cell(row=ri, column=2, value='💎  AUSPICIOUS DETAILS')
-    h.font = Font(bold=True, size=11, color=GOLD, name='Calibri')
-    h.fill = fill(HEADER_BG)
-    h.alignment = align(h='left')
-    h.border = thick_border()
-    ri += 1
-
-    details = [
-        ('Recommended Gemstone', data.get('gemstone', '')),
-        ('Lucky Colors',         data.get('luckyColors', '')),
-        ('Lucky Numbers',        ', '.join(str(n) for n in data.get('luckyNumbers', []))),
-        ('Nakshatra Lord',       data.get('nakLord', '')),
-        ('Current Dasa Ends',    data.get('curDasa', {}).get('end', '')),
-        ('Current Bhukti Ends',  data.get('curBhukti', {}).get('end', '')),
-    ]
-    for label, val in details:
-        ws.row_dimensions[ri].height = 20
-        c1 = ws.cell(row=ri, column=2, value=label)
-        c1.font = Font(bold=True, size=10, color='5C3D11', name='Calibri')
-        c1.fill = fill(LIGHT_GOLD)
-        c1.border = thin_border()
-        c1.alignment = align(h='left')
-
-        c2 = ws.cell(row=ri, column=3, value=val)
-        c2.font = Font(size=10, color=DARK_BROWN, name='Calibri')
-        c2.fill = fill(WHITE)
-        c2.border = thin_border()
-        c2.alignment = align(h='left')
-        ri += 1
+    r = band(r + 1, L('abbreviations'))
+    names = ['Lagna', 'Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu', 'ALP']
+    r = row(r, L('planet'), '   '.join(
+        f"{i18n.abbr(n, lang)} = {i18n.planet(n, lang) if n != 'ALP' else L('alp_lagna_now')}" for n in names))
+    r = row(r, L('retro'), f"{i18n.retro_mark(lang)} after a planet = retrograde")
+    r = row(r, L('rasi'), '   '.join(f"{i + 1} = {i18n.rasi(i, lang)}" for i in range(12)))
+    r = row(r, L('kp_chart'), 'Roman numerals I-XII mark the sign in which each house cusp falls.')
+    ws.merge_cells(start_row=r + 1, start_column=2, end_row=r + 1, end_column=3)
+    c = ws.cell(row=r + 1, column=2, value=L('disclaimer'))
+    c.font = _font(8, False, MUTED, True)
+    c.alignment = Alignment(horizontal='center')
+    _page_setup(ws, m['name'], 3)
 
 
-# ── MAIN ENTRY POINT ─────────────────────────────────────────────────────────
-def generate_excel(data, lang='en'):
-    """
-    Generate professional Excel horoscope report.
-    Args:
-        data (dict): Horoscope data from compute() or frontend payload
-        lang (str):  Language code
-    Returns:
-        bytes: Excel file as bytes
-    """
+# ── ENTRY POINT ───────────────────────────────────────────────────────────────
+
+def generate_excel(res, lang=None):
+    """Build the workbook from compute() output. Returns bytes."""
+    lang = lang or res['meta'].get('lang', 'en')
+    if lang not in i18n.LANGS:
+        lang = 'en'
+    specs = charts.build_specs(res, lang)
     wb = openpyxl.Workbook()
-
-    build_summary_sheet(wb, data, lang)
-    build_chart_sheet(wb, data)
-    build_planets_sheet(wb, data, lang)
-    build_dasa_sheet(wb, data, lang)
-    build_yogas_sheet(wb, data)
-
-    # Save to bytes
+    _summary(wb, res, specs, lang)
+    _vedic(wb, res, specs, lang)
+    _kp(wb, res, specs, lang)
+    _alp(wb, res, specs, lang)
+    _dasa(wb, res, lang)
+    _notes(wb, res, lang)
+    wb.properties.title = f"HoroscopeGen - {res['meta']['name']}"
+    wb.properties.creator = 'horoscopegen.in'
     buf = io.BytesIO()
     wb.save(buf)
-    buf.seek(0)
-    return buf.read()
+    return buf.getvalue()

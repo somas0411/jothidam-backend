@@ -1,176 +1,87 @@
-# Jothidam Backend — Deployment Guide
+# HoroscopeGen backend
 
-## Overview
-Python Flask backend that generates professional Vedic horoscope PDFs and Excel files.
+Flask API behind [horoscopegen.in](https://www.horoscopegen.in). It computes a
+horoscope with the Swiss Ephemeris and returns it as JSON, an Excel workbook
+or a PDF. Three systems are produced from one birth moment:
 
-- **PDF**: 4 pages, drawn South Indian Rasi chart + Navamsa chart, planet table, Dasa-Bhukti, Yogas, Lucky info
-- **Excel**: 4 sheets — Summary, Planet Positions, Dasa Bhukti, Yogas
-- **Languages**: All 8 (EN, TA, HI, TE, KN, ML, MR, BN)
+| System | What is computed |
+|---|---|
+| **Vedic** | D1 Rasi, D9 Navamsa, Sripati Bhava, planet table (rasi, nakshatra, pada, lords, retrograde, combust, dignity), birth panchangam, Vimshottari dasa / bhukti / antaram |
+| **KP** | KP ayanamsha, Placidus cusps, star / sub / sub-sub lords for cusps and planets, 4-level significators, ruling planets, Vimshottari |
+| **ALP** | Akshaya Lagna: birth lagna progressed 30° per 10 years, with rasi and nakshatra-pada period tables |
 
----
+Nothing is stored: birth details are used for the calculation and discarded.
 
-## Step 1: Deploy to Render.com (FREE)
+## Files
 
-### A) Push code to GitHub
-```bash
-# Create a new GitHub repo called "jothidam-backend"
-git init
-git add .
-git commit -m "Initial backend"
-git remote add origin https://github.com/YOUR_USERNAME/jothidam-backend.git
-git push -u origin main
+| File | Purpose |
+|---|---|
+| `astro_engine.py` | All calculations. `compute()` is the single source for every output |
+| `charts.py` | Chart contents and layout shared by web page, Excel and PDF |
+| `i18n.py` | Names and labels (en, ta, hi, te, kn, ml, mr, bn, and `bi` = English + Tamil) |
+| `excel_generator.py` | Workbook: Summary, Vedic, KP, ALP, Dasa, Notes; charts drawn with cells |
+| `pdf_generator.py` | PDF with the same content; Noto fonts embedded, text shaped by HarfBuzz |
+| `app.py` | Flask routes |
+| `fonts/` | Noto Sans fonts (SIL Open Font License, see `fonts/OFL.txt`) |
+| `tests/` | `pytest` suite |
+
+## API
+
+All horoscope endpoints take the same JSON body.
+
+```
+POST /api/horoscope          -> JSON (meta, vedic, kp, alp, charts, names)
+POST /api/download/excel     -> .xlsx
+POST /api/download/pdf       -> .pdf
+GET  /api/geocode?q=Chennai  -> place candidates with latitude, longitude, time zone
+GET  /health
 ```
 
-### B) Create Render Web Service
-1. Go to https://render.com → Sign up (free)
-2. New → Web Service → Connect GitHub → Select `jothidam-backend`
-3. Settings:
-   - **Name**: `jothidam-api`
-   - **Region**: Singapore (closest to India)
-   - **Runtime**: Python 3
-   - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `gunicorn app:app`
-   - **Instance Type**: Free
-
-4. Environment Variables (click "Add Environment Variable"):
-   ```
-   RAZORPAY_KEY_ID     = rzp_live_XXXXXXXXXXXXXXXX
-   RAZORPAY_KEY_SECRET = your_secret_key_here
-   FLASK_ENV           = production
-   ```
-
-5. Click **Create Web Service**
-6. Wait ~3 minutes for first deploy
-
-### C) Your API URL will be:
-```
-https://jothidam-api.onrender.com
-```
-
----
-
-## Step 2: Update Frontend (horoscopegen.in)
-
-### A) Add backend-client.js to your website
-Copy `backend-client.js` to your website's `/js/` folder.
-
-### B) Update index.html
-Add before `</body>`:
-```html
-<!-- Backend API Client -->
-<script src="/js/backend-client.js"></script>
-```
-
-### C) Update the backend URL in backend-client.js
-```javascript
-const BACKEND_URL = 'https://jothidam-api.onrender.com'; // ← your Render URL
-```
-
-### D) Update your PDF/Excel download buttons to call backend
-In your HTML, find the download buttons and update onclick:
-```html
-<!-- OLD -->
-<button onclick="downloadPDF()">Download PDF</button>
-
-<!-- NEW — same function name, now calls backend -->
-<button onclick="downloadPDF()">Download PDF</button>
-```
-No change needed if buttons already call `downloadPDF()` and `downloadExcel()` —
-the new backend-client.js overrides these functions.
-
----
-
-## Step 3: Test Locally
-
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Run server
-python app.py
-
-# Test in another terminal
-curl -X POST http://localhost:5000/api/horoscope \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Test User","dob":"1990-07-28","tob":"10:30","pob":"Chennai","lang":"ta","chartStyle":"south"}'
-
-# Download test PDF
-curl -X POST http://localhost:5000/api/download/pdf \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Somaskandan","dob":"1990-07-28","tob":"10:30","pob":"Chennai","lang":"ta"}' \
-  -o test.pdf
-
-# Check PDF opened
-open test.pdf   # macOS
-xdg-open test.pdf  # Linux
-```
-
----
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET  | `/api/ping` | Health check |
-| POST | `/api/horoscope` | Get horoscope data as JSON |
-| POST | `/api/download/pdf` | Download PDF |
-| POST | `/api/download/excel` | Download Excel |
-| POST | `/api/create-order` | Create Razorpay order |
-| POST | `/api/verify-payment` | Verify Razorpay payment |
-
-### Request Body (all endpoints)
 ```json
 {
-  "name":       "Somaskandan R",
-  "dob":        "1990-07-28",
-  "tob":        "10:30",
-  "pob":        "Chennai",
-  "lang":       "ta",
-  "chartStyle": "south"
+  "name": "Sample Native", "dob": "1998-03-06", "tob": "01:37", "pob": "Delhi",
+  "lat": 28.6139, "lon": 77.2090,
+  "tz": "Asia/Kolkata", "utcOffset": null,
+  "ayanamsha": "lahiri", "node": "mean", "gender": "",
+  "lang": "en", "chartStyle": "south"
 }
 ```
 
-### Language Codes
-| Code | Language |
-|------|----------|
-| `en` | English |
-| `ta` | Tamil |
-| `hi` | Hindi |
-| `te` | Telugu |
-| `kn` | Kannada |
-| `ml` | Malayalam |
-| `mr` | Marathi |
-| `bn` | Bengali |
+- `lat` / `lon`: decimal degrees, east and north positive. If omitted, `pob` is
+  looked up; an unknown place is an error (HTTP 400), never a silent default.
+- `tz`: IANA zone; historical offsets are applied. If omitted it is found from
+  the coordinates. `utcOffset` (hours) overrides it.
+- `ayanamsha`: `lahiri`, `kp`, `raman`, `yukteshwar` (Vedic and ALP sections;
+  the KP section always uses the KP ayanamsha).
+- `node`: `mean` or `true`. `chartStyle`: `south` or `north`.
 
----
+## Run locally
 
-## File Structure
-```
-jothidam-backend/
-├── app.py              ← Flask API server (main entry point)
-├── astro_engine.py     ← Vedic astronomy calculations
-├── pdf_generator.py    ← Professional PDF with drawn charts
-├── excel_generator.py  ← Formatted Excel workbook
-├── requirements.txt    ← Python dependencies
-├── backend-client.js   ← Frontend JS to call this API
-└── README.md           ← This file
+```bash
+pip install -r requirements.txt
+python app.py                 # http://localhost:5000
+python -m pytest -q tests
 ```
 
----
+`EXTRA_ORIGINS` (comma-separated) adds allowed CORS origins for local testing.
 
-## Important: Free Tier Note
-Render.com free tier **sleeps after 15 minutes** of inactivity.
-First request after sleep takes ~30 seconds to wake up.
+## Deploy (Render)
 
-**Solution**: Use a free uptime monitor (UptimeRobot.com) to ping `/api/ping` every 14 minutes.
-This keeps the server warm during business hours.
+- Build command: `pip install -r requirements.txt`
+- Start command: `gunicorn app:app` (`gunicorn.conf.py` sets the timeout)
+- No environment variables are required.
 
----
+## Calculation notes
 
-## Environment Variables Reference
-```
-RAZORPAY_KEY_ID      — Razorpay Key ID (rzp_live_...)
-RAZORPAY_KEY_SECRET  — Razorpay Key Secret
-FLASK_ENV            — "production" or "development"
-PORT                 — Auto-set by Render (don't set manually)
-```
+- Ephemeris: Swiss Ephemeris, built-in Moshier mode (no data files needed).
+- Dasa and ALP year: 365.25 days.
+- Sunrise / sunset: visible upper limb with standard refraction.
+- Rahu / Ketu own no houses in KP significators; the nodes' sign lord and
+  conjunct planets are listed separately.
+- Every report carries a Notes page stating the settings used.
+
+## Licence
+
+This project uses the Swiss Ephemeris under the GNU Affero General Public
+License (AGPL-3.0), so this source code is published under the same licence.
+See <https://www.astro.com/swisseph/> for the Swiss Ephemeris terms.

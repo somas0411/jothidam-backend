@@ -6,7 +6,7 @@ or a PDF. Three systems are produced from one birth moment:
 
 | System | What is computed |
 |---|---|
-| **Vedic** | D1 Rasi, D9 Navamsa, Sripati Bhava, planet table (rasi, nakshatra, pada, lords, retrograde, combust, dignity), birth panchangam, Vimshottari dasa / bhukti / antaram |
+| **Vedic** | D1 Rasi, D9 Navamsa, Sripati Bhava, planet table (rasi, nakshatra, pada, lords, retrograde, combust, dignity), Mandi, birth panchangam, Vimshottari dasa / bhukti / antaram |
 | **KP** | KP ayanamsha, Placidus cusps, star / sub / sub-sub lords for cusps and planets, 4-level significators, ruling planets, Vimshottari |
 | **ALP** | Akshaya Lagna: birth lagna progressed 30° per 10 years, with rasi and nakshatra-pada period tables |
 
@@ -76,6 +76,9 @@ python -m pytest -q tests
 - Ephemeris: Swiss Ephemeris, built-in Moshier mode (no data files needed).
 - Dasa and ALP year: 365.25 days.
 - Sunrise / sunset: visible upper limb with standard refraction.
+- Mandi: weekday ghati table (day: Sun 26, Mon 22, Tue 18, Wed 14, Thu 10, Fri 6,
+  Sat 2; night: the value of the 5th weekday), scaled to the actual day or night
+  length; its longitude is the lagna rising at that moment. Gulika is not computed.
 - Rahu / Ketu own no houses in KP significators; the nodes' sign lord and
   conjunct planets are listed separately.
 - Every report carries a Notes page stating the settings used.

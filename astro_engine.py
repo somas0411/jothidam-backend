@@ -14,6 +14,10 @@ no data files required). Three systems are produced from one birth moment:
   * ALP (Akshaya Lagna Paddhati): birth lagna progressed at 30 degrees per
     10 years (one nakshatra pada = 1 year 1 month 10 days).
 
+Mandi (Mandhi) is added to the Vedic result as a separate point: the lagna
+rising a fixed number of ghatis after sunrise (day birth) or sunset (night
+birth), by weekday.
+
 All names in the returned dict are English keys; i18n.py localises them.
 """
 from __future__ import annotations
@@ -74,6 +78,12 @@ YOGAS = ['Vishkambha', 'Priti', 'Ayushman', 'Saubhagya', 'Shobhana', 'Atiganda',
 KARANAS_MOVABLE = ['Bava', 'Balava', 'Kaulava', 'Taitila', 'Gara', 'Vanija', 'Vishti']
 WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 WEEKDAY_LORDS = ['Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Sun']
+
+# Mandi: ghatis after sunrise at which it rises on each weekday, for a day of
+# 30 ghatis. A night birth uses the value of the 5th weekday counted from
+# the birth weekday (Sunday night -> Thursday's value, and so on).
+MANDI_GHATIS_DAY = {'Sunday': 26, 'Monday': 22, 'Tuesday': 18, 'Wednesday': 14,
+                    'Thursday': 10, 'Friday': 6, 'Saturday': 2}
 
 AYANAMSHAS = {
     'lahiri':     ('Lahiri (Chitrapaksha)', swe.SIDM_LAHIRI),
@@ -465,6 +475,86 @@ def _sun_event(jd_start, lat, lon, rise=True):
         return None
 
 
+# ── MANDI ─────────────────────────────────────────────────────────────────────
+
+def mandi_ghatis(weekday, is_day):
+    """Ghatis after sunrise (day) or sunset (night) at which Mandi rises."""
+    if is_day:
+        return MANDI_GHATIS_DAY[weekday]
+    fifth = WEEKDAYS[(WEEKDAYS.index(weekday) + 4) % 7]
+    return MANDI_GHATIS_DAY[fifth]
+
+
+def mandi_time(start, end, ghatis):
+    """
+    Moment Mandi rises. start / end: sunrise and sunset for a day birth, or
+    sunset and the next sunrise for a night birth. The table assumes 30
+    ghatis, so it is scaled to the real length of that day or night.
+    """
+    return start + (end - start) * (ghatis / 30.0)
+
+
+def day_frame(local_dt, offset_hours, lat, lon):
+    """
+    The half-day the birth falls in: (is_day, start, end) as local datetimes.
+    Day birth: sunrise to sunset. Night birth: sunset to the next sunrise; a
+    birth after midnight but before sunrise uses the previous evening's sunset.
+    Returns None where the Sun does not rise or set that day.
+    """
+    def event(after_local, rise):
+        jd = _sun_event(julian_day(after_local - timedelta(hours=offset_hours)), lat, lon, rise)
+        return jd_to_local(jd, offset_hours) if jd else None
+
+    midnight = datetime(local_dt.year, local_dt.month, local_dt.day)
+    sunrise = event(midnight, True)
+    if sunrise is None:
+        return None
+    if local_dt < sunrise:                                   # early morning: last night
+        prev_sunset = event(midnight - timedelta(days=1) + timedelta(hours=12), False)
+        if prev_sunset is None or not prev_sunset < local_dt:
+            # search from the previous sunrise instead (very long days / odd offsets)
+            prev_rise = event(midnight - timedelta(days=1), True)
+            prev_sunset = event(prev_rise, False) if prev_rise else None
+        if prev_sunset is None or prev_sunset >= sunrise:
+            return None
+        return False, prev_sunset, sunrise
+    sunset = event(sunrise, False)
+    if sunset is None:
+        return None
+    if local_dt < sunset:
+        return True, sunrise, sunset
+    next_rise = event(sunset, True)
+    if next_rise is None:
+        return None
+    return False, sunset, next_rise
+
+
+def _lagna_at(local_moment, offset_hours, lat, lon, sid_mode):
+    """Sidereal lagna rising at a local moment (the house system does not affect it)."""
+    jd = julian_day(local_moment - timedelta(hours=offset_hours))
+    with _SWE_LOCK:
+        swe.set_sid_mode(sid_mode)
+        _, ascmc = swe.houses_ex(jd, lat, lon, b'O', swe.FLG_SIDEREAL)
+    return norm(ascmc[0])
+
+
+def build_mandi(local_dt, offset_hours, lat, lon, sid_mode, weekday):
+    """
+    Mandi as a chart point, or None where there is no sunrise / sunset.
+    weekday is the Vedic weekday (sunrise to sunrise) of the birth.
+    """
+    frame = day_frame(local_dt, offset_hours, lat, lon)
+    if frame is None:
+        return None
+    is_day, start, end = frame
+    ghatis = mandi_ghatis(weekday, is_day)
+    rise = mandi_time(start, end, ghatis)
+    point = _point('Mandi', _lagna_at(rise, offset_hours, lat, lon, sid_mode))
+    point.update({'rise_time': rise, 'is_day': is_day, 'ghatis': ghatis, 'weekday': weekday,
+                  'period_start': start, 'period_end': end})
+    return point
+
+
 def panchangam(sun_lon, moon_lon, local_dt, offset_hours, lat, lon):
     elong = norm(moon_lon - sun_lon)
     t = int(elong // 12)                       # 0..29
@@ -511,7 +601,7 @@ def panchangam(sun_lon, moon_lon, local_dt, offset_hours, lat, lon):
 
 # ── SYSTEM BUILDERS ───────────────────────────────────────────────────────────
 
-def _build_vedic(pos, local_dt, offset_hours, lat, lon, now):
+def _build_vedic(pos, local_dt, offset_hours, lat, lon, now, sid_mode):
     sun_lon = pos['pts']['Sun'][0]
     lagna = _point('Lagna', pos['asc'])
     lagna_sign = lagna['sign']
@@ -541,6 +631,18 @@ def _build_vedic(pos, local_dt, offset_hours, lat, lon, now):
         planets.append(enrich(_point(name, lon_, speed), lon_, speed))
 
     moon = next(p for p in planets if p['name'] == 'Moon')
+    pc = panchangam(sun_lon, pos['pts']['Moon'][0], local_dt, offset_hours, lat, lon)
+
+    # Mandi is kept apart from the planets: it takes no part in dasa,
+    # combustion, dignity, KP or ALP calculations.
+    mandi = build_mandi(local_dt, offset_hours, lat, lon, sid_mode, pc['vara'])
+    if mandi:
+        mandi['house'] = ((mandi['sign'] - lagna_sign) % 12) + 1
+        mandi['bhava'] = house_from_cusps(mandi['lon'], starts)
+        mandi['navamsa'] = navamsa_sign(mandi['lon'])
+        mandi['dignity'] = ''
+        mandi['combust'] = False
+
     return {
         'ayanamsha': round(pos['ayan'], 6),
         'ayanamsha_dms': fmt_dms(pos['ayan']),
@@ -548,7 +650,8 @@ def _build_vedic(pos, local_dt, offset_hours, lat, lon, now):
         'lagna_sign': lagna_sign,
         'moon_sign': moon['sign'], 'moon_nak': moon['nak'], 'moon_pada': moon['pada'],
         'bhavas': bhavas,
-        'panchangam': panchangam(sun_lon, pos['pts']['Moon'][0], local_dt, offset_hours, lat, lon),
+        'mandi': mandi,
+        'panchangam': pc,
         'dasa': vimshottari(pos['pts']['Moon'][0], local_dt, now, levels=3),
     }
 
@@ -717,7 +820,7 @@ def compute(name, dob, tob, pob, lat=None, lon=None, tz=None, utc_offset=None,
     pos_vedic = _positions(jd, lat, lon, sid_mode, node, b'P')
     pos_kp = _positions(jd, lat, lon, swe.SIDM_KRISHNAMURTI, node, b'P')
 
-    vedic = _build_vedic(pos_vedic, local_dt, offset_hours, lat, lon, now)
+    vedic = _build_vedic(pos_vedic, local_dt, offset_hours, lat, lon, now, sid_mode)
     kp = _build_kp(pos_kp, local_dt, vedic['panchangam']['vara_lord'], now)
     alp = _build_alp(pos_vedic['asc'], local_dt, now)
     alp['planets'] = [dict(p, house=((p['sign'] - alp['lagna_sign']) % 12) + 1)

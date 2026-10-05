@@ -48,25 +48,25 @@ NAKS = {
 NAKS['mr'] = NAKS['hi']
 
 PLANETS = {
-    'en': {'Lagna': 'Lagna', 'Sun': 'Sun', 'Moon': 'Moon', 'Mars': 'Mars', 'Mercury': 'Mercury', 'Jupiter': 'Jupiter', 'Venus': 'Venus', 'Saturn': 'Saturn', 'Rahu': 'Rahu', 'Ketu': 'Ketu'},
-    'ta': {'Lagna': 'லக்னம்', 'Sun': 'சூரியன்', 'Moon': 'சந்திரன்', 'Mars': 'செவ்வாய்', 'Mercury': 'புதன்', 'Jupiter': 'குரு', 'Venus': 'சுக்கிரன்', 'Saturn': 'சனி', 'Rahu': 'ராகு', 'Ketu': 'கேது'},
-    'hi': {'Lagna': 'लग्न', 'Sun': 'सूर्य', 'Moon': 'चंद्र', 'Mars': 'मंगल', 'Mercury': 'बुध', 'Jupiter': 'गुरु', 'Venus': 'शुक्र', 'Saturn': 'शनि', 'Rahu': 'राहु', 'Ketu': 'केतु'},
-    'te': {'Lagna': 'లగ్నం', 'Sun': 'సూర్యుడు', 'Moon': 'చంద్రుడు', 'Mars': 'కుజుడు', 'Mercury': 'బుధుడు', 'Jupiter': 'గురువు', 'Venus': 'శుక్రుడు', 'Saturn': 'శని', 'Rahu': 'రాహువు', 'Ketu': 'కేతువు'},
-    'kn': {'Lagna': 'ಲಗ್ನ', 'Sun': 'ಸೂರ್ಯ', 'Moon': 'ಚಂದ್ರ', 'Mars': 'ಕುಜ', 'Mercury': 'ಬುಧ', 'Jupiter': 'ಗುರು', 'Venus': 'ಶುಕ್ರ', 'Saturn': 'ಶನಿ', 'Rahu': 'ರಾಹು', 'Ketu': 'ಕೇತು'},
-    'ml': {'Lagna': 'ലഗ്നം', 'Sun': 'സൂര്യൻ', 'Moon': 'ചന്ദ്രൻ', 'Mars': 'ചൊവ്വ', 'Mercury': 'ബുധൻ', 'Jupiter': 'വ്യാഴം', 'Venus': 'ശുക്രൻ', 'Saturn': 'ശനി', 'Rahu': 'രാഹു', 'Ketu': 'കേതു'},
-    'mr': {'Lagna': 'लग्न', 'Sun': 'रवि', 'Moon': 'चंद्र', 'Mars': 'मंगळ', 'Mercury': 'बुध', 'Jupiter': 'गुरु', 'Venus': 'शुक्र', 'Saturn': 'शनि', 'Rahu': 'राहू', 'Ketu': 'केतू'},
-    'bn': {'Lagna': 'লগ্ন', 'Sun': 'সূর্য', 'Moon': 'চন্দ্র', 'Mars': 'মঙ্গল', 'Mercury': 'বুধ', 'Jupiter': 'বৃহস্পতি', 'Venus': 'শুক্র', 'Saturn': 'শনি', 'Rahu': 'রাহু', 'Ketu': 'কেতু'},
+    'en': {'Lagna': 'Lagna', 'Sun': 'Sun', 'Moon': 'Moon', 'Mars': 'Mars', 'Mercury': 'Mercury', 'Jupiter': 'Jupiter', 'Venus': 'Venus', 'Saturn': 'Saturn', 'Rahu': 'Rahu', 'Ketu': 'Ketu', 'Mandi': 'Mandi'},
+    'ta': {'Lagna': 'லக்னம்', 'Sun': 'சூரியன்', 'Moon': 'சந்திரன்', 'Mars': 'செவ்வாய்', 'Mercury': 'புதன்', 'Jupiter': 'குரு', 'Venus': 'சுக்கிரன்', 'Saturn': 'சனி', 'Rahu': 'ராகு', 'Ketu': 'கேது', 'Mandi': 'மாந்தி'},
+    'hi': {'Lagna': 'लग्न', 'Sun': 'सूर्य', 'Moon': 'चंद्र', 'Mars': 'मंगल', 'Mercury': 'बुध', 'Jupiter': 'गुरु', 'Venus': 'शुक्र', 'Saturn': 'शनि', 'Rahu': 'राहु', 'Ketu': 'केतु', 'Mandi': 'मांदि'},
+    'te': {'Lagna': 'లగ్నం', 'Sun': 'సూర్యుడు', 'Moon': 'చంద్రుడు', 'Mars': 'కుజుడు', 'Mercury': 'బుధుడు', 'Jupiter': 'గురువు', 'Venus': 'శుక్రుడు', 'Saturn': 'శని', 'Rahu': 'రాహువు', 'Ketu': 'కేతువు', 'Mandi': 'మాంది'},
+    'kn': {'Lagna': 'ಲಗ್ನ', 'Sun': 'ಸೂರ್ಯ', 'Moon': 'ಚಂದ್ರ', 'Mars': 'ಕುಜ', 'Mercury': 'ಬುಧ', 'Jupiter': 'ಗುರು', 'Venus': 'ಶುಕ್ರ', 'Saturn': 'ಶನಿ', 'Rahu': 'ರಾಹು', 'Ketu': 'ಕೇತು', 'Mandi': 'ಮಾಂದಿ'},
+    'ml': {'Lagna': 'ലഗ്നം', 'Sun': 'സൂര്യൻ', 'Moon': 'ചന്ദ്രൻ', 'Mars': 'ചൊവ്വ', 'Mercury': 'ബുധൻ', 'Jupiter': 'വ്യാഴം', 'Venus': 'ശുക്രൻ', 'Saturn': 'ശനി', 'Rahu': 'രാഹു', 'Ketu': 'കേതു', 'Mandi': 'മാന്ദി'},
+    'mr': {'Lagna': 'लग्न', 'Sun': 'रवि', 'Moon': 'चंद्र', 'Mars': 'मंगळ', 'Mercury': 'बुध', 'Jupiter': 'गुरु', 'Venus': 'शुक्र', 'Saturn': 'शनि', 'Rahu': 'राहू', 'Ketu': 'केतू', 'Mandi': 'मांदी'},
+    'bn': {'Lagna': 'লগ্ন', 'Sun': 'সূর্য', 'Moon': 'চন্দ্র', 'Mars': 'মঙ্গল', 'Mercury': 'বুধ', 'Jupiter': 'বৃহস্পতি', 'Venus': 'শুক্র', 'Saturn': 'শনি', 'Rahu': 'রাহু', 'Ketu': 'কেতু', 'Mandi': 'মান্দি'},
 }
 
 ABBR = {
-    'en': {'Lagna': 'La', 'Sun': 'Su', 'Moon': 'Mo', 'Mars': 'Ma', 'Mercury': 'Me', 'Jupiter': 'Ju', 'Venus': 'Ve', 'Saturn': 'Sa', 'Rahu': 'Ra', 'Ketu': 'Ke', 'ALP': 'AL'},
-    'ta': {'Lagna': 'லக்', 'Sun': 'சூ', 'Moon': 'சந்', 'Mars': 'செ', 'Mercury': 'பு', 'Jupiter': 'குரு', 'Venus': 'சுக்', 'Saturn': 'சனி', 'Rahu': 'ரா', 'Ketu': 'கே', 'ALP': 'அல'},
-    'hi': {'Lagna': 'ल', 'Sun': 'सू', 'Moon': 'चं', 'Mars': 'मं', 'Mercury': 'बु', 'Jupiter': 'गु', 'Venus': 'शु', 'Saturn': 'श', 'Rahu': 'रा', 'Ketu': 'के', 'ALP': 'अल'},
-    'te': {'Lagna': 'ల', 'Sun': 'సూ', 'Moon': 'చం', 'Mars': 'కు', 'Mercury': 'బు', 'Jupiter': 'గు', 'Venus': 'శు', 'Saturn': 'శ', 'Rahu': 'రా', 'Ketu': 'కే', 'ALP': 'AL'},
-    'kn': {'Lagna': 'ಲ', 'Sun': 'ಸೂ', 'Moon': 'ಚಂ', 'Mars': 'ಕು', 'Mercury': 'ಬು', 'Jupiter': 'ಗು', 'Venus': 'ಶು', 'Saturn': 'ಶ', 'Rahu': 'ರಾ', 'Ketu': 'ಕೇ', 'ALP': 'AL'},
-    'ml': {'Lagna': 'ല', 'Sun': 'സൂ', 'Moon': 'ച', 'Mars': 'ചൊ', 'Mercury': 'ബു', 'Jupiter': 'വ്യാ', 'Venus': 'ശു', 'Saturn': 'ശനി', 'Rahu': 'രാ', 'Ketu': 'കേ', 'ALP': 'AL'},
-    'mr': {'Lagna': 'ल', 'Sun': 'र', 'Moon': 'चं', 'Mars': 'मं', 'Mercury': 'बु', 'Jupiter': 'गु', 'Venus': 'शु', 'Saturn': 'श', 'Rahu': 'रा', 'Ketu': 'के', 'ALP': 'अल'},
-    'bn': {'Lagna': 'ল', 'Sun': 'সূ', 'Moon': 'চ', 'Mars': 'ম', 'Mercury': 'বু', 'Jupiter': 'বৃ', 'Venus': 'শু', 'Saturn': 'শ', 'Rahu': 'রা', 'Ketu': 'কে', 'ALP': 'AL'},
+    'en': {'Lagna': 'La', 'Sun': 'Su', 'Moon': 'Mo', 'Mars': 'Ma', 'Mercury': 'Me', 'Jupiter': 'Ju', 'Venus': 'Ve', 'Saturn': 'Sa', 'Rahu': 'Ra', 'Ketu': 'Ke', 'ALP': 'AL', 'Mandi': 'Md'},
+    'ta': {'Lagna': 'லக்', 'Sun': 'சூ', 'Moon': 'சந்', 'Mars': 'செ', 'Mercury': 'பு', 'Jupiter': 'குரு', 'Venus': 'சுக்', 'Saturn': 'சனி', 'Rahu': 'ரா', 'Ketu': 'கே', 'ALP': 'அல', 'Mandi': 'மா'},
+    'hi': {'Lagna': 'ल', 'Sun': 'सू', 'Moon': 'चं', 'Mars': 'मं', 'Mercury': 'बु', 'Jupiter': 'गु', 'Venus': 'शु', 'Saturn': 'श', 'Rahu': 'रा', 'Ketu': 'के', 'ALP': 'अल', 'Mandi': 'मा'},
+    'te': {'Lagna': 'ల', 'Sun': 'సూ', 'Moon': 'చం', 'Mars': 'కు', 'Mercury': 'బు', 'Jupiter': 'గు', 'Venus': 'శు', 'Saturn': 'శ', 'Rahu': 'రా', 'Ketu': 'కే', 'ALP': 'AL', 'Mandi': 'మా'},
+    'kn': {'Lagna': 'ಲ', 'Sun': 'ಸೂ', 'Moon': 'ಚಂ', 'Mars': 'ಕು', 'Mercury': 'ಬು', 'Jupiter': 'ಗು', 'Venus': 'ಶು', 'Saturn': 'ಶ', 'Rahu': 'ರಾ', 'Ketu': 'ಕೇ', 'ALP': 'AL', 'Mandi': 'ಮಾ'},
+    'ml': {'Lagna': 'ല', 'Sun': 'സൂ', 'Moon': 'ച', 'Mars': 'ചൊ', 'Mercury': 'ബു', 'Jupiter': 'വ്യാ', 'Venus': 'ശു', 'Saturn': 'ശനി', 'Rahu': 'രാ', 'Ketu': 'കേ', 'ALP': 'AL', 'Mandi': 'മാ'},
+    'mr': {'Lagna': 'ल', 'Sun': 'र', 'Moon': 'चं', 'Mars': 'मं', 'Mercury': 'बु', 'Jupiter': 'गु', 'Venus': 'शु', 'Saturn': 'श', 'Rahu': 'रा', 'Ketu': 'के', 'ALP': 'अल', 'Mandi': 'मा'},
+    'bn': {'Lagna': 'ল', 'Sun': 'সূ', 'Moon': 'চ', 'Mars': 'ম', 'Mercury': 'বু', 'Jupiter': 'বৃ', 'Venus': 'শু', 'Saturn': 'শ', 'Rahu': 'রা', 'Ketu': 'কে', 'ALP': 'AL', 'Mandi': 'মা'},
 }
 RETRO_MARK = {'en': '(R)', 'ta': '(வ)', 'hi': '(व)', 'mr': '(व)'}
 
@@ -109,6 +109,7 @@ LABELS = {
         'core': 'Key Details', 'lagna': 'Lagna', 'janma_rasi': 'Rasi (Moon Sign)', 'nakshatra': 'Nakshatra',
         'pada': 'Pada', 'nak_lord': 'Nakshatra Lord', 'tithi': 'Tithi', 'vara': 'Weekday', 'yoga': 'Yoga',
         'karana': 'Karana', 'sunrise': 'Sunrise', 'sunset': 'Sunset', 'panchangam': 'Panchangam at Birth',
+        'mandi_rise': 'Mandi Rise Time',
         'dasa_balance': 'Dasa Balance at Birth', 'current_period': 'Current Period',
         'dasa': 'Dasa', 'bhukti': 'Bhukti', 'antaram': 'Antaram', 'ends': 'ends', 'until': 'until',
         'planet': 'Planet', 'rasi': 'Rasi', 'degree': 'Degree', 'rasi_lord': 'Rasi Lord', 'star_lord': 'Star Lord',
@@ -149,6 +150,7 @@ LABELS = {
         'core': 'முக்கிய விவரங்கள்', 'lagna': 'லக்னம்', 'janma_rasi': 'ராசி', 'nakshatra': 'நட்சத்திரம்',
         'pada': 'பாதம்', 'nak_lord': 'நட்சத்திர அதிபதி', 'tithi': 'திதி', 'vara': 'கிழமை', 'yoga': 'யோகம்',
         'karana': 'கரணம்', 'sunrise': 'சூரிய உதயம்', 'sunset': 'சூரிய அஸ்தமனம்', 'panchangam': 'பிறப்பு பஞ்சாங்கம்',
+        'mandi_rise': 'மாந்தி உதய நேரம்',
         'dasa_balance': 'பிறப்பு தசை இருப்பு', 'current_period': 'நடப்பு காலம்',
         'dasa': 'தசை', 'bhukti': 'புக்தி', 'antaram': 'அந்தரம்', 'ends': 'முடிவு', 'until': 'வரை',
         'planet': 'கிரகம்', 'rasi': 'ராசி', 'degree': 'பாகை', 'rasi_lord': 'ராசி அதிபதி', 'star_lord': 'நட்சத்திர அதிபதி',
@@ -189,6 +191,7 @@ LABELS = {
         'core': 'मुख्य विवरण', 'lagna': 'लग्न', 'janma_rasi': 'राशि (चंद्र राशि)', 'nakshatra': 'नक्षत्र',
         'pada': 'चरण', 'nak_lord': 'नक्षत्र स्वामी', 'tithi': 'तिथि', 'vara': 'वार', 'yoga': 'योग',
         'karana': 'करण', 'sunrise': 'सूर्योदय', 'sunset': 'सूर्यास्त', 'panchangam': 'जन्म पंचांग',
+        'mandi_rise': 'मांदि उदय समय',
         'dasa_balance': 'जन्म के समय दशा शेष', 'current_period': 'वर्तमान काल',
         'dasa': 'दशा', 'bhukti': 'अंतर्दशा', 'antaram': 'प्रत्यंतर', 'ends': 'समाप्ति', 'until': 'तक',
         'planet': 'ग्रह', 'rasi': 'राशि', 'degree': 'अंश', 'rasi_lord': 'राशि स्वामी', 'star_lord': 'नक्षत्र स्वामी',
@@ -315,7 +318,7 @@ def script_of(lang):
 
 def bundle(lang='en'):
     """Every name and label for one language, for the web page to display results."""
-    names = ['Lagna', 'Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu']
+    names = ['Lagna', 'Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu', 'Mandi']
     return {
         'lang': lang,
         'planets': {n: planet(n, lang) for n in names},

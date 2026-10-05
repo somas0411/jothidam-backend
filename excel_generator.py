@@ -343,6 +343,26 @@ def _houses(nums):
     return ', '.join(str(n) for n in nums) if nums else '—'
 
 
+def _points(v):
+    """Rows of the planet table: lagna, the nine planets, then Mandi when available."""
+    return v['planets'] + ([v['mandi']] if v.get('mandi') else [])
+
+
+def _mandi_note(m, v):
+    """Notes text explaining how Mandi was obtained for this chart."""
+    base = ('Weekday ghati table for a 30-ghati day - Sunday 26, Monday 22, Tuesday 18, Wednesday 14, '
+            'Thursday 10, Friday 6, Saturday 2 ghatis after sunrise; a night birth counts from sunset and '
+            'uses the value of the 5th weekday from the birth weekday. The value is scaled to the actual '
+            'length of the day or night, and Mandi is the lagna rising at that moment. Gulika is not shown.')
+    md = v.get('mandi')
+    if not md:
+        return base + ' Mandi could not be computed for this chart: the Sun does not rise or set at this place on this date.'
+    return (base + f" This chart: {'day' if md['is_day'] else 'night'} birth, {md['weekday']}, "
+            f"{md['ghatis']} ghatis after {'sunrise' if md['is_day'] else 'sunset'} "
+            f"({md['period_start'].strftime('%d-%m-%Y %H:%M:%S')}), rising at "
+            f"{md['rise_time'].strftime('%d-%m-%Y %H:%M:%S')}.")
+
+
 def _age(start, birth):
     return round((start - birth).days / 365.25, 2)
 
@@ -386,6 +406,10 @@ def _summary(wb, res, specs, lang):
             (L('nak_lord'), i18n.planet(v['dasa']['birth_star_lord'], lang)),
             (L('tithi'), f"{i18n.word(pc['paksha'], lang)} {i18n.tithi(pc['tithi'], lang)}"),
             (L('vara'), i18n.weekday(pc['vara'], lang))]
+    md = v.get('mandi')
+    if md:
+        left.append((i18n.planet('Mandi', lang),
+                     f"{i18n.rasi(md['sign'], lang)}  {md['dms']}  ({md['rise_time'].strftime('%H:%M:%S')})"))
     al = alp['lagna']
     right = [(L('dasa_balance'), _balance_text(v['dasa']['balance'], lang))]
     for key, lab in (('dasa', 'dasa'), ('bhukti', 'bhukti'), ('antaram', 'antara')):
@@ -432,6 +456,7 @@ def _vedic(wb, res, specs, lang):
         (L('karana'), pc['karana']),
         (L('sunrise'), _t(pc['sunrise']) if pc['sunrise'] else '—', TIME_FMT),
         (L('sunset'), _t(pc['sunset']) if pc['sunset'] else '—', TIME_FMT),
+        (L('mandi_rise'), _t(v['mandi']['rise_time']) if v.get('mandi') else '—', TIME_FMT),
         (L('dasa_balance'), _balance_text(v['dasa']['balance'], lang)),
     ])
     r = top + 14
@@ -445,14 +470,14 @@ def _vedic(wb, res, specs, lang):
     rows = [[i18n.planet(p['name'], lang), i18n.rasi(p['sign'], lang), p['dms'], i18n.nak(p['nak'], lang),
              p['pada'], i18n.planet(p['sign_lord'], lang), i18n.planet(p['star_lord'], lang),
              p['house'], p['bhava'], i18n.rasi(p['navamsa'], lang),
-             _state(p, lang)] for p in v['planets']]
-    tall = {i for i, p in enumerate(v['planets'])
+             _state(p, lang)] for p in _points(v)]
+    tall = {i for i, p in enumerate(_points(v))
             if sum(bool(p.get(k)) for k in ('retro', 'combust', 'dignity')) > 1}
     r = g.table(r, cols, rows, tall=tall) + 1
 
     r = g.section(r, L('bhava_table'))
     by_bhava = {}
-    for p in v['planets']:
+    for p in _points(v):
         by_bhava.setdefault(p['bhava'], []).append(i18n.planet(p['name'], lang))
     cols = [(L('bhava'), 2, 'center'), (L('bhava_start'), 6, 'left'), (L('bhava_mid'), 6, 'left'),
             (L('planet'), 11, 'left')]
@@ -717,6 +742,7 @@ def _notes(wb, res, lang):
                         'nakshatra. Periods that ended before birth are not listed.'),
         ('Panchangam', 'Tithi, yoga and karana at the birth moment. Sunrise and sunset are for the visible '
                        'upper limb with standard refraction. The weekday runs from sunrise to sunrise.'),
+        ('Mandi', _mandi_note(m, v)),
         ('Combustion', 'Orbs from the Sun: Moon 12°, Mars 17°, Mercury 14° (12° retrograde), Jupiter 11°, '
                        'Venus 10° (8° retrograde), Saturn 15°.'),
         ('Dignity', 'Only exaltation, debilitation and own sign are marked.'),
@@ -727,7 +753,7 @@ def _notes(wb, res, lang):
         r = row(r, k, val)
 
     r = band(r + 1, L('abbreviations'))
-    names = ['Lagna', 'Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu', 'ALP']
+    names = ['Lagna', 'Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu', 'Mandi', 'ALP']
     r = row(r, L('planet'), '   '.join(
         f"{i18n.abbr(n, lang)} = {i18n.planet(n, lang) if n != 'ALP' else L('alp_lagna_now')}" for n in names))
     r = row(r, L('retro'), f"{i18n.retro_mark(lang)} after a planet = retrograde")

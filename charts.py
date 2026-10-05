@@ -68,10 +68,13 @@ def _spec(key, title, lagna_sign, sign_planets, lang, sign_tags=None, house_plan
 
 
 def build_specs(res, lang='en'):
-    """All charts for one horoscope: d1, d9, bhava, kp, alp."""
+    """All charts for one horoscope: d1, d9, bhava, kp, alp (Mandi in all but kp)."""
     v, kp, alp, meta = res['vedic'], res['kp'], res['alp'], res['meta']
-    planets = v['planets']
-    lagna = planets[0]
+    lagna = v['planets'][0]
+    # Chart points: lagna, the nine planets and Mandi (when it could be computed).
+    # Mandi appears in the Vedic charts (D1, D9, Bhava) and the ALP chart, which
+    # redraws the natal rasi chart; KP has its own ayanamsha and does not use it.
+    planets = v['planets'] + ([v['mandi']] if v.get('mandi') else [])
     name = meta['name']
 
     def group(key_fn, items=planets):

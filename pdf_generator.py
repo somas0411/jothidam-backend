@@ -55,6 +55,22 @@ class Report(FPDF):
         self.set_creator('HoroscopeGen')
         self.alias_nb_pages()
 
+    # -- text state ------------------------------------------------------------
+    # When a piece of text needs the script (fallback) font, fpdf2 switches the
+    # PDF's font for it but does not switch back, so the next Latin text would
+    # be drawn with the wrong font's glyphs (digits and degrees turning into
+    # stray letters). Wrapping every cell in its own graphics state confines
+    # the switch to that cell.
+    def cell(self, *args, **kwargs):
+        with self.local_context():
+            return super().cell(*args, **kwargs)
+
+    def multi_cell(self, *args, **kwargs):
+        if kwargs.get('dry_run'):
+            return super().multi_cell(*args, **kwargs)
+        with self.local_context():
+            return super().multi_cell(*args, **kwargs)
+
     # -- page furniture -------------------------------------------------------
     def header(self):
         self.set_font('main', 'B', 8)
@@ -146,22 +162,32 @@ class Report(FPDF):
         self.set_draw_color(*RULE)
         self.set_line_width(0.15)
 
-        def lines_for(text, w, style):
-            self.set_font('main', style, font_size)
+        def lines_for(text, w, style, size=None):
+            self.set_font('main', style, size or font_size)
             return self.multi_cell(w, line_h, text, dry_run=True, output='LINES', padding=(0, 1))
+
+        def head_size(text, w):
+            """Largest size at which no single word of the heading has to be split."""
+            size = font_size
+            self.set_font('main', 'B', size)
+            words = text.split() or ['']
+            while size > 4.6 and max(self.get_string_width(x) for x in words) > w - 2.2:
+                size -= 0.3
+                self.set_font_size(size)
+            return size
 
         def head_row():
             if not has_head:
                 return
-            self.set_font('main', 'B', font_size)
-            n = max(len(lines_for(c[0], w, 'B')) for c, w in zip(cols, widths))
-            h = n * line_h + 1.6
+            sizes = [head_size(c[0], w) for c, w in zip(cols, widths)]
+            counts = [len(lines_for(c[0], w, 'B', s)) for c, w, s in zip(cols, widths, sizes)]
+            h = max(counts) * line_h + 1.6
             x, y = MARGIN, self.get_y()
             self.set_fill_color(*HEAD)
             self.set_text_color(*WHITE)
-            for c, w in zip(cols, widths):
+            for c, w, s, k in zip(cols, widths, sizes, counts):
                 self.rect(x, y, w, h, style='DF')
-                k = len(lines_for(c[0], w, 'B'))
+                self.set_font('main', 'B', s)
                 self.set_xy(x, y + (h - k * line_h) / 2)
                 self.multi_cell(w, line_h, c[0], align='C', padding=(0, 1))
                 x += w
@@ -220,11 +246,8 @@ class Report(FPDF):
         return y + size + 4
 
     def _put(self, x, y, w, h, text, align='L'):
-        # local_context isolates the font switch made for script (fallback)
-        # fonts, which would otherwise leak into the next piece of text.
-        with self.local_context():
-            self.set_xy(x, y)
-            self.cell(w, h, text, align=align)
+        self.set_xy(x, y)
+        self.cell(w, h, text, align=align)
 
     def _centered(self, cx, cy, lines, size_pt, bold=True, color=INK, lead=1.25, max_w=None):
         self.set_font('main', 'B' if bold else '', size_pt)
@@ -341,6 +364,26 @@ def _houses(nums):
     return ', '.join(str(n) for n in nums) if nums else '—'
 
 
+def _points(v):
+    """Rows of the planet table: lagna, the nine planets, then Mandi when available."""
+    return v['planets'] + ([v['mandi']] if v.get('mandi') else [])
+
+
+def _mandi_note(m, v):
+    """Notes text explaining how Mandi was obtained for this chart."""
+    base = ('Weekday ghati table for a 30-ghati day - Sunday 26, Monday 22, Tuesday 18, Wednesday 14, '
+            'Thursday 10, Friday 6, Saturday 2 ghatis after sunrise; a night birth counts from sunset and '
+            'uses the value of the 5th weekday from the birth weekday. The value is scaled to the actual '
+            'length of the day or night, and Mandi is the lagna rising at that moment. Gulika is not shown.')
+    md = v.get('mandi')
+    if not md:
+        return base + ' Mandi could not be computed for this chart: the Sun does not rise or set at this place on this date.'
+    return (base + f" This chart: {'day' if md['is_day'] else 'night'} birth, {md['weekday']}, "
+            f"{md['ghatis']} ghatis after {'sunrise' if md['is_day'] else 'sunset'} "
+            f"({md['period_start'].strftime('%d-%m-%Y %H:%M:%S')}), rising at "
+            f"{md['rise_time'].strftime('%d-%m-%Y %H:%M:%S')}.")
+
+
 def _age(start, birth):
     return f"{(start - birth).days / 365.25:.2f}"
 
@@ -385,6 +428,10 @@ def _summary(pdf, specs):
             (L('nak_lord'), i18n.planet(v['dasa']['birth_star_lord'], lang)),
             (L('tithi'), f"{i18n.word(pc['paksha'], lang)} {i18n.tithi(pc['tithi'], lang)}"),
             (L('vara'), i18n.weekday(pc['vara'], lang))]
+    md = v.get('mandi')
+    if md:
+        left.append((i18n.planet('Mandi', lang),
+                     f"{i18n.rasi(md['sign'], lang)}  {md['dms']}  ({md['rise_time'].strftime('%H:%M:%S')})"))
     right = [(L('dasa_balance'), _balance(v['dasa']['balance'], lang))]
     for key, lab in (('dasa', 'dasa'), ('bhukti', 'bhukti'), ('antaram', 'antara')):
         if lab in cur:
@@ -430,6 +477,7 @@ def _vedic(pdf, specs):
         (L('nakshatra'), f"{i18n.nak(pc['nak'], lang)} - {i18n.Lv('pada', lang)} {pc['pada']}"),
         (L('yoga'), pc['yoga']), (L('karana'), pc['karana']),
         (L('sunrise'), _hm(pc['sunrise'])), (L('sunset'), _hm(pc['sunset'])),
+        (L('mandi_rise'), _hm(v['mandi']['rise_time']) if v.get('mandi') else '—'),
         (L('dasa_balance'), _balance(v['dasa']['balance'], lang)),
     ], row_h=6.4)
     pdf.set_y(y_after)
@@ -442,12 +490,12 @@ def _vedic(pdf, specs):
             (L('navamsa'), 11, 'LEFT'), (f"{L('retro')} / {L('combust')} / {L('dignity')}", 17, 'LEFT')]
     rows = [[P(p['name']), i18n.rasi(p['sign'], lang), p['dms'], i18n.nak(p['nak'], lang), p['pada'],
              P(p['sign_lord']), P(p['star_lord']), p['house'], p['bhava'], i18n.rasi(p['navamsa'], lang),
-             _state(p, lang)] for p in v['planets']]
-    pdf.table(cols, rows)
+             _state(p, lang)] for p in _points(v)]
+    pdf.table(cols, rows, wrap=lang == 'bi')
 
     pdf.section(L('bhava_table'), need=70)
     by_bhava = {}
-    for p in v['planets']:
+    for p in _points(v):
         by_bhava.setdefault(p['bhava'], []).append(P(p['name']))
     cols = [(L('bhava'), 8, 'CENTER'), (L('bhava_start'), 26, 'LEFT'), (L('bhava_mid'), 26, 'LEFT'),
             (L('planet'), 40, 'LEFT')]
@@ -492,7 +540,7 @@ def _kp(pdf, specs):
             (L('sub_lord'), 12, 'LEFT'), (L('subsub_lord'), 12, 'LEFT')]
     pdf.table(cols, [[c['house'], i18n.rasi(c['sign'], lang), c['dms'], i18n.nak(c['nak'], lang),
                       P(c['sign_lord']), P(c['star_lord']), P(c['sub_lord']), P(c['subsub_lord'])]
-                     for c in kp['cusps']])
+                     for c in kp['cusps']], wrap=lang == 'bi')
 
     pdf.section(L('kp_planets'), need=65)
     cols = [(L('planet'), 12, 'LEFT'), (L('rasi'), 12, 'LEFT'), (L('degree'), 11, 'CENTER'),
@@ -501,7 +549,8 @@ def _kp(pdf, specs):
             (L('retro'), 7, 'CENTER')]
     pdf.table(cols, [[P(p['name']), i18n.rasi(p['sign'], lang), p['dms'], i18n.nak(p['nak'], lang),
                       P(p['sign_lord']), P(p['star_lord']), P(p['sub_lord']), P(p['subsub_lord']), p['house'],
-                      i18n.retro_mark(lang).strip('()') if p['retro'] else '—'] for p in kp['planets']])
+                      i18n.retro_mark(lang).strip('()') if p['retro'] else '—'] for p in kp['planets']],
+              wrap=lang == 'bi')
 
     pdf.section(L('planet_sig'), need=65)
     cols = [(L('planet'), 13, 'LEFT'), (L('star_lord'), 13, 'LEFT'), (L('sub_lord'), 13, 'LEFT'),
@@ -657,6 +706,7 @@ def _notes(pdf):
                         'antaram for every dasa; this PDF lists it for the dasa now running.'),
         ('Panchangam', 'Tithi, yoga and karana at the birth moment. Sunrise and sunset are for the visible '
                        'upper limb with standard refraction. The weekday runs from sunrise to sunrise.'),
+        ('Mandi', _mandi_note(m, v)),
         ('Combustion', 'Orbs from the Sun: Moon 12°, Mars 17°, Mercury 14° (12° retrograde), Jupiter 11°, '
                        'Venus 10° (8° retrograde), Saturn 15°.'),
         ('Dignity', 'Only exaltation, debilitation and own sign are marked.'),
@@ -667,7 +717,7 @@ def _notes(pdf):
     pdf.table([('', 22, 'LEFT'), ('', 78, 'LEFT')], items, font_size=8, line_h=4.8, wrap=True)
 
     pdf.section(L('abbreviations'), need=45)
-    names = ['Lagna', 'Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu', 'ALP']
+    names = ['Lagna', 'Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu', 'Mandi', 'ALP']
     items = [
         (L('planet'), '   '.join(f"{i18n.abbr(n, lang)} = "
                                  f"{i18n.planet(n, lang) if n != 'ALP' else L('alp_lagna_now')}" for n in names)),
@@ -676,9 +726,15 @@ def _notes(pdf):
         (L('kp_chart'), 'Roman numerals I-XII mark the sign in which each house cusp falls.'),
     ]
     pdf.table([('', 22, 'LEFT'), ('', 78, 'LEFT')], items, font_size=8, line_h=4.8, wrap=True)
+    # Closing disclaimer: keep it whole, never one stray word on a new page.
     pdf.set_font('main', '', 7.5)
     pdf.set_text_color(*MUTED)
+    need = len(pdf.multi_cell(BODY_W, 4.5, L('disclaimer'), dry_run=True, output='LINES')) * 4.5
+    if pdf.get_y() + need > pdf.h - 13:
+        pdf.add_page()
+    pdf.set_auto_page_break(False)
     pdf.multi_cell(BODY_W, 4.5, L('disclaimer'), align='C')
+    pdf.set_auto_page_break(True, margin=16)
 
 
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────

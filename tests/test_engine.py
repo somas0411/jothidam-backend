@@ -271,6 +271,109 @@ def test_alp_periods(res):
     assert abs((pp[-1]['end'] - pp[0]['start']).days - 120 * 365.25) <= 1
 
 
+# ── Mandi ─────────────────────────────────────────────────────────────────────
+
+DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+
+def test_mandi_ghati_tables():
+    assert [A.mandi_ghatis(d, True) for d in DAYS] == [26, 22, 18, 14, 10, 6, 2]
+    assert [A.mandi_ghatis(d, False) for d in DAYS] == [10, 6, 2, 26, 22, 18, 14]
+
+
+def test_mandi_time_on_an_equal_day_and_night():
+    sunrise, sunset = datetime(2000, 1, 2, 6, 0), datetime(2000, 1, 2, 18, 0)      # a Sunday
+    next_rise = datetime(2000, 1, 3, 6, 0)
+    assert A.mandi_time(sunrise, sunset, A.mandi_ghatis('Sunday', True)) == datetime(2000, 1, 2, 16, 24)
+    assert A.mandi_time(sunset, next_rise, A.mandi_ghatis('Sunday', False)) == datetime(2000, 1, 2, 22, 0)
+
+
+def test_mandi_scales_with_day_length():
+    # a 14-hour day: Saturday's 2 ghatis = 2/30 of 14 h = 56 minutes after sunrise
+    rise = A.mandi_time(datetime(2000, 6, 3, 5, 0), datetime(2000, 6, 3, 19, 0), 2)
+    assert rise == datetime(2000, 6, 3, 5, 56)
+
+
+def _swe_lagna(local_moment, lat, lon, offset=5.5, mode=swe.SIDM_LAHIRI):
+    ut = local_moment - timedelta(hours=offset)
+    jd = swe.julday(ut.year, ut.month, ut.day, ut.hour + ut.minute / 60 + (ut.second + ut.microsecond / 1e6) / 3600)
+    swe.set_sid_mode(mode)
+    return swe.houses_ex(jd, lat, lon, b'P', swe.FLG_SIDEREAL)[1][0]
+
+
+def test_mandi_before_sunrise_uses_previous_weekday_and_sunset(res):
+    md = res['vedic']['mandi']
+    pc = res['vedic']['panchangam']
+    # 01:37 on Friday 06-03-1998 is before sunrise: Thursday night, counted from Thursday's sunset
+    assert md['weekday'] == 'Thursday' == pc['vara'] and md['is_day'] is False and md['ghatis'] == 22
+    assert md['period_start'].date() == date(1998, 3, 5) and time(18, 10) < md['period_start'].time() < time(18, 35)
+    assert md['period_end'] == pc['sunrise']
+    assert md['period_start'] < res['meta']['local_dt'] < md['period_end']
+    night = md['period_end'] - md['period_start']
+    assert md['rise_time'] == md['period_start'] + night * (22 / 30)
+    assert A.angle_diff(md['lon'], _swe_lagna(md['rise_time'], 28.6139, 77.2090)) < ARCMIN
+    assert md['house'] == ((md['sign'] - res['vedic']['lagna_sign']) % 12) + 1
+    assert md['navamsa'] == A.navamsa_sign(md['lon'])
+    assert md['retro'] is False and md['combust'] is False and md['dignity'] == ''
+
+
+@pytest.mark.parametrize('tob,is_day,weekday,ghatis', [
+    ('10:30', True, 'Friday', 6),          # day birth on Friday 06-03-1998
+    ('21:15', False, 'Friday', 18),        # after sunset the same day: Friday night
+])
+def test_mandi_day_and_evening_births(tob, is_day, weekday, ghatis):
+    r = A.compute('X', '1998-03-06', tob, 'Delhi', lat=28.6139, lon=77.2090, now=NOW)
+    md, pc = r['vedic']['mandi'], r['vedic']['panchangam']
+    assert (md['is_day'], md['weekday'], md['ghatis']) == (is_day, weekday, ghatis)
+    if is_day:
+        assert (md['period_start'], md['period_end']) == (pc['sunrise'], pc['sunset'])
+    else:
+        assert md['period_start'] == pc['sunset'] and md['period_end'].date() == date(1998, 3, 7)
+    assert md['rise_time'] == A.mandi_time(md['period_start'], md['period_end'], ghatis)
+    assert A.angle_diff(md['lon'], _swe_lagna(md['rise_time'], 28.6139, 77.2090)) < ARCMIN
+
+
+def test_mandi_follows_the_chosen_ayanamsha():
+    a = A.compute('X', '1998-03-06', '10:30', 'Delhi', lat=28.6139, lon=77.2090, now=NOW)
+    b = A.compute('X', '1998-03-06', '10:30', 'Delhi', lat=28.6139, lon=77.2090, now=NOW, ayanamsha='raman')
+    shift = a['vedic']['ayanamsha'] - b['vedic']['ayanamsha']
+    assert abs(((b['vedic']['mandi']['lon'] - a['vedic']['mandi']['lon'] + 180) % 360 - 180) - shift) < 1e-4
+    assert a['vedic']['mandi']['rise_time'] == b['vedic']['mandi']['rise_time']
+
+
+def test_mandi_does_not_change_other_results(res):
+    v, kp, alp = res['vedic'], res['kp'], res['alp']
+    assert [p['name'] for p in v['planets']] == ['Lagna'] + A.PLANETS       # still lagna + 9 planets
+    assert [p['name'] for p in kp['planets']] == A.PLANETS
+    assert all(p['name'] != 'Mandi' for p in alp['planets'])
+    assert all('Mandi' not in (s['a'] + s['b'] + s['c'] + s['d']) for s in kp['house_significators'])
+    assert v['dasa']['balance']['lord'] == 'Mars'
+
+
+def test_mandi_left_out_where_the_sun_does_not_set():
+    # Tromso, Norway, at midsummer: the Sun stays up, so there is no Mandi
+    r = A.compute('X', '2001-06-21', '12:00', 'Tromso', lat=69.65, lon=18.96, tz='Europe/Oslo', now=NOW)
+    assert r['vedic']['mandi'] is None
+    specs = charts.build_specs(r, 'en')
+    assert sum(len(s['planets']) for s in specs['d1']['signs']) == 10
+    from excel_generator import generate_excel
+    from pdf_generator import generate_pdf
+    assert generate_excel(r, 'en')[:2] == b'PK' and generate_pdf(r, 'en')[:5] == b'%PDF-'
+
+
+def test_mandi_in_charts(res):
+    specs = charts.build_specs(res, 'en')
+    md = res['vedic']['mandi']
+    assert 'Md' in specs['d1']['signs'][md['sign']]['planets']
+    assert 'Md' in specs['d9']['signs'][md['navamsa']]['planets']
+    assert 'Md' in specs['bhava']['houses'][md['bhava'] - 1]['planets']
+    assert 'Md' in specs['alp']['signs'][md['sign']]['planets']
+    assert all('Md' not in s['planets'] for s in specs['kp']['signs'])
+    assert all('Md' not in h['planets'] for h in specs['kp']['houses'])
+    ta = charts.build_specs(res, 'ta')
+    assert 'மா' in ta['d1']['signs'][md['sign']]['planets']
+
+
 # ── charts ────────────────────────────────────────────────────────────────────
 
 def test_chart_specs(res):
@@ -280,7 +383,9 @@ def test_chart_specs(res):
     lagna_sign = res['vedic']['lagna_sign']
     cell = d1['signs'][lagna_sign]
     assert cell['lagna'] and 'La' in cell['planets'] and cell['tag'] == '1'
-    assert sum(len(s['planets']) for s in d1['signs']) == 10
+    # lagna + 9 planets + Mandi
+    assert sum(len(s['planets']) for s in d1['signs']) == 11
+    assert sum(len(h['planets']) for h in d1['houses']) == 11
     assert d1['houses'][0]['sign_num'] == lagna_sign + 1 and 'La' in d1['houses'][0]['planets']
     assert sum(len(h['planets']) for h in specs['kp']['houses']) == 9
     tags = ' '.join(s['tag'] for s in specs['kp']['signs']).split()
@@ -335,6 +440,13 @@ def test_excel_chart_places_planets_by_sign():
     assert block(10)[1].split() == ['Su', 'Ju', 'Ke']     # Kumbha
     assert block(1)[1] == 'Mo' and block(9)[1] == 'Ve'    # Rishabha, Makara
     assert block(11)[0].startswith('Mee')                 # Meena is the top-left cell
+    md = r['vedic']['mandi']
+    assert A.RASIS[md['sign']] == 'Dhanu' and block(8)[1] == 'Md'      # Mandi sits in its own sign
+    # Planet Positions table: Mandi is the row after Ketu, with a dash for retro / combust / dignity
+    ketu = next(c.row for c in ws['B'] if c.value == 'Ketu')
+    assert ws.cell(ketu + 1, 2).value == 'Mandi'
+    row = [c.value for c in ws[ketu + 1] if c.value is not None]
+    assert row[0] == 'Mandi' and row[1] == 'Dhanu' and row[2] == md['dms'] and row[-1] == '—'
     assert (top, COL0) == (top + charts.SOUTH_POS[11][0] * 3, COL0 + charts.SOUTH_POS[11][1] * 3)
 
 
@@ -349,13 +461,38 @@ def test_pdf_report(lang, recwarn):
     assert not missing, missing
 
 
+@pytest.mark.parametrize('lang', ['ta', 'hi', 'te', 'bi'])
+def test_pdf_numbers_survive_next_to_indian_script(lang, tmp_path):
+    """
+    Digits and degree values printed after a cell in an Indian script must
+    still read as digits (they once came out as stray letters).
+    """
+    import shutil
+    import subprocess
+    if not shutil.which('pdftotext'):
+        pytest.skip('pdftotext not installed')
+    from pdf_generator import generate_pdf
+    r = A.compute('Sample Native', '1998-03-06', '01:37', 'Delhi', lat=28.6139, lon=77.2090, lang=lang, now=NOW)
+    f = tmp_path / 'r.pdf'
+    f.write_bytes(generate_pdf(r, lang))
+    text = subprocess.run(['pdftotext', '-layout', str(f), '-'], capture_output=True, text=True).stdout
+    flat = text.replace(' ', '')
+    for p in r['vedic']['planets'] + [r['vedic']['mandi']] + r['kp']['cusps']:
+        assert p['dms'].replace(' ', '') in flat, (lang, p['name'], p['dms'])
+    for d in r['vedic']['dasa']['dasas']:
+        assert d['end'].strftime('%d-%m-%Y') in flat, (lang, d['lord'])
+    for s in r['alp']['pada_periods'][:20]:
+        assert s['end'].strftime('%d-%m-%Y') in flat
+
+
 def test_labels_complete():
     keys = set(i18n.LABELS['en'])
     for lang in ('ta', 'hi'):
         assert set(i18n.LABELS[lang]) == keys, lang
     for lang in ('en', 'ta', 'hi', 'te', 'kn', 'ml', 'mr', 'bn'):
-        assert len(i18n.RASIS[lang]) == 12 and len(i18n.PLANETS[lang]) == 10
-        assert len(set(i18n.ABBR[lang][p] for p in A.PLANETS + ['Lagna'])) == 10, lang
+        assert len(i18n.RASIS[lang]) == 12 and len(i18n.PLANETS[lang]) == 11
+        # every chart abbreviation, Mandi and the ALP marker included, is distinct
+        assert len(set(i18n.ABBR[lang][p] for p in A.PLANETS + ['Lagna', 'Mandi', 'ALP'])) == 12, lang
 
 
 # ── API ───────────────────────────────────────────────────────────────────────
@@ -377,6 +514,10 @@ def test_api_horoscope(client):
     assert set(j) >= {'meta', 'vedic', 'kp', 'alp', 'charts'}
     assert j['meta']['utc_offset_str'] == 'UTC+05:30' and j['meta']['tz'] == 'Asia/Kolkata'
     assert j['vedic']['planets'][0]['name'] == 'Lagna'
+    md = j['vedic']['mandi']
+    assert md['name'] == 'Mandi' and md['rise_time'].startswith('1998-03-06T03:24') and md['ghatis'] == 22
+    assert j['names']['planets']['Mandi'] == 'Mandi' and j['names']['abbr']['Mandi'] == 'Md'
+    assert len(j['planets']) == 10                         # legacy list is unchanged
 
 
 def test_api_ayanamsha_option_is_used(client):

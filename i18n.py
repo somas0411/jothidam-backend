@@ -98,6 +98,54 @@ WORDS = {   # short value words
 }
 WORDS['mr'] = WORDS['hi']
 
+# Divisional charts: name and one-line purpose, by chart key.
+VARGA_NAMES = {
+    'en': {'D1': 'Rasi', 'D2': 'Hora', 'D3': 'Drekkana', 'D4': 'Chaturthamsa', 'D7': 'Saptamsa', 'D9': 'Navamsa',
+           'D10': 'Dasamsa', 'D12': 'Dwadasamsa', 'D16': 'Shodasamsa', 'D20': 'Vimsamsa', 'D24': 'Chaturvimsamsa',
+           'D27': 'Bhamsa', 'D30': 'Trimsamsa', 'D40': 'Khavedamsa', 'D45': 'Akshavedamsa', 'D60': 'Shashtiamsa'},
+    'ta': {'D1': 'ராசி', 'D2': 'ஹோரை', 'D3': 'திரேக்காணம்', 'D4': 'சதுர்த்தாம்சம்', 'D7': 'சப்தாம்சம்', 'D9': 'நவாம்சம்',
+           'D10': 'தசாம்சம்', 'D12': 'துவாதசாம்சம்', 'D16': 'ஷோடசாம்சம்', 'D20': 'விம்சாம்சம்', 'D24': 'சதுர்விம்சாம்சம்',
+           'D27': 'பாம்சம்', 'D30': 'திரிம்சாம்சம்', 'D40': 'கவேதாம்சம்', 'D45': 'அட்சவேதாம்சம்', 'D60': 'சஷ்டியாம்சம்'},
+    'hi': {'D1': 'राशि', 'D2': 'होरा', 'D3': 'द्रेष्काण', 'D4': 'चतुर्थांश', 'D7': 'सप्तमांश', 'D9': 'नवांश',
+           'D10': 'दशमांश', 'D12': 'द्वादशांश', 'D16': 'षोडशांश', 'D20': 'विंशांश', 'D24': 'चतुर्विंशांश',
+           'D27': 'भांश', 'D30': 'त्रिंशांश', 'D40': 'खवेदांश', 'D45': 'अक्षवेदांश', 'D60': 'षष्ट्यंश'},
+}
+VARGA_NAMES['mr'] = VARGA_NAMES['hi']
+
+VARGA_PURPOSE = {
+    'en': {'D1': 'Body, health and life as a whole', 'D2': 'Wealth and resources',
+           'D3': 'Siblings, courage and effort', 'D4': 'Home, property and fortune',
+           'D7': 'Children and progeny', 'D9': 'Marriage, spouse and the inner strength of planets',
+           'D10': 'Career, status and achievements', 'D12': 'Parents and ancestry',
+           'D16': 'Vehicles, comforts and happiness', 'D20': 'Worship and spiritual progress',
+           'D24': 'Education and learning', 'D27': 'Strengths and weaknesses',
+           'D30': 'Misfortunes and difficulties',
+           'D40': 'Auspicious and inauspicious effects (maternal line)',
+           'D45': 'Character and general indications (paternal line)',
+           'D60': 'All matters; the fine detail of the chart'},
+    'ta': {'D1': 'உடல், ஆரோக்கியம், வாழ்க்கை முழுவதும்', 'D2': 'செல்வம், பொருளாதாரம்',
+           'D3': 'சகோதரர்கள், தைரியம், முயற்சி', 'D4': 'வீடு, சொத்து, பாக்கியம்',
+           'D7': 'குழந்தைகள், சந்ததி', 'D9': 'திருமணம், வாழ்க்கைத் துணை, கிரகங்களின் உள் பலம்',
+           'D10': 'தொழில், அந்தஸ்து, சாதனைகள்', 'D12': 'பெற்றோர், முன்னோர்',
+           'D16': 'வாகனம், சுகம், மகிழ்ச்சி', 'D20': 'வழிபாடு, ஆன்மிக முன்னேற்றம்',
+           'D24': 'கல்வி, அறிவு', 'D27': 'பலம், பலவீனம்',
+           'D30': 'துன்பங்கள், இடையூறுகள்',
+           'D40': 'சுப, அசுப பலன்கள் (தாய் வழி)',
+           'D45': 'குணம், பொதுப் பலன்கள் (தந்தை வழி)',
+           'D60': 'அனைத்து விஷயங்கள்; ஜாதகத்தின் நுணுக்கமான விவரம்'},
+    'hi': {'D1': 'शरीर, स्वास्थ्य और संपूर्ण जीवन', 'D2': 'धन और संसाधन',
+           'D3': 'भाई-बहन, साहस और प्रयास', 'D4': 'घर, संपत्ति और भाग्य',
+           'D7': 'संतान', 'D9': 'विवाह, जीवनसाथी और ग्रहों का आंतरिक बल',
+           'D10': 'करियर, प्रतिष्ठा और उपलब्धियां', 'D12': 'माता-पिता और वंश',
+           'D16': 'वाहन, सुख और प्रसन्नता', 'D20': 'उपासना और आध्यात्मिक प्रगति',
+           'D24': 'शिक्षा और ज्ञान', 'D27': 'बल और दुर्बलता',
+           'D30': 'कष्ट और कठिनाइयां',
+           'D40': 'शुभ और अशुभ फल (मातृ पक्ष)',
+           'D45': 'चरित्र और सामान्य संकेत (पितृ पक्ष)',
+           'D60': 'सभी विषय; कुंडली का सूक्ष्म विवरण'},
+}
+VARGA_PURPOSE['mr'] = VARGA_PURPOSE['hi']
+
 LABELS = {
     'en': {
         'brand': 'HoroscopeGen', 'report_title': 'Horoscope Report',
@@ -110,6 +158,9 @@ LABELS = {
         'pada': 'Pada', 'nak_lord': 'Nakshatra Lord', 'tithi': 'Tithi', 'vara': 'Weekday', 'yoga': 'Yoga',
         'karana': 'Karana', 'sunrise': 'Sunrise', 'sunset': 'Sunset', 'panchangam': 'Panchangam at Birth',
         'mandi_rise': 'Mandi Rise Time',
+        'divisional': 'Divisional Charts', 'varga_table': 'Sign of Each Point in the 16 Charts',
+        'vargottama': 'Vargottama', 'vargottama_note': 'Vargottama: same sign in the Rasi (D1) and Navamsa (D9) charts.',
+        'varga_time_note': 'The higher charts depend on an accurate birth time: the D60 lagna changes about every two minutes.',
         'dasa_balance': 'Dasa Balance at Birth', 'current_period': 'Current Period',
         'dasa': 'Dasa', 'bhukti': 'Bhukti', 'antaram': 'Antaram', 'ends': 'ends', 'until': 'until',
         'planet': 'Planet', 'rasi': 'Rasi', 'degree': 'Degree', 'rasi_lord': 'Rasi Lord', 'star_lord': 'Star Lord',
@@ -151,6 +202,9 @@ LABELS = {
         'pada': 'பாதம்', 'nak_lord': 'நட்சத்திர அதிபதி', 'tithi': 'திதி', 'vara': 'கிழமை', 'yoga': 'யோகம்',
         'karana': 'கரணம்', 'sunrise': 'சூரிய உதயம்', 'sunset': 'சூரிய அஸ்தமனம்', 'panchangam': 'பிறப்பு பஞ்சாங்கம்',
         'mandi_rise': 'மாந்தி உதய நேரம்',
+        'divisional': 'வர்க்க சக்கரங்கள்', 'varga_table': '16 வர்க்க சக்கரங்களில் ஒவ்வொரு கிரகத்தின் ராசி',
+        'vargottama': 'வர்கோத்தமம்', 'vargottama_note': 'வர்கோத்தமம்: ராசி (D1), நவாம்சம் (D9) இரண்டிலும் ஒரே ராசி.',
+        'varga_time_note': 'உயர் வர்க்க சக்கரங்களுக்கு துல்லியமான பிறந்த நேரம் அவசியம்: D60 லக்னம் சுமார் இரண்டு நிமிடங்களுக்கு ஒருமுறை மாறும்.',
         'dasa_balance': 'பிறப்பு தசை இருப்பு', 'current_period': 'நடப்பு காலம்',
         'dasa': 'தசை', 'bhukti': 'புக்தி', 'antaram': 'அந்தரம்', 'ends': 'முடிவு', 'until': 'வரை',
         'planet': 'கிரகம்', 'rasi': 'ராசி', 'degree': 'பாகை', 'rasi_lord': 'ராசி அதிபதி', 'star_lord': 'நட்சத்திர அதிபதி',
@@ -192,6 +246,9 @@ LABELS = {
         'pada': 'चरण', 'nak_lord': 'नक्षत्र स्वामी', 'tithi': 'तिथि', 'vara': 'वार', 'yoga': 'योग',
         'karana': 'करण', 'sunrise': 'सूर्योदय', 'sunset': 'सूर्यास्त', 'panchangam': 'जन्म पंचांग',
         'mandi_rise': 'मांदि उदय समय',
+        'divisional': 'वर्ग कुंडलियां', 'varga_table': '16 वर्ग कुंडलियों में प्रत्येक ग्रह की राशि',
+        'vargottama': 'वर्गोत्तम', 'vargottama_note': 'वर्गोत्तम: राशि (D1) और नवांश (D9) दोनों में एक ही राशि।',
+        'varga_time_note': 'उच्च वर्ग कुंडलियां सटीक जन्म समय पर निर्भर हैं: D60 लग्न लगभग हर दो मिनट में बदलता है।',
         'dasa_balance': 'जन्म के समय दशा शेष', 'current_period': 'वर्तमान काल',
         'dasa': 'दशा', 'bhukti': 'अंतर्दशा', 'antaram': 'प्रत्यंतर', 'ends': 'समाप्ति', 'until': 'तक',
         'planet': 'ग्रह', 'rasi': 'राशि', 'degree': 'अंश', 'rasi_lord': 'राशि स्वामी', 'star_lord': 'नक्षत्र स्वामी',
@@ -253,6 +310,22 @@ def Lj(keys, lang='en'):
     if lang == 'bi':
         return _pair(' '.join(LABELS['en'][k] for k in keys), ' '.join(LABELS['ta'][k] for k in keys))
     return ' '.join(L(k, lang) for k in keys)
+
+
+def varga_name(key, lang='en'):
+    """'D9 Navamsa' in the report language (bilingual shows both names)."""
+    en = VARGA_NAMES['en'][key]
+    if lang == 'bi':
+        return f"{key} {_pair(en, VARGA_NAMES['ta'][key])}"
+    return f"{key} {VARGA_NAMES.get(lang, VARGA_NAMES['en'])[key]}"
+
+
+def varga_purpose(key, lang='en'):
+    """One-line description of what a divisional chart is used for."""
+    en = VARGA_PURPOSE['en'][key]
+    if lang == 'bi':
+        return _pair(en, VARGA_PURPOSE['ta'][key])
+    return VARGA_PURPOSE.get(lang, VARGA_PURPOSE['en'])[key]
 
 
 def planet(name, lang='en'):
@@ -329,5 +402,6 @@ def bundle(lang='en'):
         'tithis': {t: tithi(t, lang) for t in TITHIS['ta']},
         'words': {w: word(w, lang) for w in WORDS['ta']},
         'labels': {k: L(k, lang) for k in LABELS['en']},
+        'rasis_short': [rasi(i, lang, short=True) for i in range(12)],
         'retro': retro_mark(lang),
     }

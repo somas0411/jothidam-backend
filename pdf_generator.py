@@ -1,8 +1,8 @@
 """
 pdf_generator.py — HoroscopeGen PDF report.
 
-Same content and order as the Excel workbook: summary, Vedic, KP, ALP,
-dasa tables, notes. White pages for printing. Text is laid out with fpdf2
+Same content and order as the Excel workbook: summary, Vedic, divisional
+charts, KP, ALP, dasa tables, notes. White pages for printing. Text is laid out with fpdf2
 and shaped by HarfBuzz, with Noto fonts embedded, so Tamil and the other
 Indian scripts are joined correctly instead of printing as boxes.
 """
@@ -61,15 +61,39 @@ class Report(FPDF):
     # be drawn with the wrong font's glyphs (digits and degrees turning into
     # stray letters). Wrapping every cell in its own graphics state confines
     # the switch to that cell.
+    #
+    # Shaping (HarfBuzz plus the bidirectional algorithm) is only needed for
+    # the Indian scripts. Most cells hold numbers, dates and Latin text, so it
+    # is switched off for those: this roughly halves the time to build a report.
+    @staticmethod
+    def _plain(text):
+        return isinstance(text, str) and all(
+            ord(ch) < 0x0590 or 0x2000 <= ord(ch) < 0x2400 for ch in text)
+
+    def _unshaped(self, _text, fn, /, *args, **kwargs):
+        if not self._plain(_text):
+            return fn(*args, **kwargs)
+        saved = self.text_shaping
+        self.text_shaping = None
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            self.text_shaping = saved
+
     def cell(self, *args, **kwargs):
+        text = kwargs.get('text', args[2] if len(args) > 2 else '')
         with self.local_context():
-            return super().cell(*args, **kwargs)
+            return self._unshaped(text, super().cell, *args, **kwargs)
 
     def multi_cell(self, *args, **kwargs):
+        text = kwargs.get('text', args[2] if len(args) > 2 else '')
         if kwargs.get('dry_run'):
-            return super().multi_cell(*args, **kwargs)
+            return self._unshaped(text, super().multi_cell, *args, **kwargs)
         with self.local_context():
-            return super().multi_cell(*args, **kwargs)
+            return self._unshaped(text, super().multi_cell, *args, **kwargs)
+
+    def get_string_width(self, s, *args, **kwargs):
+        return self._unshaped(s, super().get_string_width, s, *args, **kwargs)
 
     # -- page furniture -------------------------------------------------------
     def header(self):
@@ -104,7 +128,7 @@ class Report(FPDF):
             self.set_fill_color(*SOFT)
             self.set_text_color(*MUTED)
             self.set_font('main', '', 8)
-            self.cell(BODY_W, 6, sub, fill=True, align='C', new_x='LMARGIN', new_y='NEXT')
+            self.cell(BODY_W, 6, self._fit(sub, BODY_W - 4), fill=True, align='C', new_x='LMARGIN', new_y='NEXT')
         self.ln(3)
 
     def section(self, text, x=MARGIN, w=BODY_W, need=30):
@@ -227,14 +251,21 @@ class Report(FPDF):
         self.ln(3)
 
     # -- charts ---------------------------------------------------------------
-    def chart(self, x, y, size, spec, style='south'):
-        """Title strip plus chart. Returns the y below it."""
+    def chart(self, x, y, size, spec, style='south', purpose=None):
+        """Title strip (and a purpose line when given) plus chart. Returns the y below it."""
         self.set_xy(x, y)
         self.set_fill_color(*HEAD)
         self.set_text_color(*WHITE)
         self.set_font('main', 'B', 8.5)
         self.cell(size, 5.5, self._fit(spec['title'], size - 2), fill=True, align='C')
         y += 5.5
+        if purpose is not None:
+            self.set_xy(x, y)
+            self.set_fill_color(*SOFT)
+            self.set_text_color(*MUTED)
+            self.set_font('main', '', 7)
+            self.cell(size, 4.6, self._fit(purpose, size - 2), fill=True, align='C')
+            y += 4.6
         # Chart text is placed with cell() so the script fonts are used; a chart
         # near the foot of the page must not trigger an automatic page break.
         self.set_auto_page_break(False)
@@ -505,6 +536,49 @@ def _vedic(pdf, specs):
     pdf.table(cols, rows)
 
 
+def _divisional(pdf):
+    """Divisional charts: the table of signs with four charts, then six charts to a page."""
+    res, lang = pdf.res, pdf.lang
+    m = res['meta']
+    L = lambda k: i18n.L(k, lang)
+    vspecs = charts.build_varga_specs(res, lang)
+    keys, rows = charts.varga_table(res, lang)
+    style = m['chart_style']
+
+    pdf.add_page()
+    pdf.band(f"{L('divisional')}  ·  {m['name']}", L('varga_time_note'))
+    pdf.section(L('varga_table'))
+    cols = [(L('planet'), 13, 'LEFT')] + [(k, 5, 'CENTER') for k in keys] + [(L('vargottama'), 9, 'CENTER')]
+    yes = i18n.word('Yes', lang)
+    pdf.table(cols, [[row['label']] + row['signs'] + [yes if row['vargottama'] else '—'] for row in rows],
+              font_size=6.6 if lang == 'en' else 6.0)
+    pdf.set_y(pdf.get_y() - 2)
+    pdf.set_font('main', '', 7)
+    pdf.set_text_color(*MUTED)
+    pdf.cell(BODY_W, 4, L('vargottama_note'), new_x='LMARGIN', new_y='NEXT')
+    pdf.ln(2)
+
+    half = (BODY_W - 4) / 2
+
+    def draw(group, y, size):
+        """Draw charts two to a row starting at y."""
+        off = (half - size) / 2
+        for i, spec in enumerate(group):
+            x = MARGIN + off if i % 2 == 0 else MARGIN + half + 4 + off
+            nxt = pdf.chart(x, y, size, spec, style, purpose=spec['purpose'])
+            if i % 2 == 1:
+                y = nxt
+        return y
+
+    # First page: whatever height is left takes two rows of charts.
+    y = pdf.get_y()
+    size = min(72.0, (pdf.h - 16 - y) / 2 - 5.5 - 4.6 - 4)
+    draw(vspecs[:4], y, size)
+    for start in (4, 10):                      # then six to a page
+        pdf.add_page()
+        draw(vspecs[start:start + 6], pdf.get_y(), 72.0)
+
+
 def _kp(pdf, specs):
     res, lang = pdf.res, pdf.lang
     m, kp = res['meta'], res['kp']
@@ -716,6 +790,13 @@ def _notes(pdf):
     ]
     pdf.table([('', 22, 'LEFT'), ('', 78, 'LEFT')], items, font_size=8, line_h=4.8, wrap=True)
 
+    pdf.section(L('divisional'), need=60)
+    en = i18n.LABELS['en']
+    items = [(L('tob'), L('varga_time_note') if lang in ('ta', 'hi', 'mr', 'bi') else en['varga_time_note'])]
+    items += [(i18n.varga_name(vg['key'], lang), vg['rule']) for vg in v['vargas']]
+    items.append((L('vargottama'), en['vargottama_note']))
+    pdf.table([('', 22, 'LEFT'), ('', 78, 'LEFT')], items, font_size=8, line_h=4.8, wrap=True)
+
     pdf.section(L('abbreviations'), need=45)
     names = ['Lagna', 'Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu', 'Mandi', 'ALP']
     items = [
@@ -748,6 +829,7 @@ def generate_pdf(res, lang=None):
     pdf = Report(res, lang)
     _summary(pdf, specs)
     _vedic(pdf, specs)
+    _divisional(pdf)
     _kp(pdf, specs)
     _alp(pdf, specs)
     _dasa(pdf)

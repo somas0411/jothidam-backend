@@ -1,7 +1,7 @@
 """
 excel_generator.py — HoroscopeGen Excel workbook.
 
-Sheets: Summary, Vedic, KP, ALP, Dasa, Notes.
+Sheets: Summary, Vedic, Divisional Charts, KP, ALP, Dasa, Notes.
 
 Charts are drawn with real cells (merged cells, borders and diagonal
 borders), never pasted images, on a grid of narrow columns: every chart is
@@ -40,6 +40,7 @@ FONT = 'Calibri'
 GRID_W = 4.0             # width of one narrow grid column
 CELL_H = 24.0            # height of one chart row (roughly square cells)
 ROW_H = 17.0
+PURPOSE_H = 16.0          # height of the purpose line under a divisional chart's title
 COL0 = 2                 # first grid column (B); column A is a margin
 GRID_N = 25              # 12 + 1 gap + 12
 RIGHT0 = COL0 + 13       # first column of the right-hand chart
@@ -189,12 +190,20 @@ class Grid:
         return r
 
     # -- charts ---------------------------------------------------------------
-    def chart(self, r, c, spec, style='south'):
-        """Draw one 12x12-cell chart with its title row. Returns the next free row."""
+    def chart(self, r, c, spec, style='south', purpose=None):
+        """
+        Draw one 12x12-cell chart with its title row, and a purpose line under
+        the title when given. Returns the next free row.
+        """
         self.height(r, 20)
         self.put(r, c, spec['title'], span=12, size=10, bold=True, color=WHITE, fill=HEAD, h='center',
                  wrap=False, border=False)
         top = r + 1
+        if purpose is not None:
+            self.height(top, PURPOSE_H if self.lang != 'bi' else PURPOSE_H * 2 - 4)
+            self.put(top, c, purpose, span=12, size=8, color=MUTED, fill=SOFT, h='center', italic=True,
+                     wrap=self.lang == 'bi', border=False, shrink=True)
+            top += 1
         for rr in range(top, top + 12):
             self.height(rr, CELL_H)
         if style == 'north':
@@ -271,8 +280,10 @@ class Grid:
             (pr0, pc0, pr1, pc1), (nr0, nc0, nr1, nc1) = self.NORTH_CELLS[h['house']]
             tall = pc0 == pc1          # side triangles: stack the planets
             text = ('\n' if tall else ' ').join(h['planets'])
+            crowded = len(h['planets']) > 4          # e.g. Hora, where two signs hold every point
             self.put(top + pr0, c + pc0, text, span=pc1 - pc0 + 1, rows=pr1 - pr0 + 1,
-                     size=8 if tall else 9, bold=True, h='center', v='center', wrap=True, border=False)
+                     size=(7 if crowded else 8) if tall else (7.5 if crowded else 9),
+                     bold=True, h='center', v='center', wrap=True, border=False)
             self.put(top + nr0, c + nc0, h['sign_num'], span=nc1 - nc0 + 1, rows=nr1 - nr0 + 1,
                      size=7.5, color=ACCENT if h['house'] == 1 else MUTED, bold=h['house'] == 1,
                      h='center', v='center', wrap=False, border=False)
@@ -485,6 +496,46 @@ def _vedic(wb, res, specs, lang):
              f"{i18n.rasi(b['madhya_sign'], lang)}  {b['madhya_dms']}",
              ', '.join(by_bhava.get(b['house'], [])) or '—'] for b in v['bhavas']]
     g.table(r, cols, rows)
+    g.ws.freeze_panes = 'A3'
+    _page_setup(g.ws, m['name'], COL0 + GRID_N - 1)
+
+
+def _divisional(wb, res, lang):
+    """The sixteen divisional charts: a table of signs, then the charts two to a row."""
+    g = Grid(wb, _sheet_name('divisional', lang), lang)
+    m = res['meta']
+    L = lambda k: i18n.L(k, lang)
+    vspecs = charts.build_varga_specs(res, lang)
+    keys, rows = charts.varga_table(res, lang)
+
+    r = g.title(1, f"{L('divisional')}  ·  {m['name']}", L('varga_time_note'))
+    if lang == 'bi':                     # two languages: let the note take two lines
+        g.height(2, 30)
+        g.ws.cell(row=2, column=COL0).alignment = _align('center', 'center', True, False, 0)
+
+    r = g.section(r, L('varga_table'))
+    cols = [(L('planet'), 5, 'left')] + [(k, 1, 'center') for k in keys] + [(L('vargottama'), 4, 'center')]
+    yes = i18n.word('Yes', lang)
+    table_rows = [[row['label']] + row['signs'] + [yes if row['vargottama'] else '—'] for row in rows]
+    hdr = r
+    r = g.table(r, cols, table_rows)
+    # sign names are short but the columns are one grid cell wide: use a small font
+    for rr in range(hdr + 1, r):
+        for cc in range(COL0 + 5, COL0 + 5 + len(keys)):
+            cell = g.ws.cell(row=rr, column=cc)
+            cell.font = _font(7.5)
+            cell.alignment = _align('center', 'center', False, True, 0)
+    g.height(r, 16)
+    g.put(r, COL0, L('vargottama_note'), span=GRID_N, size=8, color=MUTED, italic=True, border=False, wrap=False)
+    r += 2
+
+    style = m['chart_style']
+    for i in range(0, len(vspecs), 2):
+        # First page: the table and one row of charts; after that two rows of charts per page.
+        if i >= 2 and (i // 2) % 2 == 1:
+            g.page_break(r)
+        g.chart(r, COL0, vspecs[i], style, purpose=vspecs[i]['purpose'])
+        r = g.chart(r, RIGHT0, vspecs[i + 1], style, purpose=vspecs[i + 1]['purpose'])
     g.ws.freeze_panes = 'A3'
     _page_setup(g.ws, m['name'], COL0 + GRID_N - 1)
 
@@ -752,6 +803,12 @@ def _notes(wb, res, lang):
     ]:
         r = row(r, k, val)
 
+    r = band(r + 1, L('divisional'))
+    r = row(r, L('tob'), L('varga_time_note') if lang in ('ta', 'hi', 'mr', 'bi') else i18n.LABELS['en']['varga_time_note'])
+    for vg in v['vargas']:
+        r = row(r, i18n.varga_name(vg['key'], lang), vg['rule'])
+    r = row(r, L('vargottama'), i18n.LABELS['en']['vargottama_note'])
+
     r = band(r + 1, L('abbreviations'))
     names = ['Lagna', 'Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu', 'Mandi', 'ALP']
     r = row(r, L('planet'), '   '.join(
@@ -777,6 +834,7 @@ def generate_excel(res, lang=None):
     wb = openpyxl.Workbook()
     _summary(wb, res, specs, lang)
     _vedic(wb, res, specs, lang)
+    _divisional(wb, res, lang)
     _kp(wb, res, specs, lang)
     _alp(wb, res, specs, lang)
     _dasa(wb, res, lang)

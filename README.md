@@ -7,6 +7,7 @@ or a PDF. Three systems are produced from one birth moment:
 | System | What is computed |
 |---|---|
 | **Vedic** | D1 Rasi, D9 Navamsa, Sripati Bhava, planet table (rasi, nakshatra, pada, lords, retrograde, combust, dignity), Mandi, birth panchangam, Vimshottari dasa / bhukti / antaram |
+| **Divisional** | The 16 charts of the Shodasavarga (D1 to D60, Parashara's rules) for the lagna, the planets and Mandi |
 | **KP** | KP ayanamsha, Placidus cusps, star / sub / sub-sub lords for cusps and planets, 4-level significators, ruling planets, Vimshottari |
 | **ALP** | Akshaya Lagna: birth lagna progressed 30° per 10 years, with rasi and nakshatra-pada period tables |
 
@@ -19,7 +20,7 @@ Nothing is stored: birth details are used for the calculation and discarded.
 | `astro_engine.py` | All calculations. `compute()` is the single source for every output |
 | `charts.py` | Chart contents and layout shared by web page, Excel and PDF |
 | `i18n.py` | Names and labels (en, ta, hi, te, kn, ml, mr, bn, and `bi` = English + Tamil) |
-| `excel_generator.py` | Workbook: Summary, Vedic, KP, ALP, Dasa, Notes; charts drawn with cells |
+| `excel_generator.py` | Workbook: Summary, Vedic, Divisional Charts, KP, ALP, Dasa, Notes; charts drawn with cells |
 | `pdf_generator.py` | PDF with the same content; Noto fonts embedded, text shaped by HarfBuzz |
 | `app.py` | Flask routes |
 | `fonts/` | Noto Sans fonts (SIL Open Font License, see `fonts/OFL.txt`) |
@@ -30,7 +31,7 @@ Nothing is stored: birth details are used for the calculation and discarded.
 All horoscope endpoints take the same JSON body.
 
 ```
-POST /api/horoscope          -> JSON (meta, vedic, kp, alp, charts, names)
+POST /api/horoscope          -> JSON (meta, vedic, kp, alp, charts, varga_charts, varga_table, names)
 POST /api/download/excel     -> .xlsx
 POST /api/download/pdf       -> .pdf
 GET  /api/geocode?q=Chennai  -> place candidates with latitude, longitude, time zone

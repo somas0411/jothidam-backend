@@ -119,3 +119,42 @@ def build_specs(res, lang='en'):
     specs['alp'] = _spec('alp', i18n.L('alp_chart', lang), alp['lagna_sign'], alp_signs, lang,
                          center=[name, i18n.L('alp_chart', lang)])
     return specs
+
+
+def build_varga_specs(res, lang='en'):
+    """
+    The sixteen divisional charts, in order, as chart specs. Each also carries
+    'purpose' (one line on what the chart is used for), 'name' and 'division'.
+    """
+    v, meta = res['vedic'], res['meta']
+    points = v['planets'] + ([v['mandi']] if v.get('mandi') else [])
+    specs = []
+    for varga in v['vargas']:
+        key = varga['key']
+        by_sign = {}
+        for p in points:
+            by_sign.setdefault(varga['signs'][p['name']], []).append(_token(p, lang))
+        title = i18n.varga_name(key, lang)
+        spec = _spec(key, title, varga['lagna_sign'], by_sign, lang, center=[meta['name'], title])
+        spec.update({'purpose': i18n.varga_purpose(key, lang), 'division': varga['division'], 'name': varga['name']})
+        specs.append(spec)
+    return specs
+
+
+def varga_table(res, lang='en'):
+    """
+    Table of every point's sign in the sixteen charts.
+    Returns (chart keys, rows) where each row is
+    {name, label, vargottama, signs: [short sign names in chart order]}.
+    """
+    v = res['vedic']
+    points = v['planets'] + ([v['mandi']] if v.get('mandi') else [])
+    keys = [x['key'] for x in v['vargas']]
+    d1 = next(x for x in v['vargas'] if x['key'] == 'D1')['signs']
+    d9 = next(x for x in v['vargas'] if x['key'] == 'D9')['signs']
+    rows = []
+    for p in points:
+        n = p['name']
+        rows.append({'name': n, 'label': i18n.planet(n, lang), 'vargottama': d1[n] == d9[n],
+                     'signs': [i18n.rasi(x['signs'][n], lang, short=True) for x in v['vargas']]})
+    return keys, rows

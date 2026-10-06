@@ -175,6 +175,111 @@ def navamsa_sign(lon):
     return int(norm(lon) * 9 // 30) % 12
 
 
+# ── DIVISIONAL CHARTS (SHODASAVARGA) ──────────────────────────────────────────
+# The sixteen divisional charts of Parashara. Each entry: key, division,
+# name, and the rule in words (printed on the Notes page).
+VARGAS = [
+    ('D1', 1, 'Rasi', 'Each sign is one part: the sign itself.'),
+    ('D2', 2, 'Hora', 'Two parts of 15°. Odd sign: Simha then Kataka. Even sign: Kataka then Simha.'),
+    ('D3', 3, 'Drekkana', 'Three parts of 10°: the sign, the 5th from it, the 9th from it.'),
+    ('D4', 4, 'Chaturthamsa', 'Four parts of 7°30\': the sign, then the 4th, 7th and 10th from it.'),
+    ('D7', 7, 'Saptamsa', 'Seven parts of 4°17\'09". Odd sign: counted from the sign. Even sign: from the 7th.'),
+    ('D9', 9, 'Navamsa', 'Nine parts of 3°20\'. Fire sign: from Mesha. Earth: Makara. Air: Thula. Water: Kataka.'),
+    ('D10', 10, 'Dasamsa', 'Ten parts of 3°. Odd sign: counted from the sign. Even sign: from the 9th.'),
+    ('D12', 12, 'Dwadasamsa', 'Twelve parts of 2°30\', counted from the sign itself.'),
+    ('D16', 16, 'Shodasamsa', 'Sixteen parts of 1°52\'30". Movable sign: from Mesha. Fixed: Simha. Dual: Dhanu.'),
+    ('D20', 20, 'Vimsamsa', 'Twenty parts of 1°30\'. Movable sign: from Mesha. Fixed: Dhanu. Dual: Simha.'),
+    ('D24', 24, 'Chaturvimsamsa', 'Twenty-four parts of 1°15\'. Odd sign: from Simha. Even sign: from Kataka.'),
+    ('D27', 27, 'Bhamsa', 'Twenty-seven parts of 1°06\'40". Fire sign: from Mesha. Earth: Kataka. Air: Thula. Water: Makara.'),
+    ('D30', 30, 'Trimsamsa', 'Five unequal parts. Odd sign: 0-5° Mesha, 5-10° Kumbha, 10-18° Dhanu, 18-25° Mithuna, '
+                             '25-30° Thula. Even sign: 0-5° Rishabha, 5-12° Kanya, 12-20° Meena, 20-25° Makara, '
+                             '25-30° Vrischika.'),
+    ('D40', 40, 'Khavedamsa', 'Forty parts of 0°45\'. Odd sign: from Mesha. Even sign: from Thula.'),
+    ('D45', 45, 'Akshavedamsa', 'Forty-five parts of 0°40\'. Movable sign: from Mesha. Fixed: Simha. Dual: Dhanu.'),
+    ('D60', 60, 'Shashtiamsa', 'Sixty parts of 0°30\', counted from the sign itself.'),
+]
+VARGA_KEYS = [v[0] for v in VARGAS]
+_VARGA_DIV = {v[0]: v[1] for v in VARGAS}
+
+# Trimsamsa: (upper limit in degrees, sign) for odd and for even signs
+_TRIMSAMSA_ODD = [(5, 0), (10, 10), (18, 8), (25, 2), (30, 6)]
+_TRIMSAMSA_EVEN = [(5, 1), (12, 5), (20, 11), (25, 9), (30, 7)]
+
+
+def varga_part(lon, key):
+    """
+    Index (from 0) of the part of its sign a longitude falls in, for one
+    divisional chart. Multiplies before dividing so a longitude exactly on a
+    division edge belongs to the next part.
+    """
+    lon = norm(lon)
+    n = _VARGA_DIV[key]
+    if key == 'D30':
+        deg = lon - 30.0 * get_rasi(lon)
+        table = _TRIMSAMSA_ODD if get_rasi(lon) % 2 == 0 else _TRIMSAMSA_EVEN
+        for i, (limit, _) in enumerate(table):
+            if deg < limit:
+                return i
+        return 4
+    return int(lon * n // 30) % n
+
+
+def varga_sign(lon, key):
+    """Sign (0 = Mesha ... 11 = Meena) a longitude occupies in a divisional chart."""
+    lon = norm(lon)
+    sign = get_rasi(lon)
+    part = varga_part(lon, key)
+    odd = sign % 2 == 0                 # Mesha, Mithuna, Simha ... are the odd signs
+    quality = sign % 3                  # 0 movable, 1 fixed, 2 dual
+    element = sign % 4                  # 0 fire, 1 earth, 2 air, 3 water
+    if key == 'D1':
+        return sign
+    if key == 'D2':
+        return (4 if part == 0 else 3) if odd else (3 if part == 0 else 4)
+    if key == 'D3':
+        return (sign + 4 * part) % 12
+    if key == 'D4':
+        return (sign + 3 * part) % 12
+    if key == 'D7':
+        return (sign + (0 if odd else 6) + part) % 12
+    if key == 'D9':
+        return ((0, 9, 6, 3)[element] + part) % 12
+    if key == 'D10':
+        return (sign + (0 if odd else 8) + part) % 12
+    if key == 'D12':
+        return (sign + part) % 12
+    if key == 'D16':
+        return ((0, 4, 8)[quality] + part) % 12
+    if key == 'D20':
+        return ((0, 8, 4)[quality] + part) % 12
+    if key == 'D24':
+        return ((4 if odd else 3) + part) % 12
+    if key == 'D27':
+        return ((0, 3, 6, 9)[element] + part) % 12
+    if key == 'D30':
+        return (_TRIMSAMSA_ODD if odd else _TRIMSAMSA_EVEN)[part][1]
+    if key == 'D40':
+        return ((0 if odd else 6) + part) % 12
+    if key == 'D45':
+        return ((0, 4, 8)[quality] + part) % 12
+    if key == 'D60':
+        return (sign + part) % 12
+    raise KeyError(key)
+
+
+def build_vargas(points):
+    """
+    The sixteen charts for a list of points (lagna, planets, Mandi).
+    Returns, per chart: its lagna sign and the sign of every point.
+    """
+    out = []
+    for key, div, name, rule in VARGAS:
+        signs = {p['name']: varga_sign(p['lon'], key) for p in points}
+        out.append({'key': key, 'division': div, 'name': name, 'rule': rule,
+                    'lagna_sign': signs['Lagna'], 'signs': signs})
+    return out
+
+
 def angle_diff(a, b):
     """Smallest absolute difference between two longitudes."""
     d = abs(norm(a) - norm(b))
@@ -651,6 +756,7 @@ def _build_vedic(pos, local_dt, offset_hours, lat, lon, now, sid_mode):
         'moon_sign': moon['sign'], 'moon_nak': moon['nak'], 'moon_pada': moon['pada'],
         'bhavas': bhavas,
         'mandi': mandi,
+        'vargas': build_vargas(planets + ([mandi] if mandi else [])),
         'panchangam': pc,
         'dasa': vimshottari(pos['pts']['Moon'][0], local_dt, now, levels=3),
     }

@@ -163,6 +163,9 @@ def horoscope():
         res, lang = _compute_from_request()
         out = to_jsonable(res)
         out['charts'] = charts.build_specs(res, lang)
+        out['varga_charts'] = charts.build_varga_specs(res, lang)
+        keys, rows = charts.varga_table(res, lang)
+        out['varga_table'] = {'keys': keys, 'rows': rows}
         out['names'] = i18n.bundle(lang)
         out.update(_legacy_fields(res))
         return jsonify(out)

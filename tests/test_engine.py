@@ -374,6 +374,190 @@ def test_mandi_in_charts(res):
     assert 'மா' in ta['d1']['signs'][md['sign']]['planets']
 
 
+# ── divisional charts ─────────────────────────────────────────────────────────
+
+S = {n: i for i, n in enumerate(A.RASIS)}          # sign name -> index
+MESHA, RISHABHA, MITHUNA, KATAKA = 0.0, 30.0, 60.0, 90.0     # start of an odd/movable, even/fixed, dual, water sign
+
+
+def vs(sign_start, deg, key):
+    return A.RASIS[A.varga_sign(sign_start + deg, key)]
+
+
+def test_varga_list():
+    assert A.VARGA_KEYS == ['D1', 'D2', 'D3', 'D4', 'D7', 'D9', 'D10', 'D12', 'D16', 'D20', 'D24', 'D27',
+                            'D30', 'D40', 'D45', 'D60']
+    for lang in ('en', 'ta', 'hi'):
+        assert set(i18n.VARGA_NAMES[lang]) == set(A.VARGA_KEYS) == set(i18n.VARGA_PURPOSE[lang])
+
+
+@pytest.mark.parametrize('key,start,first,last', [
+    # first and last part of an odd sign (Mesha) and an even sign (Rishabha)
+    ('D1', MESHA, 'Mesha', 'Mesha'), ('D1', RISHABHA, 'Rishabha', 'Rishabha'),
+    ('D2', MESHA, 'Simha', 'Kataka'), ('D2', RISHABHA, 'Kataka', 'Simha'),
+    ('D3', MESHA, 'Mesha', 'Dhanu'), ('D3', RISHABHA, 'Rishabha', 'Makara'),
+    ('D4', MESHA, 'Mesha', 'Makara'), ('D4', RISHABHA, 'Rishabha', 'Kumbha'),
+    ('D7', MESHA, 'Mesha', 'Thula'), ('D7', RISHABHA, 'Vrischika', 'Rishabha'),
+    ('D10', MESHA, 'Mesha', 'Makara'), ('D10', RISHABHA, 'Makara', 'Thula'),
+    ('D12', MESHA, 'Mesha', 'Meena'), ('D12', RISHABHA, 'Rishabha', 'Mesha'),
+    ('D24', MESHA, 'Simha', 'Kataka'), ('D24', RISHABHA, 'Kataka', 'Mithuna'),
+    ('D40', MESHA, 'Mesha', 'Kataka'), ('D40', RISHABHA, 'Thula', 'Makara'),
+    ('D60', MESHA, 'Mesha', 'Meena'), ('D60', RISHABHA, 'Rishabha', 'Mesha'),
+    # fire / earth / air / water signs
+    ('D9', MESHA, 'Mesha', 'Dhanu'), ('D9', RISHABHA, 'Makara', 'Kanya'),
+    ('D9', MITHUNA, 'Thula', 'Mithuna'), ('D9', KATAKA, 'Kataka', 'Meena'),
+    ('D27', MESHA, 'Mesha', 'Mithuna'), ('D27', RISHABHA, 'Kataka', 'Kanya'),
+    ('D27', MITHUNA, 'Thula', 'Dhanu'), ('D27', KATAKA, 'Makara', 'Meena'),
+    # movable (Mesha) / fixed (Rishabha) / dual (Mithuna) signs
+    ('D16', MESHA, 'Mesha', 'Kataka'), ('D16', RISHABHA, 'Simha', 'Vrischika'), ('D16', MITHUNA, 'Dhanu', 'Meena'),
+    ('D20', MESHA, 'Mesha', 'Vrischika'), ('D20', RISHABHA, 'Dhanu', 'Kataka'), ('D20', MITHUNA, 'Simha', 'Meena'),
+    ('D45', MESHA, 'Mesha', 'Dhanu'), ('D45', RISHABHA, 'Simha', 'Mesha'), ('D45', MITHUNA, 'Dhanu', 'Simha'),
+])
+def test_varga_first_and_last_part(key, start, first, last):
+    assert vs(start, 0.001, key) == first
+    assert vs(start, 29.999, key) == last
+
+
+def test_trimsamsa_boundaries():
+    odd = [(0.0, 'Mesha'), (4.999, 'Mesha'), (5.0, 'Kumbha'), (9.999, 'Kumbha'), (10.0, 'Dhanu'),
+           (17.999, 'Dhanu'), (18.0, 'Mithuna'), (24.999, 'Mithuna'), (25.0, 'Thula'), (29.999, 'Thula')]
+    even = [(0.0, 'Rishabha'), (4.999, 'Rishabha'), (5.0, 'Kanya'), (11.999, 'Kanya'), (12.0, 'Meena'),
+            (19.999, 'Meena'), (20.0, 'Makara'), (24.999, 'Makara'), (25.0, 'Vrischika'), (29.999, 'Vrischika')]
+    for start in (MESHA, 120.0, 300.0):                  # Mesha, Simha, Kumbha: odd signs
+        assert [vs(start, d, 'D30') for d, _ in odd] == [s for _, s in odd]
+    for start in (RISHABHA, 150.0, 330.0):               # Rishabha, Kanya, Meena: even signs
+        assert [vs(start, d, 'D30') for d, _ in even] == [s for _, s in even]
+
+
+def test_varga_exact_edges_fall_in_the_next_part():
+    assert vs(MESHA, 15.0, 'D2') == 'Kataka' and vs(MESHA, 10.0, 'D3') == 'Simha'
+    assert vs(MESHA, 7.5, 'D4') == 'Kataka' and vs(MESHA, 3.0, 'D10') == 'Rishabha'
+    assert vs(MESHA, 2.5, 'D12') == 'Rishabha' and vs(MESHA, 0.5, 'D60') == 'Rishabha'
+    assert vs(MESHA, 30 / 9, 'D9') == 'Rishabha' and vs(RISHABHA, 0.0, 'D9') == 'Makara'
+    assert A.varga_sign(360.0, 'D60') == S['Mesha'] and A.varga_sign(-0.25, 'D60') == S['Kumbha']
+
+
+@pytest.mark.parametrize('key,div', [(k, d) for k, d, _, _ in A.VARGAS])
+def test_varga_covers_the_zodiac_without_gaps(key, div):
+    # scan the zodiac in 15-arc-second steps and count the parts met
+    parts_per_sign = 5 if key == 'D30' else div
+    seen, prev, order = set(), None, []
+    for i in range(360 * 240):
+        lon = (i + 0.5) / 240.0
+        cell = (A.get_rasi(lon), A.varga_part(lon, key))
+        assert 0 <= A.varga_sign(lon, key) <= 11
+        if cell != prev:
+            assert cell not in seen                       # a part is one unbroken stretch
+            seen.add(cell)
+            order.append(cell)
+            prev = cell
+    assert len(seen) == 12 * parts_per_sign
+    for sign in range(12):
+        assert [p for s, p in order if s == sign] == list(range(parts_per_sign))
+
+
+def test_d9_matches_navamsa_everywhere(res):
+    for i in range(360 * 60):
+        lon = (i + 0.5) / 60.0
+        assert A.varga_sign(lon, 'D9') == A.navamsa_sign(lon)
+    d9 = next(x for x in res['vedic']['vargas'] if x['key'] == 'D9')
+    for p in res['vedic']['planets'] + [res['vedic']['mandi']]:
+        assert d9['signs'][p['name']] == p['navamsa']
+
+
+def test_vargas_for_the_sample_chart(res):
+    v = res['vedic']
+    names = ['Lagna'] + A.PLANETS + ['Mandi']
+    assert [x['key'] for x in v['vargas']] == A.VARGA_KEYS
+    for x in v['vargas']:
+        assert list(x['signs']) == names                  # every point exactly once
+        assert x['lagna_sign'] == x['signs']['Lagna']
+    by = {x['key']: x['signs'] for x in v['vargas']}
+    assert all(by['D1'][p['name']] == p['sign'] for p in v['planets'])
+    # the Sun at Kumbha 21°13'06", worked by hand from the rules
+    sun = {k: A.RASIS[by[k]['Sun']] for k in A.VARGA_KEYS}
+    assert sun == {'D1': 'Kumbha', 'D2': 'Kataka', 'D3': 'Thula', 'D4': 'Simha', 'D7': 'Mithuna', 'D9': 'Mesha',
+                   'D10': 'Kanya', 'D12': 'Thula', 'D16': 'Kataka', 'D20': 'Kumbha', 'D24': 'Dhanu',
+                   'D27': 'Rishabha', 'D30': 'Mithuna', 'D40': 'Simha', 'D45': 'Meena', 'D60': 'Simha'}
+    assert set(by['D2'].values()) <= {S['Kataka'], S['Simha']}
+
+
+def test_varga_specs_and_table(res):
+    specs = charts.build_varga_specs(res, 'en')
+    assert [s['key'] for s in specs] == A.VARGA_KEYS
+    for s in specs:
+        assert sum(len(c['planets']) for c in s['signs']) == 11 == sum(len(h['planets']) for h in s['houses'])
+        assert s['purpose'] and s['title'].startswith(s['key'] + ' ')
+        assert s['signs'][s['lagna_sign']]['lagna'] and 'La' in s['signs'][s['lagna_sign']]['planets']
+    assert specs[4]['purpose'] == 'Children and progeny'
+    keys, rows = charts.varga_table(res, 'en')
+    assert keys == A.VARGA_KEYS and len(rows) == 11 and all(len(r['signs']) == 16 for r in rows)
+    assert [r['name'] for r in rows if r['vargottama']] == ['Rahu', 'Ketu']
+    ta = charts.build_varga_specs(res, 'ta')
+    assert ta[5]['title'] == 'D9 நவாம்சம்' and ta[1]['purpose'] == 'செல்வம், பொருளாதாரம்'
+
+
+def test_vargas_do_not_change_other_results(res):
+    v = res['vedic']
+    assert [p['name'] for p in v['planets']] == ['Lagna'] + A.PLANETS
+    assert v['dasa']['balance']['lord'] == 'Mars' and v['mandi']['ghatis'] == 22
+    assert len(charts.build_specs(res, 'en')) == 5
+
+
+def test_excel_divisional_sheet():
+    import openpyxl
+    from excel_generator import generate_excel, COL0, RIGHT0
+    r = A.compute('Sample Native', '1998-03-06', '01:37', 'Delhi', lat=28.6139, lon=77.2090, now=NOW)
+    wb = openpyxl.load_workbook(io.BytesIO(generate_excel(r, 'en')))
+    assert wb.sheetnames == ['Summary', 'Vedic', 'Divisional Charts', 'KP', 'ALP', 'Dasa', 'Notes']
+    ws = wb['Divisional Charts']
+    head = next(c.row for c in ws['B'] if c.value == 'Planet')
+    heads = [c.value for c in ws[head] if c.value is not None]
+    assert heads[1:17] == A.VARGA_KEYS and heads[17] == 'Vargottama'
+    sun = next(c.row for c in ws['B'] if c.value == 'Sun')
+    vals = [c.value for c in ws[sun] if c.value is not None]
+    assert vals[1:4] == ['Kum', 'Kat', 'Thu'] and vals[16] == 'Sim' and vals[17] == '—'
+    rahu = next(c.row for c in ws['B'] if c.value == 'Rahu')
+    assert [c.value for c in ws[rahu] if c.value is not None][17] == 'Yes'
+    # 16 charts, each with its purpose line under the title
+    titles = {}
+    for col in (COL0, RIGHT0):
+        for row in range(1, ws.max_row + 1):
+            val = ws.cell(row, col).value
+            if isinstance(val, str) and val.split(' ')[0] in A.VARGA_KEYS and val != 'D1':
+                if ws.cell(row + 1, col).value in i18n.VARGA_PURPOSE['en'].values():
+                    titles[val.split(' ')[0]] = (row, col)
+    assert sorted(titles, key=A.VARGA_KEYS.index) == A.VARGA_KEYS
+    assert ws.cell(titles['D10'][0] + 1, titles['D10'][1]).value == 'Career, status and achievements'
+
+    def block(key, sign):
+        row, col = titles[key]
+        gr, gc = charts.SOUTH_POS[sign]
+        return ws.cell(row + 2 + gr * 3 + 1, col + gc * 3).value or ''
+    assert 'Su' in block('D3', S['Thula']).split()           # Sun: Thula in D3
+    assert 'Su' in block('D10', S['Kanya']).split()          # Sun: Kanya in D10
+    assert 'Md' in block('D60', S['Mithuna']).split()        # Mandi: Mithuna in D60
+    assert len(ws.row_breaks.brk) == 4                       # charts are not split across pages
+
+
+@pytest.mark.parametrize('lang', ['en', 'ta'])
+def test_pdf_has_divisional_section(lang, tmp_path):
+    import shutil
+    import subprocess
+    if not shutil.which('pdftotext'):
+        pytest.skip('pdftotext not installed')
+    from pdf_generator import generate_pdf
+    r = A.compute('Sample Native', '1998-03-06', '01:37', 'Delhi', lat=28.6139, lon=77.2090, lang=lang, now=NOW)
+    f = tmp_path / 'r.pdf'
+    f.write_bytes(generate_pdf(r, lang))
+    text = subprocess.run(['pdftotext', '-layout', str(f), '-'], capture_output=True, text=True).stdout
+    for key in A.VARGA_KEYS:
+        assert sum(1 for line in text.splitlines() if key + ' ' in line) >= 1, key
+    if lang == 'en':
+        for purpose in i18n.VARGA_PURPOSE['en'].values():
+            assert purpose in text
+
+
 # ── charts ────────────────────────────────────────────────────────────────────
 
 def test_chart_specs(res):
@@ -410,7 +594,7 @@ def test_excel_workbook(lang, style):
     r = A.compute('Sample Native', '1998-03-06', '01:37', 'Delhi', lat=28.6139, lon=77.2090,
                   lang=lang, chart_style=style, now=NOW)
     wb = openpyxl.load_workbook(io.BytesIO(generate_excel(r, lang)))
-    assert len(wb.sheetnames) == 6
+    assert len(wb.sheetnames) == 7
     for ws in wb:
         assert ws.max_row > 5
         assert str(ws.page_setup.paperSize) == '9' and ws.page_setup.orientation == 'portrait'    # 9 = A4
@@ -418,7 +602,7 @@ def test_excel_workbook(lang, style):
             for c in row:
                 if isinstance(c.value, str):
                     assert not c.value.startswith('#') and 'None' not in c.value and 'TODO' not in c.value
-    dasa = wb.worksheets[4]
+    dasa = wb.worksheets[5]
     assert isinstance(dasa['E4'].value, datetime) and dasa['E4'].number_format == 'dd-mm-yyyy'
     assert dasa.freeze_panes == 'A4' and dasa.auto_filter.ref.startswith('B3')
     rows = dasa.max_row - 3
@@ -518,6 +702,9 @@ def test_api_horoscope(client):
     assert md['name'] == 'Mandi' and md['rise_time'].startswith('1998-03-06T03:24') and md['ghatis'] == 22
     assert j['names']['planets']['Mandi'] == 'Mandi' and j['names']['abbr']['Mandi'] == 'Md'
     assert len(j['planets']) == 10                         # legacy list is unchanged
+    assert [x['key'] for x in j['vedic']['vargas']] == A.VARGA_KEYS
+    assert len(j['varga_charts']) == 16 and j['varga_charts'][1]['purpose'] == 'Wealth and resources'
+    assert j['varga_table']['keys'] == A.VARGA_KEYS and len(j['varga_table']['rows']) == 11
 
 
 def test_api_ayanamsha_option_is_used(client):

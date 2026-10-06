@@ -33,6 +33,7 @@ MARGIN = 12.0
 PAGE_W = 210.0
 BODY_W = PAGE_W - 2 * MARGIN
 DATE = '%d-%m-%Y'
+PURPOSE_H = 4.6            # height of one purpose line under a divisional chart's title
 
 
 class Report(FPDF):
@@ -260,12 +261,14 @@ class Report(FPDF):
         self.cell(size, 5.5, self._fit(spec['title'], size - 2), fill=True, align='C')
         y += 5.5
         if purpose is not None:
-            self.set_xy(x, y)
-            self.set_fill_color(*SOFT)
-            self.set_text_color(*MUTED)
-            self.set_font('main', '', 7)
-            self.cell(size, 4.6, self._fit(purpose, size - 2), fill=True, align='C')
-            y += 4.6
+            # one line per language, so bilingual text is not shrunk to fit a single line
+            for line in ([purpose] if isinstance(purpose, str) else purpose):
+                self.set_xy(x, y)
+                self.set_fill_color(*SOFT)
+                self.set_text_color(*MUTED)
+                self.set_font('main', '', 7)
+                self.cell(size, PURPOSE_H, self._fit(line, size - 2), fill=True, align='C')
+                y += PURPOSE_H
         # Chart text is placed with cell() so the script fonts are used; a chart
         # near the foot of the page must not trigger an automatic page break.
         self.set_auto_page_break(False)
@@ -560,23 +563,27 @@ def _divisional(pdf):
 
     half = (BODY_W - 4) / 2
 
+    n_lines = 2 if lang == 'bi' else 1         # bilingual: English line, then Tamil line
+    extra = 5.5 + n_lines * PURPOSE_H + 4      # title strip, purpose lines, gap below
+
     def draw(group, y, size):
         """Draw charts two to a row starting at y."""
         off = (half - size) / 2
         for i, spec in enumerate(group):
             x = MARGIN + off if i % 2 == 0 else MARGIN + half + 4 + off
-            nxt = pdf.chart(x, y, size, spec, style, purpose=spec['purpose'])
+            lines = spec['purpose'].split(' / ', 1) if lang == 'bi' else spec['purpose']
+            nxt = pdf.chart(x, y, size, spec, style, purpose=lines)
             if i % 2 == 1:
                 y = nxt
         return y
 
     # First page: whatever height is left takes two rows of charts.
     y = pdf.get_y()
-    size = min(72.0, (pdf.h - 16 - y) / 2 - 5.5 - 4.6 - 4)
-    draw(vspecs[:4], y, size)
+    full = (pdf.h - 16 - 16) / 3 - extra       # three rows fill a page
+    draw(vspecs[:4], y, min(full, (pdf.h - 16 - y) / 2 - extra))
     for start in (4, 10):                      # then six to a page
         pdf.add_page()
-        draw(vspecs[start:start + 6], pdf.get_y(), 72.0)
+        draw(vspecs[start:start + 6], pdf.get_y(), full)
 
 
 def _kp(pdf, specs):

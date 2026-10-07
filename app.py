@@ -7,14 +7,19 @@ Endpoints
   POST /api/horoscope          full horoscope as JSON (Vedic, KP, ALP, charts)
   POST /api/download/excel     Excel workbook
   POST /api/download/pdf       PDF report
+  POST /api/download/json      the horoscope plus the AI block, as a JSON file
 
-All three horoscope endpoints take the same JSON body and call the same
-compute() function, so the page, the Excel and the PDF always agree.
+All horoscope endpoints take the same JSON body and call the same
+compute() function, so the page, the Excel, the PDF and the JSON file always
+agree. The Excel and JSON downloads also call enrich(), which adds flat
+tables of derived facts for AI readers; /api/horoscope adds them only when
+the body has "ai": true.
 
 Nothing is stored: birth details are used for the calculation and discarded.
 
 Deploy (Render): build `pip install -r requirements.txt`, start `gunicorn app:app`.
 """
+import json
 import logging
 import os
 import re
@@ -25,6 +30,7 @@ from flask_cors import CORS
 import charts
 import i18n
 from astro_engine import AYANAMSHAS, InputError, compute, geocode, to_jsonable
+from enrich import enrich
 from excel_generator import generate_excel
 from pdf_generator import generate_pdf
 
@@ -78,6 +84,12 @@ def _compute_from_request():
         chart_style=body.get('chartStyle', 'south'),
     )
     return res, lang
+
+
+def _wants_ai():
+    """True when the request body asks for the AI block ("ai": true)."""
+    body = request.get_json(force=True, silent=True) or {}
+    return body.get('ai') is True or str(body.get('ai', '')).strip().lower() == 'true'
 
 
 def _filename(name, ext):
@@ -168,6 +180,8 @@ def horoscope():
         out['varga_table'] = {'keys': keys, 'rows': rows}
         out['names'] = i18n.bundle(lang)
         out.update(_legacy_fields(res))
+        if _wants_ai():
+            out['ai'] = to_jsonable(enrich(res))
         return jsonify(out)
     return _guard(run)
 
@@ -176,7 +190,7 @@ def horoscope():
 def download_excel():
     def run():
         res, lang = _compute_from_request()
-        return _file_response(generate_excel(res, lang), _filename(res['meta']['name'], 'xlsx'),
+        return _file_response(generate_excel(res, lang, ai=enrich(res)), _filename(res['meta']['name'], 'xlsx'),
                               'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     return _guard(run)
 
@@ -187,6 +201,18 @@ def download_pdf():
         res, lang = _compute_from_request()
         return _file_response(generate_pdf(res, lang), _filename(res['meta']['name'], 'pdf'),
                               'application/pdf')
+    return _guard(run)
+
+
+@app.route('/api/download/json', methods=['POST'])
+def download_json():
+    """The full result of compute() plus the AI block, for giving to an AI assistant."""
+    def run():
+        res, _ = _compute_from_request()
+        out = to_jsonable(res)
+        out['ai'] = to_jsonable(enrich(res))
+        data = json.dumps(out, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+        return _file_response(data, _filename(res['meta']['name'], 'json'), 'application/json; charset=utf-8')
     return _guard(run)
 
 

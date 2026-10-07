@@ -842,7 +842,7 @@ AI_DATETIME_FMT = 'yyyy-mm-dd hh:mm:ss'
 AI_DATE_FMT = 'yyyy-mm-dd'
 AI_DEG_FMT = '0.000000'
 AI_WRAP = {('AI_ReadMe', 'text'): 120, ('AI_Facts', 'note'): 70, ('AI_Yogas', 'rule'): 75,
-           ('AI_Yogas', 'note'): 70}
+           ('AI_Yogas', 'note'): 70, ('AI_Brief', 'value'): 120, ('AI_LifeFacts', 'note'): 70}
 AI_DEG_COLUMNS = ('deg_in_sign', 'deg_in_chart', 'lagna_deg_in_chart', 'speed_deg_per_day')
 AI_MAX_WIDTH = 60
 

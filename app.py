@@ -86,10 +86,44 @@ def _compute_from_request():
     return res, lang
 
 
-def _wants_ai():
-    """True when the request body asks for the AI block ("ai": true)."""
+def _ai_mode():
+    """
+    What the request body asks for under "ai": 'full' for true, 'brief' for
+    "brief" (the short AI_Brief table only), None otherwise.
+    """
     body = request.get_json(force=True, silent=True) or {}
-    return body.get('ai') is True or str(body.get('ai', '')).strip().lower() == 'true'
+    text = str(body.get('ai', '')).strip().lower()
+    if body.get('ai') is True or text == 'true':
+        return 'full'
+    return 'brief' if text == 'brief' else None
+
+
+def _wants_ai():
+    """True when the request body asks for the full AI block ("ai": true)."""
+    return _ai_mode() == 'full'
+
+
+def _extras():
+    """
+    Optional inputs for the AI block, read from the request body:
+    "tobUncertaintyMin" (how many minutes the birth time may be off) and
+    "life" (facts and past events only the user knows). enrich() checks them
+    and raises InputError on a bad value. Nothing is stored.
+    """
+    body = request.get_json(force=True, silent=True) or {}
+    given = body.get('lat') not in (None, '') and body.get('lon') not in (None, '')
+    return {'tob_uncertainty_min': body.get('tobUncertaintyMin'),
+            'coordinates_source': 'entered' if given else 'looked up',
+            'life': body.get('life')}
+
+
+def _brief_block(res):
+    """The short form for an assistant that cannot load the full tables: meta and AI_Brief."""
+    ai = enrich(res, extras=_extras())
+    return {'meta': to_jsonable(res['meta']),
+            'ai': {'schema': ai['schema'], 'report_datetime_local': to_jsonable(ai['report_datetime_local']),
+                   'utc_offset_hours': ai['utc_offset_hours'], 'columns': ai['columns']['AI_Brief'],
+                   'brief': to_jsonable(ai['tables']['AI_Brief'])}}
 
 
 def _filename(name, ext):
@@ -173,6 +207,8 @@ def geocode_route():
 def horoscope():
     def run():
         res, lang = _compute_from_request()
+        if _ai_mode() == 'brief':
+            return jsonify(_brief_block(res))
         out = to_jsonable(res)
         out['charts'] = charts.build_specs(res, lang)
         out['varga_charts'] = charts.build_varga_specs(res, lang)
@@ -181,7 +217,7 @@ def horoscope():
         out['names'] = i18n.bundle(lang)
         out.update(_legacy_fields(res))
         if _wants_ai():
-            out['ai'] = to_jsonable(enrich(res))
+            out['ai'] = to_jsonable(enrich(res, extras=_extras()))
         return jsonify(out)
     return _guard(run)
 
@@ -190,7 +226,8 @@ def horoscope():
 def download_excel():
     def run():
         res, lang = _compute_from_request()
-        return _file_response(generate_excel(res, lang, ai=enrich(res)), _filename(res['meta']['name'], 'xlsx'),
+        return _file_response(generate_excel(res, lang, ai=enrich(res, extras=_extras())),
+                              _filename(res['meta']['name'], 'xlsx'),
                               'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     return _guard(run)
 
@@ -206,11 +243,17 @@ def download_pdf():
 
 @app.route('/api/download/json', methods=['POST'])
 def download_json():
-    """The full result of compute() plus the AI block, for giving to an AI assistant."""
+    """
+    The full result of compute() plus the AI block, for giving to an AI assistant.
+    With "ai": "brief" the file holds meta and the short AI_Brief table only.
+    """
     def run():
         res, _ = _compute_from_request()
-        out = to_jsonable(res)
-        out['ai'] = to_jsonable(enrich(res))
+        if _ai_mode() == 'brief':
+            out = _brief_block(res)
+        else:
+            out = to_jsonable(res)
+            out['ai'] = to_jsonable(enrich(res, extras=_extras()))
         data = json.dumps(out, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
         return _file_response(data, _filename(res['meta']['name'], 'json'), 'application/json; charset=utf-8')
     return _guard(run)

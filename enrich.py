@@ -23,6 +23,15 @@ Conventions
 
 The rules and the variant chosen for each are in RULES and are printed on
 the Notes sheet and in AI_ReadMe.
+
+Schema horoscopegen-ai/2 only adds to schema 1: new sheets, and new columns
+at the end of old sheets. It adds what a reader had to work out before: the
+dasa and antaram levels as tables, what a transiting planet touches, the
+faster planets and stations, one row of facts per period (AI_PeriodFacts),
+what supports and weakens each topic (AI_TopicPromise), where dasa and transit
+overlap (AI_TopicWindows), a short copy for a reader who cannot load every
+sheet (AI_Brief), and what only the user knows, when they choose to give it
+(clean_extras: birth-time uncertainty, life facts and past events).
 """
 from __future__ import annotations
 
@@ -36,7 +45,7 @@ from astro_engine import (COMBUST_ORB, DASA_ORDER, DASA_YRS, EXALT_SIGN, NAKS, O
                           RASIS, SIGN_LORDS, VARGAS, VARGA_KEYS, YEAR_DAYS, angle_diff, norm,
                           varga_part, varga_sign)
 
-SCHEMA = 'horoscopegen-ai/1'
+SCHEMA = 'horoscopegen-ai/2'
 
 SEVEN = PLANETS[:7]                       # Sun ... Saturn: the planets that own signs
 NODES = ('Rahu', 'Ketu')
@@ -123,17 +132,32 @@ NATURAL_BENEFICS = ('Mercury', 'Jupiter', 'Venus')
 
 # Transit results counted from the natal Moon (classical gochara)
 TRANSIT_GOOD_FROM_MOON = {'Saturn': (3, 6, 11), 'Jupiter': (2, 5, 7, 9, 11),
-                          'Rahu': (3, 6, 11), 'Ketu': (3, 6, 11)}
+                          'Rahu': (3, 6, 11), 'Ketu': (3, 6, 11),
+                          'Sun': (3, 6, 10, 11), 'Mars': (3, 6, 11), 'Mercury': (2, 4, 6, 8, 10, 11),
+                          'Venus': (1, 2, 3, 4, 5, 8, 9, 11, 12)}
 SATURN_FROM_MOON = {12: 'sade sati - 1st phase', 1: 'sade sati - 2nd phase', 2: 'sade sati - 3rd phase',
                     8: 'ashtama', 4: 'ardhashtama', 7: 'kantaka', 10: 'kantaka'}
 
 # Largest daily motion in degrees, with a margin: how far a body can get in a day.
-_VMAX = {'Saturn': 0.16, 'Jupiter': 0.28, 'mean': 0.07, 'true': 0.45}
+_VMAX = {'Saturn': 0.16, 'Jupiter': 0.28, 'mean': 0.07, 'true': 0.45,
+         'Mars': 0.9, 'Sun': 1.15, 'Mercury': 2.5, 'Venus': 1.45}
 TRANSIT_MIN_STEP = 1.0          # days
 TRANSIT_TOL = 0.5 / 86400.0     # days: entries are bisected to half a second
 TRANSIT_YEARS_AHEAD = 10
 PRATYANTAR_YEARS_BACK = 1
-PRATYANTAR_YEARS_AHEAD = 5
+PRATYANTAR_YEARS_AHEAD = 10
+ANTARAM_FACTS_YEARS_BACK = 1    # antaram rows of AI_PeriodFacts: from this many years before the report date
+# Faster bodies in AI_TransitsFast: body, years before the report date, years after, search margin in days
+# (longer than the longest stay of that body in one sign, so every listed stay has both its ends).
+FAST_BODIES = (('Mars', 2, 10, 400), ('Sun', 1, 2, 45), ('Mercury', 1, 2, 120), ('Venus', 1, 2, 200))
+STATION_BODIES = ('Mars', 'Jupiter', 'Saturn')
+STATION_YEARS_BACK = 1
+STATION_STEP = 5.0              # days: the daily motion keeps its sign for far longer than this
+STATION_TOL = 20.0 / 86400.0    # days: stations are bisected to 20 seconds
+WINDOW_MIN_BINDUS = 4           # own bindus a transit sign needs to count as a layer in AI_TopicWindows
+WINDOW_MIN_LAYERS = 2           # rows of AI_TopicWindows have at least this many layers
+BRIEF_WINDOWS = 3               # windows per topic repeated in AI_Brief
+SAV_STRONG, SAV_WEAK = 30, 24   # bindus of a house: supports from 30, weakens up to 24
 LAGNA_STEP = 10                 # seconds between lagna samples
 LAGNA_LIMIT = 6 * 3600          # seconds searched each way
 LAGNA_UNCERTAIN = 120           # seconds
@@ -152,7 +176,40 @@ TOPICS = [
     ('Parents', (4, 9), ('Moon', 'Sun'), ('D12',), ()),
     ('Siblings', (3, 11), ('Mars',), ('D3',), ()),
     ('Spiritual life', (9, 12, 5), ('Jupiter', 'Ketu'), ('D20',), ()),
+    ('Mother', (4,), ('Moon',), ('D12',), ()),
+    ('Father', (9,), ('Sun',), ('D12',), ()),
 ]
+NO_PROMISE = ('Strain (general)',)      # topics left out of AI_TopicPromise
+
+# The nine taras, counted from the janma nakshatra, and their classical labels
+TARA_NAMES = ('Janma', 'Sampat', 'Vipat', 'Kshema', 'Pratyari', 'Sadhaka', 'Vadha', 'Mitra', 'Parama Mitra')
+TARA_LABELS = ('mixed', 'favourable', 'unfavourable', 'favourable', 'unfavourable', 'favourable',
+               'unfavourable', 'favourable', 'favourable')
+
+NATURAL_MALEFICS = ('Sun', 'Mars', 'Saturn', 'Rahu', 'Ketu')
+GOOD_DIGNITY = ('Exalted', 'Moolatrikona', 'Own sign', 'Great friend', 'Friend')
+OWN_DIGNITY = ('Exalted', 'Moolatrikona', 'Own sign')
+
+# Optional facts only the user knows (request field "life"). Nothing here is computed.
+MARITAL_STATUS = ('single', 'married', 'other')
+WORK_TYPES = ('employed', 'self-employed', 'business', 'student', 'homemaker', 'retired', 'not working')
+EVENT_TOPIC = {'marriage': 'Marriage', 'child born': 'Children', 'job change': 'Job and career',
+               'own business started': 'Business', 'moved abroad': 'Abroad / onsite',
+               'returned from abroad': 'Abroad / onsite', 'home bought': 'Home and vehicle',
+               'higher study': 'Education'}
+MAX_EVENTS = 10
+MAX_COUNT = 20
+MAX_TOB_UNCERTAINTY_MIN = 120
+LIFE_FIELDS = (
+    ('marital_status', 'one of: ' + ', '.join(MARITAL_STATUS)),
+    ('marriage_year', 'calendar year'),
+    ('children_count', 'number of children'),
+    ('first_child_birth_year', 'calendar year'),
+    ('elder_siblings', 'number of elder brothers and sisters'),
+    ('younger_siblings', 'number of younger brothers and sisters'),
+    ('work_type', 'one of: ' + ', '.join(WORK_TYPES)),
+    ('lives_abroad', 'yes / no: lives outside the country of birth'),
+)
 MARRIAGE_EXTRA_FOR_WOMAN = 'Jupiter'
 
 RULES = [
@@ -247,7 +304,8 @@ RULES = [
     ('Dasa levels', 'Vimshottari from the Moon with the chosen Vedic ayanamsha, year of 365.25 days. The bhukti '
      'table has one row per bhukti. Pratyantar (4th level): inside an antaram the order starts with the '
      'antaram lord and each part = antaram length x lord\'s years / 120; listed from 1 year before the '
-     'report date to 5 years after.'),
+     'report date to 10 years after, so that it ends with the transit tables. AI_DasaPeriods has one row '
+     'per dasa and AI_Antaram one row per antaram (3rd level) for the whole life.'),
     ('Transits', 'Saturn, Jupiter, Rahu and Ketu with the chart\'s ayanamsha and node setting; Ketu is opposite '
      'Rahu. Sign entries from birth to 10 years after the report date, every retrograde re-entry included, '
      'found by stepping through time (never more than the body can travel towards a sign boundary, at most '
@@ -266,17 +324,84 @@ RULES = [
      'a topic chart; (f) signifies one of the topic\'s KP houses on the KP sheet. Add half of the dasa '
      'lord\'s count of (a) to (f). Subtract 1 if the bhukti lord has Shodasavarga Vimsopaka under 10, or is '
      'combust, or is debilitated in D1 with no neecha bhanga condition met. For marriage Jupiter is a '
-     'significator only when the gender is female.'),
+     'significator only when the gender is female. rank_in_topic: 1 for the highest score of that topic '
+     'over all bhuktis, 2 for the next different score, and so on. in_top_quarter: yes when fewer than a '
+     'quarter of all bhuktis have a higher score for that topic.'),
+    ('Dharma-Karmadhipati yoga', 'The lord of the 9th and the lord of the 10th joined by conjunction, mutual '
+     'aspect or exchange of signs. When one planet owns both houses the row says so and is marked found.'),
+    ('Weakening factors of a yoga', 'For a yoga that is found, the facts about its planets that tradition reads '
+     'as reducing it: combust; debilitated (with "cancelled" when a neecha bhanga condition is met); placed '
+     'in house 6, 8 or 12 (not listed for the Viparita yogas, which need that placement); in the sign of an '
+     'enemy or great enemy. Empty for doshas, Kemadruma, Guru-Chandala, Kala Sarpa and neecha bhanga rows.'),
+    ('Tara', 'Nine taras counted from the janma nakshatra and repeated three times: 1 Janma, 2 Sampat, 3 Vipat, '
+     '4 Kshema, 5 Pratyari, 6 Sadhaka, 7 Vadha, 8 Mitra, 9 Parama Mitra. Labels: 2, 4, 6, 8, 9 favourable; '
+     '3, 5, 7 unfavourable; 1 mixed. Two counts are given for a period lord: tara_of_lordship = the tara '
+     'of the nakshatras that planet rules (the order of the dasa lords starting from the lord of the janma '
+     'nakshatra); tara_of_position = the tara of the nakshatra that planet occupies.'),
+    ('Transits of the faster planets', 'AI_TransitsFast: sign entries of Mars from 2 years before the report date '
+     'to 10 years after, and of the Sun, Mercury and Venus from 1 year before to 2 years after, found the '
+     'same way as the slow planets. Classical gochara from the natal Moon: Sun favourable in 3, 6, 10, 11; '
+     'Mars in 3, 6, 11; Mercury in 2, 4, 6, 8, 10, 11; Venus in 1, 2, 3, 4, 5, 8, 9, 11, 12. Vedha is not '
+     'applied. The Moon is not listed.'),
+    ('Transit aspects', 'houses_aspected_from_lagna, natal_points_in_sign and natal_points_aspected use the same '
+     'full aspects by whole sign as the birth chart (Mars 4, 7, 8; Jupiter 5, 7, 9; Saturn 3, 7, 10; the '
+     'others the 7th), counted from the sign the planet transits.'),
+    ('Stations', 'AI_Stations: the moments the daily motion in longitude of Mars, Jupiter or Saturn is zero, from '
+     '1 year before the report date to 10 years after. retrograde = it turns backward there, direct = it '
+     'turns forward. Found by stepping 5 days and bisecting to 20 seconds, then cut to the minute. The '
+     'motion changes slowly at a station, so a small difference between ephemerides moves this moment by '
+     'many minutes: read it as a date.'),
+    ('Period facts', 'AI_PeriodFacts repeats, for the lord of every bhukti (whole life) and of every antaram '
+     '(1 year before the report date to 10 years after), what the other sheets say about that planet, on '
+     'one row. D9 and D10 dignity are by sign and so do not depend on the lagna of those charts. '
+     'lord_tied_topics: the topics for which that planet owns a key house, sits in a key house or is a '
+     'significator (conditions a, b, d of the topic scores).'),
+    ('Topic promise', 'AI_TopicPromise: a fixed list of tests, the same for every chart; a rule-based count, not a '
+     'prediction. For each key house: its lord in a kendra or trikona (1, 4, 5, 7, 9, 10) supports, in 6, '
+     '8 or 12 weakens; its lord exalted, in moolatrikona or in its own sign supports; its lord debilitated '
+     'with no neecha bhanga, or combust, weakens; Jupiter, Venus or Mercury in the house or aspecting it '
+     'supports; the Sun, Mars, Saturn, Rahu or Ketu in the house weakens, but supports when the house is '
+     '3, 6 or 11, or when the Sun, Mars or Saturn is there in its own sign, moolatrikona or exaltation; '
+     '30 or more bindus support, 24 or fewer weaken. A planet that owns two key houses is tested once as '
+     'lord. For each significator that is not the lord of a key house: exalted, '
+     'moolatrikona, own sign, great friend or friend and not debilitated supports; in house 6, 8 or 12 '
+     'weakens; debilitated with no neecha bhanga, or combust, weakens (dignity, debilitation and '
+     'combustion apply to the seven planets only). A Raja, Dhana, Dharma-Karmadhipati or Parivartana yoga '
+     'between the lords of two key houses supports. The topic Strain (general) is left out: its houses '
+     'are 6, 8 and 12, for which these tests do not fit.'),
+    ('Topic windows', 'AI_TopicWindows: rule-based overlap, not a prediction. The 10 years after the report date '
+     'are cut at every change of antaram and at every sign change of Jupiter or Saturn. For each piece '
+     'and topic four layers are tested: bhukti = the bhukti is in the top quarter of that topic\'s scores; '
+     'antaram = the antaram lord owns a key house, sits in one or is a significator; jupiter = Jupiter '
+     'transits or aspects a key house from a sign with 4 or more bindus in its own Bhinnashtakavarga; '
+     'saturn = the same for Saturn. A piece counts when at least two layers hold; pieces that follow one '
+     'another inside one bhukti with the same layers are joined into one window. '
+     'key_houses_reached_by_both is the double transit (modern method) restricted to the key houses.'),
+    ('Birth-time sensitivity', 'house_if_lagna_earlier and house_if_lagna_later in AI_Vargas count the house of a '
+     'point from the lagna that chart would have if the birth were earlier or later than the margins in '
+     'AI_VargaLagnas. The point itself is not recomputed, so for the Moon in the finest charts this is an '
+     'approximation. dasa_shift_days_per_minute in AI_Facts: every Vimshottari date recomputed for a birth '
+     '60 seconds later; negative = the dates move earlier.'),
+    ('Life facts', 'AI_LifeFacts and AI_LifeEvents hold what the user chose to enter (request field "life"): they '
+     'are not computed and not checked against the chart. AI_EventCheck lists, for each event entered, the '
+     'bhuktis that overlap that calendar year with their score for the matching topic, and where Jupiter '
+     'and Saturn were. Event to topic: marriage - Marriage; child born - Children; job change - Job and '
+     'career; own business started - Business; moved abroad, returned from abroad - Abroad / onsite; home '
+     'bought - Home and vehicle; higher study - Education.'),
+    ('Brief', 'AI_Brief repeats values of the other AI sheets in a short form; the source column names the sheet. '
+     'A value written as "a=1; b=2" holds several cells of one row of that sheet. Lines in the section '
+     '"As of the report date" were true at report_datetime_local only. Windows per topic: the first three '
+     'by start date among those with three or more layers; when there are fewer, the earliest with two.'),
 ]
 
 NOT_IN_FILE = [
-    'Shadbala and Bhava bala', 'Planet latitude, declination and retrograde station dates',
+    'Shadbala and Bhava bala', 'Planet latitude and declination; stations of Mercury and Venus',
     'Chara karakas, Karakamsa and arudha padas', 'Special lagnas (Bhava, Hora, Ghati, Indu)',
     'Gulika and the other upagrahas (Dhuma, Vyatipata, Parivesha, Indrachapa, Upaketu)',
-    'Avasthas, Tara bala, Pushkara and gandanta flags', 'Yogini dasa and any dasa other than Vimshottari',
+    'Avasthas, Pushkara and gandanta flags', 'Yogini dasa and any dasa other than Vimshottari',
     'Sookshma dasa (5th level) and deeper', 'Ashtakavarga reductions (sodhana) and kakshya transits',
-    'Transits of the Sun, Moon, Mars, Mercury and Venus through the signs (only their positions on the '
-    'report date are given)', 'Rasi (Jaimini) aspects and 5th / 9th aspects of Rahu and Ketu',
+    'Transits of the Moon through the signs (only its position on the report date is given); vedha',
+    'Rasi (Jaimini) aspects and 5th / 9th aspects of Rahu and Ketu',
     'The winner of a planetary war', 'Remedies, gem or ritual advice',
     'Length of life: left out on purpose; this file gives no figure and no analysis of it',
     'Predictions: every table states facts or rule-based labels, not outcomes',
@@ -390,13 +515,105 @@ def functional_nature(owned):
     return None
 
 
+# ── OPTIONAL INPUT: what only the user knows ──────────────────────────────────
+
+def _whole(value, name, low, high):
+    """An optional whole number between low and high, or None."""
+    if value in (None, ''):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        raise A.InputError(f'"{name}" must be a number.')
+    if number != int(number) or not low <= number <= high:
+        raise A.InputError(f'"{name}" must be a whole number from {low} to {high}.')
+    return int(number)
+
+
+def _choice(value, name, allowed):
+    if value in (None, ''):
+        return None
+    text = str(value).strip().lower()
+    if text not in allowed:
+        raise A.InputError(f'"{name}" must be one of: {", ".join(allowed)}.')
+    return text
+
+
+def clean_extras(raw=None):
+    """
+    Check the optional inputs that enrich() takes beside compute()'s result and
+    return them in one fixed shape. Raises astro_engine.InputError on a bad value.
+
+    raw: {'tob_uncertainty_min': minutes, 'coordinates_source': text, 'life': {...}}
+    (all optional). life holds the LIFE_FIELDS and 'events': [{'type', 'year'}].
+    Years are checked against the birth and report dates in enrich().
+    """
+    raw = raw or {}
+    if not isinstance(raw, dict):
+        raise A.InputError('The optional inputs must be an object.')
+    unc = raw.get('tob_uncertainty_min')
+    if unc in (None, ''):
+        unc = None
+    else:
+        try:
+            unc = float(unc)
+        except (TypeError, ValueError):
+            raise A.InputError('"tobUncertaintyMin" must be a number.')
+        if not 0 <= unc <= MAX_TOB_UNCERTAINTY_MIN:
+            raise A.InputError(f'"tobUncertaintyMin" must be between 0 and {MAX_TOB_UNCERTAINTY_MIN}.')
+    source = raw.get('coordinates_source')
+    source = str(source)[:40] if source not in (None, '') else None
+    life_in = raw.get('life') or {}
+    if not isinstance(life_in, dict):
+        raise A.InputError('"life" must be an object.')
+    yes_no = life_in.get('lives_abroad')
+    if isinstance(yes_no, bool):
+        yes_no = 'yes' if yes_no else 'no'
+    life = {
+        'marital_status': _choice(life_in.get('marital_status'), 'marital_status', MARITAL_STATUS),
+        'marriage_year': _whole(life_in.get('marriage_year'), 'marriage_year', 1, 9999),
+        'children_count': _whole(life_in.get('children_count'), 'children_count', 0, MAX_COUNT),
+        'first_child_birth_year': _whole(life_in.get('first_child_birth_year'), 'first_child_birth_year', 1, 9999),
+        'elder_siblings': _whole(life_in.get('elder_siblings'), 'elder_siblings', 0, MAX_COUNT),
+        'younger_siblings': _whole(life_in.get('younger_siblings'), 'younger_siblings', 0, MAX_COUNT),
+        'work_type': _choice(life_in.get('work_type'), 'work_type', WORK_TYPES),
+        'lives_abroad': _choice(yes_no, 'lives_abroad', ('yes', 'no')),
+    }
+    events_in = life_in.get('events') or []
+    if not isinstance(events_in, (list, tuple)):
+        raise A.InputError('"events" must be a list.')
+    if len(events_in) > MAX_EVENTS:
+        raise A.InputError(f'At most {MAX_EVENTS} events can be given.')
+    events = []
+    for item in events_in:
+        if not isinstance(item, dict):
+            raise A.InputError('Each event must be an object with "type" and "year".')
+        kind = _choice(item.get('type'), 'event type', tuple(EVENT_TOPIC))
+        year = _whole(item.get('year'), 'event year', 1, 9999)
+        if kind is None or year is None:
+            raise A.InputError('Each event needs a "type" and a "year".')
+        events.append({'type': kind, 'year': year})
+    return {'tob_uncertainty_min': unc, 'coordinates_source': source, 'life': life, 'events': events}
+
+
+def check_years(c):
+    """Years the user entered must lie between the birth year and the report year."""
+    low, high = c.birth.year, max(c.now.year, c.birth.year)
+    years = [(k, v) for k, v in c.extras['life'].items() if k.endswith('_year') and v is not None]
+    years += [(f"event \"{e['type']}\"", e['year']) for e in c.extras['events']]
+    for name, year in years:
+        if not low <= year <= high:
+            raise A.InputError(f'The year given for {name} must be between {low} and {high}.')
+
+
 # ── CONTEXT: everything derived once ──────────────────────────────────────────
 
 class Ctx:
     """Derived facts about one chart, shared by the table builders."""
 
-    def __init__(self, res, now=None):
+    def __init__(self, res, now=None, extras=None):
         m, v = res['meta'], res['vedic']
+        self.extras = clean_extras(extras)
         self.res, self.meta, self.v, self.kp = res, m, v, res['kp']
         self.now = now or m['generated_at']
         self.birth = m['local_dt']
@@ -413,6 +630,9 @@ class Ctx:
             self.points['Mandi'] = self.mandi
         self.names = ['Lagna'] + PLANETS + ['Mandi']
         self.sign = {n: p['sign'] for n, p in self.points.items()}
+        self.nak = {n: p['nak'] for n, p in self.points.items()}
+        self.janma_nak = self.nak['Moon']
+        self.janma_lord = A.NAK_LORDS[self.janma_nak]
         self.lagna_sign = v['lagna_sign']
         self.moon_sign = self.sign['Moon']
         self.sun_sign = self.sign['Sun']
@@ -469,6 +689,14 @@ class Ctx:
     def exchange(self, a, b):
         return (a in SEVEN and b in SEVEN and a != b
                 and SIGN_LORDS[self.sign[a]] == b and SIGN_LORDS[self.sign[b]] == a)
+
+    def tara_of_lordship(self, planet):
+        """1-9: the tara of the nakshatras this planet rules, counted from the janma nakshatra."""
+        return (DASA_ORDER.index(planet) - DASA_ORDER.index(self.janma_lord)) % 9 + 1
+
+    def tara_of_position(self, point):
+        """1-9: the tara of the nakshatra this point occupies, counted from the janma nakshatra."""
+        return (self.nak[point] - self.janma_nak) % 9 + 1
 
     def links(self, a, b):
         out = []
@@ -564,8 +792,31 @@ def _facts(c):
         ('age_at_report_years', round(age, 3), 'in years of 365.25 days'),
         ('engine', m['engine'], ''),
         ('ai_schema', SCHEMA, 'version of the AI sheets'),
+        ('civil_weekday', A.WEEKDAYS[c.birth.weekday()], 'weekday of the civil date of birth; "weekday" above is '
+                                                         'the Vedic day, sunrise to sunrise, and can differ'),
+        ('coordinates_source', c.extras['coordinates_source'],
+         'entered = latitude and longitude came with the request; looked up = found from the place name; '
+         'empty when not known'),
+        ('birth_time_uncertainty_minutes', c.extras['tob_uncertainty_min'],
+         'how far the birth time may be off, as entered by the user; empty when not given'),
+        ('dasa_shift_days_per_minute', dasa_shift(c),
+         'days by which every Vimshottari date moves when the birth is one minute later; negative = earlier'),
     ]
     return [{'key': k, 'value': val, 'note': note or None} for k, val, note in rows]
+
+
+def dasa_shift(c):
+    """
+    Days by which the Vimshottari dates move for a birth 60 seconds later, by
+    recomputing the Moon. None when the Moon changes nakshatra in that minute.
+    """
+    jd = A.julian_day(c.meta['ut_dt'])
+    moon = [A._positions(jd + d, c.lat, c.lon, c.sid_mode, c.node)['pts']['Moon'][0] for d in (0.0, 60.0 / 86400.0)]
+    if A.get_nak(moon[0]) != A.get_nak(moon[1]):
+        return None
+    part = [(norm(x) % A.NAK_SIZE) / A.NAK_SIZE for x in moon]
+    years = DASA_YRS[A.NAK_LORDS[A.get_nak(moon[0])]]
+    return round(60.0 / 86400.0 - years * (part[1] - part[0]) * YEAR_DAYS, 3)
 
 
 def _planets(c):
@@ -625,6 +876,9 @@ def _planets(c):
             'vimsopaka_shadvarga': c.vimsopaka[n]['shadvarga'] if seven else None,
             'own_bav_bindus_in_sign_occupied': c.bav[n][s] if seven else None,
             'sav_bindus_in_sign_occupied': c.sav[s],
+            'combust_margin_deg': (_r6(angle_diff(p['lon'], c.points['Sun']['lon']) - orb)
+                                   if orb is not None else None),
+            'bhava_differs_from_whole_sign': _yes(p['bhava'] != c.house[n]),
         }
         rows.append(row)
     return rows
@@ -709,6 +963,7 @@ def _vargas(c):
             s = vg['signs'][n]
             deg = varga_degree(p['lon'], key)
             label, debil = c.dignity[key][n] if n in SEVEN else (None, None)
+            sign_e, sign_l = c.margins[key][-1][1], c.margins[key][1][1]
             rows.append({
                 'chart': key,
                 'chart_name': names[key],
@@ -721,6 +976,8 @@ def _vargas(c):
                 'sign_lord': SIGN_LORDS[s],
                 'dignity': label,
                 'debilitated': _yes(debil) if n in SEVEN else None,
+                'house_if_lagna_earlier': house_from(s, sign_e) if sign_e is not None and n != 'Lagna' else None,
+                'house_if_lagna_later': house_from(s, sign_l) if sign_l is not None and n != 'Lagna' else None,
             })
     return rows
 
@@ -769,6 +1026,7 @@ def lagna_margins(c):
 def _varga_lagnas(c):
     names = {v[0]: v[2] for v in VARGAS}
     lagna_lon = c.points['Lagna']['lon']
+    unc = c.extras['tob_uncertainty_min']
     rows = []
     for key in VARGA_KEYS:
         vg = c.vargas[key]
@@ -794,6 +1052,8 @@ def _varga_lagnas(c):
             'seconds_later': sec_l,
             'lagna_if_later': RASIS[sign_l] if sign_l is not None else None,
             'lagna_uncertain': _yes(bool(small) and min(small) < LAGNA_UNCERTAIN),
+            'lagna_uncertain_for_stated_accuracy': (
+                NOT_GIVEN if unc is None else _yes(bool(small) and min(small) < unc * 60.0)),
         })
     return rows
 
@@ -830,9 +1090,12 @@ def _yogas(c):
     sign, house = c.sign, c.house
     moon = c.moon_sign
 
+    members = []                                    # planets of each row, in step with rows
+
     def add(name, status, rule, planets=(), houses=(), note=''):
         rows.append({'yoga': name, 'status': status, 'rule': rule, 'planets': _join(planets),
                      'houses': _join(houses), 'note': note or None})
+        members.append(list(planets))
 
     def from_moon(p):
         return house_from(sign[p], moon)
@@ -1017,6 +1280,41 @@ def _yogas(c):
         'All seven planets on one side of the Rahu-Ketu axis, by longitude', SEVEN if one_side else [], [],
         f'All seven planets lie {side} (going forward through the zodiac)' if one_side
         else 'Planets lie on both sides of the axis')
+
+    # Dharma-Karmadhipati: lords of the 9th and the 10th
+    l9, l10 = c.house_lord[9], c.house_lord[10]
+    rule = 'The lord of the 9th and the lord of the 10th joined by conjunction, mutual aspect or exchange of signs'
+    if l9 == l10:
+        add('Dharma-Karmadhipati yoga', 'found', rule, [l9], [house[l9]],
+            f'{l9} owns both the 9th and the 10th house and is in house {house[l9]}')
+    else:
+        links = c.links(l9, l10)
+        add('Dharma-Karmadhipati yoga', 'found' if links else 'not found', rule, [l9, l10],
+            sorted({house[l9], house[l10]}),
+            f'{l9} (lord of 9) in house {house[l9]}; {l10} (lord of 10) in house {house[l10]}; '
+            + (f"link: {', '.join(links)}" if links else 'not joined'))
+
+    # What reduces each yoga that is found, and who takes part in what
+    c.yoga_members = []
+    for row, planets in zip(rows, members):
+        row['weakening_factors'] = None
+        if row['status'] != 'found':
+            continue
+        c.yoga_members.append((row['yoga'], planets))
+        name = row['yoga']
+        if any(word in name for word in ('dosha', 'Neecha bhanga', 'Kemadruma', 'Guru-Chandala', 'Kala Sarpa')):
+            continue
+        facts = []
+        for p in planets:
+            if c.combust(p):
+                facts.append(f'{p} combust')
+            if c.debilitated(p):
+                facts.append(f'{p} debilitated' + (' (cancelled)' if c.neecha_bhanga.get(p) else ''))
+            if house[p] in DUSTHANA and 'Viparita' not in name:
+                facts.append(f'{p} in house {house[p]}')
+            if p in SEVEN and c.dignity['D1'][p][0] in ('Enemy', 'Great enemy'):
+                facts.append(f"{p} in an enemy's sign")
+        row['weakening_factors'] = _join(facts)
     return rows
 
 
@@ -1054,6 +1352,40 @@ def _dasa(c):
         row.update(_lord_cols(c, 'bhukti_lord', b['lord']))
         rows.append(row)
     return rows
+
+
+def _age(c, moment):
+    return round((moment - c.birth).total_seconds() / 86400.0 / YEAR_DAYS, 3)
+
+
+def _tara_cols(c, prefix, number):
+    return {f'{prefix}_no': number, prefix: TARA_NAMES[number - 1], f'{prefix}_label': TARA_LABELS[number - 1]}
+
+
+def _dasa_periods(c):
+    rows = []
+    for d in c.v['dasa']['dasas']:
+        lord = d['lord']
+        row = {'dasa_lord': lord, 'start_local': _sec(d['start']), 'end_local': _sec(d['end']),
+               'age_at_start_years': _age(c, d['start']), 'age_at_end_years': _age(c, d['end'])}
+        row.update(_lord_cols(c, 'dasa_lord', lord))
+        row['dasa_lord_functional_nature'] = c.nature.get(lord)
+        row['dasa_lord_star_lord'] = c.points[lord]['star_lord']
+        row.update(_tara_cols(c, 'dasa_lord_tara_of_lordship', c.tara_of_lordship(lord)))
+        rows.append(row)
+    return rows
+
+
+def antarams(c):
+    """(dasa row, bhukti row, antaram row) for every antaram in the Vedic dasa tree."""
+    return [(d, b, a) for d in c.v['dasa']['dasas'] for b in d['sub'] for a in b['sub']]
+
+
+def _antaram(c):
+    return [{'dasa_lord': d['lord'], 'bhukti_lord': b['lord'], 'antaram_lord': a['lord'],
+             'start_local': _sec(a['start']), 'end_local': _sec(a['end']),
+             'days': round((a['end'] - a['start']).total_seconds() / 86400.0, 3)}
+            for d, b, a in antarams(c)]
 
 
 def pratyantars(antaram, birth):
@@ -1197,12 +1529,115 @@ def _transit_data(c):
         data[body] = rows
     c.window = (c.birth, jd_to_utc(jd_end) + off)
     c.window_utc = (c.meta['ut_dt'], jd_to_utc(jd_end))
+    c.fast_window_utc = {}
+    for body, back, ahead, margin in FAST_BODIES:
+        lo, hi = jd_now - back * YEAR_DAYS, jd_now + ahead * YEAR_DAYS
+        rows = stays(body, lo - margin, hi + margin, c.sid_mode, c.node)
+        for r in rows:
+            for k in ('entry', 'exit'):
+                utc = _minute(jd_to_utc(r[k])) if r[k] is not None else None
+                r[k + '_utc'] = utc
+                r[k + '_local'] = utc + off if utc else None
+        data[body] = rows
+        c.fast_window_utc[body] = (jd_to_utc(lo), jd_to_utc(hi))
+    c.station_window = (jd_now - STATION_YEARS_BACK * YEAR_DAYS, jd_now + TRANSIT_YEARS_AHEAD * YEAR_DAYS)
     return data
 
 
 def _overlaps(row, lo_utc, hi_utc):
     return ((row['entry_utc'] is None or row['entry_utc'] < hi_utc)
             and (row['exit_utc'] is None or row['exit_utc'] > lo_utc))
+
+
+def transit_reach(c, planet, s):
+    """What a planet touches from sign s: houses it aspects, natal points in s, natal points aspected."""
+    asp = aspected_signs(planet, s)
+    points = [n for n in c.names if n in c.sign]
+    return {
+        'houses_aspected_from_lagna': _join(sorted(house_from(x, c.lagna_sign) for x in asp)),
+        'natal_points_in_sign': _join(n for n in points if c.sign[n] == s),
+        'natal_points_aspected': _join(n for n in points if c.sign[n] in asp),
+    }
+
+
+def _transit_row(c, planet, s, st):
+    fm = house_from(s, c.moon_sign)
+    row = {
+        'planet': planet,
+        'sign_no': s + 1,
+        'sign': RASIS[s],
+        'entry_local': st['entry_local'],
+        'entry_utc': st['entry_utc'],
+        'exit_local': st['exit_local'],
+        'exit_utc': st['exit_utc'],
+        'motion_at_entry': st['motion'],
+        'house_from_lagna': house_from(s, c.lagna_sign),
+        'house_from_moon': fm,
+        'sav_bindus': c.sav[s],
+        'own_bav_bindus': c.bav[planet][s] if planet in SEVEN else None,
+        'result_from_moon': 'favourable' if fm in TRANSIT_GOOD_FROM_MOON[planet] else 'unfavourable',
+    }
+    row.update(transit_reach(c, planet, s))
+    return row
+
+
+def _transits_fast(c):
+    rows = []
+    for planet, _, _, _ in FAST_BODIES:
+        lo, hi = c.fast_window_utc[planet]
+        rows.extend(_transit_row(c, planet, st['sign'], st) for st in c.transit[planet] if _overlaps(st, lo, hi))
+    return rows
+
+
+def stations(body, jd_start, jd_end, sid_mode, step=STATION_STEP):
+    """
+    Stations of a planet between two Julian days (UT), as (jd, kind, sidereal
+    longitude): kind is 'retrograde' where the daily motion turns negative and
+    'direct' where it turns positive again. The motion is sampled every `step`
+    days and each change of its sign is bisected.
+    """
+    pid = A.SWE_IDS[body]
+    flags = swe.FLG_MOSEPH | swe.FLG_SIDEREAL | swe.FLG_SPEED
+    out = []
+    with A._SWE_LOCK:
+        swe.set_sid_mode(sid_mode)
+
+        def state(jd):
+            xx = swe.calc_ut(jd, pid, flags)[0]
+            return norm(xx[0]), xx[3]
+
+        jd = jd_start
+        backward = state(jd)[1] < 0
+        while jd < jd_end:
+            nxt = min(jd + step, jd_end)
+            if (state(nxt)[1] < 0) != backward:
+                lo, hi = jd, nxt                    # old direction at lo, new direction at hi
+                while hi - lo > STATION_TOL:
+                    mid = (lo + hi) / 2.0
+                    if (state(mid)[1] < 0) == backward:
+                        lo = mid
+                    else:
+                        hi = mid
+                backward = not backward
+                out.append((hi, 'retrograde' if backward else 'direct', state(hi)[0]))
+            jd = nxt
+    return out
+
+
+def _stations(c):
+    off = timedelta(hours=c.offset)
+    rows = []
+    for planet in STATION_BODIES:
+        for jd, kind, lon in stations(planet, c.station_window[0], c.station_window[1], c.sid_mode):
+            utc = _minute(jd_to_utc(jd))
+            s = A.get_rasi(lon)
+            rows.append({
+                'planet': planet, 'station': kind, 'moment_local': utc + off, 'moment_utc': utc,
+                'longitude_deg': _r6(lon), 'sign_no': s + 1, 'sign': RASIS[s],
+                'deg_in_sign_text': A.fmt_sign_dms(lon),
+                'house_from_lagna': house_from(s, c.lagna_sign), 'house_from_moon': house_from(s, c.moon_sign),
+            })
+    return rows
 
 
 def _transits(c):
@@ -1215,6 +1650,7 @@ def _transits(c):
                 continue
             s = (st['sign'] + 6) % 12 if planet == 'Ketu' else st['sign']
             fm = house_from(s, c.moon_sign)
+            reach = transit_reach(c, planet, s)
             rows.append({
                 'planet': planet,
                 'sign_no': s + 1,
@@ -1230,6 +1666,7 @@ def _transits(c):
                 'own_bav_bindus': c.bav[planet][s] if planet in ('Saturn', 'Jupiter') else None,
                 'result_from_moon': 'favourable' if fm in TRANSIT_GOOD_FROM_MOON[planet] else 'unfavourable',
                 'saturn_from_moon': SATURN_FROM_MOON.get(fm) if planet == 'Saturn' else None,
+                **reach,
             })
     return rows
 
@@ -1483,8 +1920,23 @@ def penalty(c, lord):
     return reasons
 
 
+def score_ranks(scores):
+    """
+    For each score of one topic: (rank, in the top quarter). Rank 1 is the
+    highest score, 2 the next different score, and so on. A score is in the
+    top quarter when fewer than a quarter of all the scores are higher.
+    """
+    distinct = sorted(set(scores), reverse=True)
+    out = []
+    for score in scores:
+        higher = sum(1 for x in scores if x > score)
+        out.append((distinct.index(score) + 1, higher < len(scores) / 4.0))
+    return out
+
+
 def _topic_scores(c):
     letters = {(lord, t[0]): topic_letters(c, lord, *t) for lord in PLANETS for t in TOPICS}
+    c.letters = letters
     penalties = {lord: penalty(c, lord) for lord in PLANETS}
     rows = []
     for d, b in bhuktis(c):
@@ -1502,6 +1954,492 @@ def _topic_scores(c):
                 'dasa_lord_letters': ld or 'none',
                 'deduction': _join(pen),
             })
+    for topic in {r['topic'] for r in rows}:
+        mine = [r for r in rows if r['topic'] == topic]
+        for r, (rank, top) in zip(mine, score_ranks([x['relevance_score_not_a_prediction'] for x in mine])):
+            r['rank_in_topic'] = rank
+            r['in_top_quarter'] = _yes(top)
+    c.score_by, c.top_quarter = {}, {}
+    for r in rows:
+        key = (r['dasa_lord'], r['bhukti_lord'], r['start_local'])
+        c.score_by[key + (r['topic'],)] = r
+        c.top_quarter.setdefault(key, [])
+        if r['in_top_quarter'] == 'yes':
+            c.top_quarter[key].append(r['topic'])
+    return rows
+
+
+# ── PERIODS: one row per bhukti and antaram ───────────────────────────────────
+
+def lord_tied_topics(c, lord):
+    """Topics for which a planet owns a key house, sits in one or is a significator (letters a, b, d)."""
+    return [t[0] for t in TOPICS if set(c.letters[(lord, t[0])]) & set('abd')]
+
+
+def _relation(c, a, b):
+    """Compound relationship of planet a towards planet b; None when either is a node."""
+    if a == b:
+        return 'same planet'
+    if a in SEVEN and b in SEVEN:
+        return c.compound[a][b]
+    return None
+
+
+def _period_cols(c, lord, dasa_lord, bhukti_lord=None):
+    """Everything the other sheets say about the lord of a period, for one row of AI_PeriodFacts."""
+    seven = lord in SEVEN
+    p, s = c.points[lord], c.sign[lord]
+    label, debil = c.dignity['D1'][lord] if seven else (None, None)
+    star = p['star_lord']
+    row = {
+        'period_lord': lord,
+        'houses_owned': _join(c.owned[lord]),
+        'house': c.house[lord],
+        'sign': RASIS[s],
+        'dignity': label,
+        'debilitated': _yes(debil) if seven else None,
+        'debilitation_cancelled_by': _join(c.neecha_bhanga.get(lord, [])) if debil else None,
+        'combust': _yes(p['combust']) if lord in COMBUST_ORB else None,
+        'retrograde': _yes(p['retro']) if seven else None,
+        'functional_nature': c.nature.get(lord),
+        'vimsopaka_shodasavarga': c.vimsopaka[lord]['shodasavarga'] if seven else None,
+        'own_bav_bindus_in_sign_occupied': c.bav[lord][s] if seven else None,
+    }
+    for key in ('D9', 'D10'):
+        k = key.lower()
+        row[f'{k}_sign'] = RASIS[c.vargas[key]['signs'][lord]]
+        row[f'{k}_dignity'] = c.dignity[key][lord][0] if seven else None
+        row[f'{k}_debilitated'] = _yes(c.dignity[key][lord][1]) if seven else None
+    row.update({
+        'sign_lord': SIGN_LORDS[s],
+        'sign_lord_house': c.house[SIGN_LORDS[s]],
+        'star_lord': star,
+        'star_lord_houses_owned': _join(c.owned[star]),
+        'star_lord_house': c.house[star],
+        'place_from_dasa_lord': house_from(s, c.sign[dasa_lord]),
+        'relation_to_dasa_lord': _relation(c, lord, dasa_lord),
+        'relation_of_dasa_lord': _relation(c, dasa_lord, lord),
+        'place_from_bhukti_lord': house_from(s, c.sign[bhukti_lord]) if bhukti_lord else None,
+    })
+    row.update(_tara_cols(c, 'tara_of_lordship', c.tara_of_lordship(lord)))
+    row.update(_tara_cols(c, 'tara_of_position', c.tara_of_position(lord)))
+    row['yogas'] = _join(name for name, planets in c.yoga_members if lord in planets)
+    row['lord_tied_topics'] = _join(lord_tied_topics(c, lord))
+    return row
+
+
+def _period_facts(c):
+    lo = c.now - timedelta(days=ANTARAM_FACTS_YEARS_BACK * YEAR_DAYS)
+    hi = c.now + timedelta(days=TRANSIT_YEARS_AHEAD * YEAR_DAYS)
+    rows = []
+    for d, b in bhuktis(c):
+        top = _join(c.top_quarter[(d['lord'], b['lord'], _sec(b['start']))])
+        row = {'level': 'bhukti', 'dasa_lord': d['lord'], 'bhukti_lord': b['lord'], 'antaram_lord': None,
+               'start_local': _sec(b['start']), 'end_local': _sec(b['end']),
+               'age_at_start_years': _age(c, b['start'])}
+        row.update(_period_cols(c, b['lord'], d['lord']))
+        row['bhukti_top_quarter_topics'] = top
+        rows.append(row)
+        for a in b['sub']:
+            if a['end'] <= lo or a['start'] >= hi:
+                continue
+            row = {'level': 'antaram', 'dasa_lord': d['lord'], 'bhukti_lord': b['lord'], 'antaram_lord': a['lord'],
+                   'start_local': _sec(a['start']), 'end_local': _sec(a['end']),
+                   'age_at_start_years': _age(c, a['start'])}
+            row.update(_period_cols(c, a['lord'], d['lord'], b['lord']))
+            row['bhukti_top_quarter_topics'] = top
+            rows.append(row)
+    return rows
+
+
+# ── TOPIC PROMISE: what supports and what weakens ─────────────────────────────
+
+_DIGNITY_TEXT = {'Exalted': 'exalted', 'Moolatrikona': 'in moolatrikona', 'Own sign': 'in its own sign',
+                 'Great friend': "in a great friend's sign", 'Friend': "in a friend's sign"}
+PAIR_YOGAS = ('Raja yoga', 'Dhana yoga', 'Dharma-Karmadhipati yoga', 'Parivartana yoga')
+
+
+def _topic_promise(c):
+    rows = []
+    for topic, houses, sig, vargas, kp in TOPICS:
+        if topic in NO_PROMISE:
+            continue
+        first = len(rows)
+
+        def add(subject, factor, side, fact):
+            rows.append({'topic': topic, 'row_type': 'factor', 'subject': subject, 'factor': factor,
+                         'side': side, 'fact': fact, 'supports_count': None, 'weakens_count': None})
+
+        lords = {}
+        for h in houses:
+            lords.setdefault(c.house_lord[h], []).append(h)
+        for lord, owned in lords.items():
+            sub = f'lord of house {_join(owned)}'
+            lh = c.house[lord]
+            if lh in KENDRA or lh in TRIKONA:
+                add(sub, 'lord in a kendra or trikona', 'supports', f'{lord} is in house {lh}')
+            elif lh in DUSTHANA:
+                add(sub, 'lord in house 6, 8 or 12', 'weakens', f'{lord} is in house {lh}')
+            label, debil = c.dignity['D1'][lord]
+            if label in OWN_DIGNITY:
+                add(sub, 'lord exalted, in moolatrikona or in its own sign', 'supports',
+                    f'{lord} is {_DIGNITY_TEXT[label]} in {RASIS[c.sign[lord]]}')
+            if debil and not c.neecha_bhanga.get(lord):
+                add(sub, 'lord debilitated, not cancelled', 'weakens',
+                    f'{lord} is debilitated in {RASIS[c.sign[lord]]}')
+            if c.combust(lord):
+                add(sub, 'lord combust', 'weakens', f'{lord} is combust')
+        for h in houses:
+            s = c.house_sign[h]
+            sub = f'house {h}'
+            for p in NATURAL_BENEFICS:
+                if c.sign[p] == s:
+                    add(sub, 'Jupiter, Venus or Mercury in the house', 'supports', f'{p} is in house {h}')
+                elif s in c.asp_signs[p]:
+                    add(sub, 'Jupiter, Venus or Mercury aspects the house', 'supports', f'{p} aspects house {h}')
+            for p in NATURAL_MALEFICS:
+                if c.sign[p] == s:
+                    strong = p in SEVEN and c.dignity['D1'][p][0] in OWN_DIGNITY
+                    if strong:
+                        add(sub, 'Sun, Mars or Saturn in the house in its own or exaltation sign', 'supports',
+                            f"{p} is {_DIGNITY_TEXT[c.dignity['D1'][p][0]]} in house {h}")
+                    elif h in (3, 6, 11):
+                        add(sub, 'Sun, Mars, Saturn, Rahu or Ketu in house 3, 6 or 11', 'supports',
+                            f'{p} is in house {h}')
+                    else:
+                        add(sub, 'Sun, Mars, Saturn, Rahu or Ketu in the house', 'weakens', f'{p} is in house {h}')
+            if c.sav[s] >= SAV_STRONG:
+                add(sub, f'{SAV_STRONG} or more bindus', 'supports', f'house {h} has {c.sav[s]} bindus')
+            elif c.sav[s] <= SAV_WEAK:
+                add(sub, f'{SAV_WEAK} or fewer bindus', 'weakens', f'house {h} has {c.sav[s]} bindus')
+        for p in topic_significators(c, topic, sig):
+            if p in lords:
+                continue                            # already tested once, as lord of a key house
+            sub = f'significator {p}'
+            if p in SEVEN:
+                label, debil = c.dignity['D1'][p]
+                if label in GOOD_DIGNITY and not debil:
+                    add(sub, 'significator in good dignity', 'supports',
+                        f'{p} is {_DIGNITY_TEXT[label]} in {RASIS[c.sign[p]]}')
+                if debil and not c.neecha_bhanga.get(p):
+                    add(sub, 'significator debilitated, not cancelled', 'weakens',
+                        f'{p} is debilitated in {RASIS[c.sign[p]]}')
+                if c.combust(p):
+                    add(sub, 'significator combust', 'weakens', f'{p} is combust')
+            if c.house[p] in DUSTHANA:
+                add(sub, 'significator in house 6, 8 or 12', 'weakens', f'{p} is in house {c.house[p]}')
+        seen = set()
+        for name, planets in c.yoga_members:
+            if name in PAIR_YOGAS and len(planets) == 2 and all(p in lords for p in planets):
+                if (name, tuple(planets)) in seen:
+                    continue
+                seen.add((name, tuple(planets)))
+                add('yoga', 'yoga between lords of key houses', 'supports',
+                    f'{name} between {planets[0]} and {planets[1]}')
+        mine = rows[first:]
+        rows.append({'topic': topic, 'row_type': 'total', 'subject': None, 'factor': None, 'side': None,
+                     'fact': None, 'supports_count': sum(1 for r in mine if r['side'] == 'supports'),
+                     'weakens_count': sum(1 for r in mine if r['side'] == 'weakens')})
+    return rows
+
+
+# ── TOPIC WINDOWS: where dasa and transit overlap ─────────────────────────────
+
+def _key_houses_reached(c, body, sign, houses):
+    """Key houses whose sign a transiting planet occupies or aspects from `sign`."""
+    signs = {sign} | aspected_signs(body, sign)
+    return sorted(h for h in houses if c.house_sign[h] in signs)
+
+
+def _known_stays(c, body, lo, hi):
+    return [st for st in c.transit[body]
+            if st['entry_local'] is not None and st['exit_local'] is not None
+            and st['exit_local'] > lo and st['entry_local'] < hi]
+
+
+def _topic_windows(c):
+    lo, hi = _sec(c.now), _sec(c.now + timedelta(days=TRANSIT_YEARS_AHEAD * YEAR_DAYS))
+    periods = [(d, b, a) for d, b, a in antarams(c) if a['end'] > lo and a['start'] < hi]
+    jupiter, saturn = _known_stays(c, 'Jupiter', lo, hi), _known_stays(c, 'Saturn', lo, hi)
+    cuts = {lo, hi}
+    for _, _, a in periods:
+        cuts.update(_sec(t) for t in (a['start'], a['end']))
+    for st in jupiter + saturn:
+        cuts.update((st['entry_local'], st['exit_local']))
+    cuts = sorted(t for t in cuts if lo <= t <= hi)
+
+    def holder(items, moment, start, end):
+        return next((x for x in items if start(x) <= moment < end(x)), None)
+
+    def grow(items, value):
+        if not items or items[-1] != value:
+            items.append(value)
+
+    open_rows = {}                                  # topic -> the window still growing
+    rows = []
+    for t0, t1 in zip(cuts, cuts[1:]):
+        mid = t0 + (t1 - t0) / 2
+        period = holder(periods, mid, lambda x: x[2]['start'], lambda x: x[2]['end'])
+        j = holder(jupiter, mid, lambda x: x['entry_local'], lambda x: x['exit_local'])
+        s = holder(saturn, mid, lambda x: x['entry_local'], lambda x: x['exit_local'])
+        if period is None or j is None or s is None:
+            open_rows.clear()                       # beyond the dasa tree or the transit search
+            continue
+        d, b, a = period
+        bhukti_key = (d['lord'], b['lord'], _sec(b['start']))
+        for order, (topic, houses, sig, vargas, kp) in enumerate(TOPICS):
+            score = c.score_by[bhukti_key + (topic,)]
+            jr = _key_houses_reached(c, 'Jupiter', j['sign'], houses)
+            sr = _key_houses_reached(c, 'Saturn', s['sign'], houses)
+            jb, sb = c.bav['Jupiter'][j['sign']], c.bav['Saturn'][s['sign']]
+            layers = []
+            if score['in_top_quarter'] == 'yes':
+                layers.append('bhukti')
+            if set(c.letters[(a['lord'], topic)]) & set('abd'):
+                layers.append('antaram')
+            if jr and jb >= WINDOW_MIN_BINDUS:
+                layers.append('jupiter')
+            if sr and sb >= WINDOW_MIN_BINDUS:
+                layers.append('saturn')
+            if len(layers) < WINDOW_MIN_LAYERS:
+                open_rows.pop(topic, None)
+                continue
+            row = open_rows.get(topic)
+            if row is None or row['end_local'] != t0 or row['_layers'] != layers or row['_bhukti'] != bhukti_key:
+                row = {'_order': order, '_layers': layers, '_bhukti': bhukti_key, 'topic': topic, 'start_local': t0,
+                       'layers_agreeing': len(layers), 'layers': _join(layers),
+                       'dasa_lord': d['lord'], 'bhukti_lord': b['lord'],
+                       'bhukti_score': score['relevance_score_not_a_prediction'],
+                       'bhukti_rank_in_topic': score['rank_in_topic'],
+                       '_antaram': [], '_jupiter': [], '_saturn': [], '_jr': set(), '_sr': set(), '_both': set()}
+                open_rows[topic] = row
+                rows.append(row)
+            row['end_local'] = t1
+            grow(row['_antaram'], a['lord'])
+            grow(row['_jupiter'], (RASIS[j['sign']], jb))
+            grow(row['_saturn'], (RASIS[s['sign']], sb))
+            row['_jr'].update(jr)
+            row['_sr'].update(sr)
+            row['_both'].update(set(jr) & set(sr))
+    rows.sort(key=lambda r: (r['_order'], r['start_local']))
+    out = []
+    for r in rows:
+        out.append({
+            'topic': r['topic'], 'start_local': r['start_local'], 'end_local': r['end_local'],
+            'days': round((r['end_local'] - r['start_local']).total_seconds() / 86400.0, 3),
+            'layers_agreeing': r['layers_agreeing'], 'layers': r['layers'],
+            'dasa_lord': r['dasa_lord'], 'bhukti_lord': r['bhukti_lord'], 'antaram_lords': _join(r['_antaram']),
+            'bhukti_score': r['bhukti_score'], 'bhukti_rank_in_topic': r['bhukti_rank_in_topic'],
+            'jupiter_signs': _join(x[0] for x in r['_jupiter']),
+            'jupiter_own_bindus': _join(x[1] for x in r['_jupiter']),
+            'jupiter_key_houses_reached': _join(sorted(r['_jr'])),
+            'saturn_signs': _join(x[0] for x in r['_saturn']),
+            'saturn_own_bindus': _join(x[1] for x in r['_saturn']),
+            'saturn_key_houses_reached': _join(sorted(r['_sr'])),
+            'key_houses_reached_by_both': _join(sorted(r['_both'])),
+            'label': 'rule-based overlap, not a prediction',
+        })
+    return out
+
+
+# ── LIFE FACTS: entered by the user, not computed ─────────────────────────────
+
+def _life_facts(c):
+    life = c.extras['life']
+    return [{'key': key, 'value': NOT_GIVEN if life[key] is None else life[key], 'note': note}
+            for key, note in LIFE_FIELDS]
+
+
+def _life_events(c):
+    return [{'event_type': e['type'], 'year': e['year'], 'topic': EVENT_TOPIC[e['type']],
+             'age_that_year': e['year'] - c.birth.year} for e in c.extras['events']]
+
+
+def _event_check(c):
+    topics = {t[0]: t for t in TOPICS}
+    rows = []
+    for e in c.extras['events']:
+        topic, houses = EVENT_TOPIC[e['type']], topics[EVENT_TOPIC[e['type']]][1]
+        y0, y1 = datetime(e['year'], 1, 1), datetime(e['year'] + 1, 1, 1)
+        for d, b in bhuktis(c):
+            start, end = max(b['start'], y0), min(b['end'], y1)
+            if start >= end:
+                continue
+            score = c.score_by[(d['lord'], b['lord'], _sec(b['start']), topic)]
+            tied = []
+            for a in b['sub']:
+                if a['end'] > start and a['start'] < end and set(c.letters[(a['lord'], topic)]) & set('abd'):
+                    if a['lord'] not in tied:
+                        tied.append(a['lord'])
+            row = {
+                'event_type': e['type'], 'year': e['year'], 'topic': topic,
+                'dasa_lord': d['lord'], 'bhukti_lord': b['lord'],
+                'overlap_start_local': _sec(start), 'overlap_end_local': _sec(end),
+                'relevance_score_not_a_prediction': score['relevance_score_not_a_prediction'],
+                'rank_in_topic': score['rank_in_topic'], 'in_top_quarter': score['in_top_quarter'],
+                'antaram_lords_tied_to_topic': _join(tied),
+            }
+            for body in ('Jupiter', 'Saturn'):
+                signs, reached = [], False
+                for st in _known_stays(c, body, start, end):
+                    text = f"{RASIS[st['sign']]} (house {house_from(st['sign'], c.lagna_sign)})"
+                    if text not in signs:
+                        signs.append(text)
+                    reached = reached or bool(_key_houses_reached(c, body, st['sign'], houses))
+                row[f'{body.lower()}_signs'] = _join(signs)
+                row[f'{body.lower()}_reaches_key_house'] = _yes(reached)
+            rows.append(row)
+    return rows
+
+
+# ── BRIEF: a short copy for a reader who cannot load every sheet ──────────────
+
+def brief_text(value):
+    """A cell as text inside a "column=value" line of AI_Brief."""
+    if value is None:
+        return ''
+    if isinstance(value, datetime):
+        return value.strftime('%Y-%m-%d %H:%M:%S')
+    if isinstance(value, float) and value == int(value):
+        return str(int(value))
+    return str(value)
+
+
+def brief_line(row, columns):
+    """"column=value; column=value" for the cells of one row that have a value."""
+    return '; '.join(f'{col}={brief_text(row[col])}' for col in columns if row.get(col) is not None)
+
+
+BRIEF_FACTS = (
+    'name', 'gender', 'birth_date', 'birth_time', 'birth_place', 'latitude_deg', 'longitude_deg',
+    'utc_offset_text', 'ayanamsha_name', 'node_type', 'lagna_sign', 'lagna_deg_in_sign', 'lagna_lord',
+    'moon_sign', 'moon_nakshatra', 'moon_pada', 'moon_nakshatra_lord', 'sun_sign', 'paksha', 'tithi',
+    'weekday', 'civil_weekday', 'birth_by_day_or_night', 'dasa_balance_lord', 'dasa_balance_years',
+    'badhaka_house', 'badhaka_lord', 'birth_time_uncertainty_minutes', 'dasa_shift_days_per_minute',
+    'report_datetime_local', 'age_at_report_years', 'ai_schema',
+)
+BRIEF_PLANET_COLUMNS = (
+    'sign', 'deg_in_sign_text', 'nakshatra', 'pada', 'house_whole_sign', 'dignity', 'debilitated',
+    'debilitation_cancelled_by', 'combust', 'retrograde', 'vimsopaka_shodasavarga', 'houses_owned',
+    'functional_nature', 'conjunct_with', 'aspected_by', 'houses_aspected', 'd9_sign', 'vargottama',
+)
+BRIEF_HOUSE_COLUMNS = ('sign', 'lord', 'lord_house', 'lord_dignity', 'lord_debilitated', 'occupants_whole_sign',
+                       'aspected_by', 'sav_bindus')
+BRIEF_TRANSIT_COLUMNS = ('sign', 'entry_local', 'exit_local', 'house_from_lagna', 'house_from_moon',
+                         'own_bav_bindus', 'sav_bindus', 'result_from_moon', 'saturn_from_moon',
+                         'houses_aspected_from_lagna', 'natal_points_in_sign')
+BRIEF_WINDOW_COLUMNS = ('start_local', 'end_local', 'layers_agreeing', 'layers', 'bhukti_lord', 'antaram_lords',
+                        'jupiter_signs', 'saturn_signs', 'key_houses_reached_by_both')
+
+
+def _brief(c, t):
+    rows = []
+    now = _sec(c.now)
+
+    def add(section, key, value, source):
+        rows.append({'section': section, 'key': key, 'value': value, 'source': source})
+
+    def running(sheet, start='start_local', end='end_local'):
+        return next((r for r in t[sheet] if r[start] is not None and r[end] is not None
+                     and r[start] <= now < r[end]), None)
+
+    add('About', 'how to read', 'A short copy of the other AI sheets, for a reader who cannot load them all. '
+        'Every value is repeated from the sheet named under source. "a=1; b=2" holds several cells of one '
+        'row of that sheet, under their column names. Counts, scores and windows are rule-based, not '
+        'predictions. Go to the full sheets for anything not here.', 'AI_ReadMe')
+
+    facts = {r['key']: r['value'] for r in t['AI_Facts']}
+    for key in BRIEF_FACTS:
+        if facts.get(key) is not None:
+            add('Birth', key, facts[key], 'AI_Facts')
+
+    uncertain = [r['chart'] for r in t['AI_VargaLagnas'] if r['lagna_uncertain'] == 'yes']
+    add('Warnings', 'charts with lagna_uncertain = yes', _join(uncertain), 'AI_VargaLagnas')
+    stated = [r['chart'] for r in t['AI_VargaLagnas'] if r['lagna_uncertain_for_stated_accuracy'] == 'yes']
+    if c.extras['tob_uncertainty_min'] is not None:
+        add('Warnings', 'charts with lagna_uncertain_for_stated_accuracy = yes', _join(stated), 'AI_VargaLagnas')
+    add('Warnings', 'houses', 'Every house here is whole sign from the lagna. KP houses and KP dasa dates are a '
+        'separate system and are not in this sheet.', 'AI_ReadMe')
+
+    for r in t['AI_LifeFacts']:
+        if r['value'] != NOT_GIVEN:
+            add('Life facts (entered by the user)', r['key'], r['value'], 'AI_LifeFacts')
+    for r in t['AI_LifeEvents']:
+        add('Life facts (entered by the user)', 'event', brief_line(r, ('event_type', 'year', 'topic')), 'AI_LifeEvents')
+
+    for r in t['AI_Planets']:
+        if r.get('sign') is not None:
+            add('Planets', r['point'], brief_line(r, BRIEF_PLANET_COLUMNS), 'AI_Planets')
+    for r in t['AI_Houses']:
+        add('Houses', f"house {r['house']}", brief_line(r, BRIEF_HOUSE_COLUMNS), 'AI_Houses')
+    for r in t['AI_Yogas']:
+        if r['status'] in ('found', 'cancelled'):
+            add('Yogas', r['yoga'], brief_line(r, ('status', 'planets', 'houses', 'weakening_factors')), 'AI_Yogas')
+
+    sec = 'As of the report date'
+    add(sec, 'as_of', now, 'AI_Facts')
+    add(sec, 'warning', 'The lines of this section were true at the report date only. For any other date compare '
+        'the start and end dates in AI_DasaPeriods, AI_Dasa, AI_Antaram, AI_Pratyantar and AI_Transits '
+        'with that date.', 'AI_ReadMe')
+    bhukti_row = None
+    for key, sheet, cols in (
+            ('dasa', 'AI_DasaPeriods', ('dasa_lord', 'start_local', 'end_local')),
+            ('bhukti', 'AI_Dasa', ('dasa_lord', 'bhukti_lord', 'start_local', 'end_local')),
+            ('antaram', 'AI_Antaram', ('dasa_lord', 'bhukti_lord', 'antaram_lord', 'start_local', 'end_local')),
+            ('pratyantar', 'AI_Pratyantar', ('dasa_lord', 'bhukti_lord', 'antaram_lord', 'pratyantar_lord',
+                                            'start_local', 'end_local'))):
+        r = running(sheet)
+        if r is not None:
+            add(sec, f'running {key}', brief_line(r, cols), sheet)
+        if key == 'bhukti':
+            bhukti_row = r
+    later = [r for r in t['AI_Dasa'] if r['start_local'] > now][:3]
+    for i, r in enumerate(later, start=1):
+        add(sec, f'next bhukti {i}', brief_line(r, ('dasa_lord', 'bhukti_lord', 'start_local', 'end_local')), 'AI_Dasa')
+    for planet in ('Saturn', 'Jupiter', 'Rahu', 'Ketu'):
+        mine = [r for r in t['AI_Transits'] if r['planet'] == planet]
+        r = next((x for x in mine if x['entry_local'] is not None and x['exit_local'] is not None
+                  and x['entry_local'] <= now < x['exit_local']), None)
+        if r is None:
+            continue
+        add(sec, f'transit {planet}', brief_line(r, BRIEF_TRANSIT_COLUMNS), 'AI_Transits')
+        nxt = next((x for x in mine if x['entry_local'] is not None and x['entry_local'] >= r['exit_local']), None)
+        if nxt is not None:
+            add(sec, f'next sign {planet}', brief_line(nxt, ('sign', 'entry_local', 'exit_local', 'house_from_lagna',
+                                                             'house_from_moon', 'own_bav_bindus')), 'AI_Transits')
+    spans = [r for r in t['AI_SadeSati'] if r['phase'] == 'sade sati - whole' and r['row_type'] == 'span'
+             and r['start_local'] is not None and r['end_local'] is not None]
+    span = next((r for r in spans if r['start_local'] <= now < r['end_local']), None)
+    cols = ('cycle', 'start_local', 'end_local', 'saturn_sign', 'break_count')
+    if span is not None:
+        add(sec, 'sade sati span holding the report date', brief_line(span, cols), 'AI_SadeSati')
+    else:
+        add(sec, 'sade sati span holding the report date', 'none', 'AI_SadeSati')
+        nxt = next((r for r in spans if r['start_local'] > now), None)
+        if nxt is not None:
+            add(sec, 'next sade sati span', brief_line(nxt, cols), 'AI_SadeSati')
+
+    promise = {r['topic']: r for r in t['AI_TopicPromise'] if r['row_type'] == 'total'}
+    for m in t['AI_TopicMap']:
+        topic = m['topic']
+        add('Topics', f'{topic}: where to look',
+            brief_line(m, ('d1_houses', 'significators_for_this_chart', 'divisional_charts')), 'AI_TopicMap')
+        if topic in promise:
+            add('Topics', f'{topic}: promise', brief_line(promise[topic], ('supports_count', 'weakens_count')),
+                'AI_TopicPromise')
+        if bhukti_row is not None:
+            r = next(x for x in t['AI_TopicScores'] if x['topic'] == topic
+                     and x['start_local'] == bhukti_row['start_local'] and x['bhukti_lord'] == bhukti_row['bhukti_lord'])
+            add('Topics', f'{topic}: running bhukti',
+                brief_line(r, ('bhukti_lord', 'relevance_score_not_a_prediction', 'rank_in_topic', 'in_top_quarter',
+                               'bhukti_lord_letters', 'dasa_lord_letters', 'deduction')), 'AI_TopicScores')
+        mine = [r for r in t['AI_TopicWindows'] if r['topic'] == topic]
+        chosen = [r for r in mine if r['layers_agreeing'] >= 3][:BRIEF_WINDOWS]
+        if len(chosen) < BRIEF_WINDOWS:
+            rest = [r for r in mine if r['layers_agreeing'] < 3][:BRIEF_WINDOWS - len(chosen)]
+            chosen = sorted(chosen + rest, key=lambda r: r['start_local'])
+        for i, r in enumerate(chosen, start=1):
+            add('Topics', f'{topic}: window {i}', brief_line(r, BRIEF_WINDOW_COLUMNS), 'AI_TopicWindows')
     return rows
 
 
@@ -1703,11 +2641,183 @@ COLUMNS = {
         ('deduction', 'Reason for the one-point deduction, or none'),
     ],
 }
-SHEETS = list(COLUMNS)
+
+# Columns added by schema 2 to sheets that already existed: always at the end.
+COLUMNS['AI_Planets'] += [
+    ('combust_margin_deg', 'Distance from the Sun minus the orb: negative = combust, a small positive value = '
+                           'just outside the orb; empty where combustion does not apply'),
+    ('bhava_differs_from_whole_sign', 'yes when the Sripati bhava is not the whole-sign house'),
+]
+COLUMNS['AI_Vargas'] += [
+    ('house_if_lagna_earlier', 'House of the point counted from lagna_if_earlier of that chart (AI_VargaLagnas): '
+                               'its house if the birth were earlier than the margin; empty on the Lagna row and '
+                               'when that lagna does not change within 6 hours'),
+    ('house_if_lagna_later', 'The same for lagna_if_later'),
+]
+COLUMNS['AI_VargaLagnas'] += [
+    ('lagna_uncertain_for_stated_accuracy', 'yes when either margin is smaller than birth_time_uncertainty_minutes '
+                                            '(AI_Facts); "not given" when the user gave no uncertainty'),
+]
+COLUMNS['AI_Yogas'] += [
+    ('weakening_factors', 'For a yoga that is found: facts about its planets that tradition reads as reducing it '
+                          '(combust, debilitated, in house 6, 8 or 12, in an enemy\'s sign), or none. Empty on '
+                          'rows that are not found, and on doshas and neecha bhanga rows'),
+]
+_REACH_COLUMNS = [
+    ('houses_aspected_from_lagna', 'Natal houses that receive the full aspect of the planet from this sign'),
+    ('natal_points_in_sign', 'Natal planets, Lagna and Mandi in the sign transited'),
+    ('natal_points_aspected', 'Natal planets, Lagna and Mandi in the signs aspected from this sign'),
+]
+COLUMNS['AI_Transits'] += _REACH_COLUMNS
+COLUMNS['AI_TopicScores'] += [
+    ('rank_in_topic', '1 = the highest score of this topic over all bhuktis, 2 = the next different score, ...'),
+    ('in_top_quarter', 'yes when fewer than a quarter of all bhuktis have a higher score for this topic'),
+]
+
+_PERIOD_LORD_COLUMNS = [
+    ('period_lord', 'The planet whose facts follow: the bhukti lord on a bhukti row, the antaram lord on an antaram row'),
+    ('houses_owned', 'Houses it owns; none for Rahu and Ketu'), ('house', 'House it occupies'),
+    ('sign', 'Sign it occupies'), ('dignity', 'Its dignity in D1'), ('debilitated', 'yes / no'),
+    ('debilitation_cancelled_by', 'Neecha bhanga conditions met, or none; empty when not debilitated'),
+    ('combust', 'yes / no'), ('retrograde', 'yes / no'), ('functional_nature', 'Yogakaraka, Benefic, Malefic or Neutral'),
+    ('vimsopaka_shodasavarga', 'Its strength out of 20'),
+    ('own_bav_bindus_in_sign_occupied', 'Bindus in its own Bhinnashtakavarga for the sign it occupies'),
+    ('d9_sign', 'Its sign in the Navamsa'), ('d9_dignity', 'Its dignity there (by sign; no lagna needed)'),
+    ('d9_debilitated', 'yes / no'),
+    ('d10_sign', 'Its sign in the Dasamsa'), ('d10_dignity', 'Its dignity there (by sign; no lagna needed)'),
+    ('d10_debilitated', 'yes / no'),
+    ('sign_lord', 'Lord of the sign it occupies'), ('sign_lord_house', 'House that sign lord occupies'),
+    ('star_lord', 'Lord of the nakshatra it occupies'), ('star_lord_houses_owned', 'Houses that star lord owns'),
+    ('star_lord_house', 'House that star lord occupies'),
+    ('place_from_dasa_lord', 'Its place counted from the sign of the dasa lord (1 = same sign)'),
+    ('relation_to_dasa_lord', 'Compound relationship: how it regards the dasa lord; "same planet" when it is the '
+                              'dasa lord; empty when either is Rahu or Ketu'),
+    ('relation_of_dasa_lord', 'The reverse: how the dasa lord regards it'),
+    ('place_from_bhukti_lord', 'Antaram rows: its place counted from the sign of the bhukti lord'),
+    ('tara_of_lordship_no', '1-9: tara of the nakshatras it rules, counted from the janma nakshatra'),
+    ('tara_of_lordship', 'Name of that tara'), ('tara_of_lordship_label', 'favourable, unfavourable or mixed'),
+    ('tara_of_position_no', '1-9: tara of the nakshatra it occupies, counted from the janma nakshatra'),
+    ('tara_of_position', 'Name of that tara'), ('tara_of_position_label', 'favourable, unfavourable or mixed'),
+    ('yogas', 'Yogas found (AI_Yogas) in which it takes part, or none'),
+    ('lord_tied_topics', 'Topics for which it owns a key house, sits in one or is a significator'),
+]
+_NEW_SHEETS = {
+    'AI_Brief': [
+        ('section', 'Group of lines'), ('key', 'What the line is about'),
+        ('value', 'One cell copied from the source sheet, or several cells of one row written as '
+                  '"column=value; column=value"'),
+        ('source', 'The AI sheet the value is copied from'),
+    ],
+    'AI_LifeFacts': [('key', 'Name of the fact'), ('value', 'As entered by the user, or "not given"'),
+                     ('note', 'What may be entered')],
+    'AI_LifeEvents': [('event_type', 'Kind of event, as entered by the user'), ('year', 'Calendar year, as entered'),
+                      ('topic', 'The topic of AI_TopicMap this kind of event is checked against'),
+                      ('age_that_year', 'Year of the event minus year of birth')],
+    'AI_DasaPeriods': [
+        ('dasa_lord', 'Lord of the dasa (1st level)'), ('start_local', f'Start of the dasa, {_LOCAL}; the first '
+                                                       'dasa starts at birth'),
+        ('end_local', f'End of the dasa, {_LOCAL}'), ('age_at_start_years', 'Age when it starts'),
+        ('age_at_end_years', 'Age when it ends'),
+        ('dasa_lord_houses_owned', 'Houses the dasa lord owns'), ('dasa_lord_house', 'House it occupies'),
+        ('dasa_lord_sign', 'Sign it occupies'), ('dasa_lord_dignity', 'Its dignity in D1'),
+        ('dasa_lord_debilitated', 'yes / no'), ('dasa_lord_vimsopaka_shodasavarga', 'Its strength out of 20'),
+        ('dasa_lord_functional_nature', 'Yogakaraka, Benefic, Malefic or Neutral'),
+        ('dasa_lord_star_lord', 'Lord of the nakshatra it occupies'),
+        ('dasa_lord_tara_of_lordship_no', '1-9: tara of the nakshatras it rules, counted from the janma nakshatra'),
+        ('dasa_lord_tara_of_lordship', 'Name of that tara'),
+        ('dasa_lord_tara_of_lordship_label', 'favourable, unfavourable or mixed'),
+    ],
+    'AI_Antaram': [
+        ('dasa_lord', '1st level'), ('bhukti_lord', '2nd level'), ('antaram_lord', '3rd level'),
+        ('start_local', f'Start, {_LOCAL}'), ('end_local', f'End, {_LOCAL}'), ('days', 'Length in days'),
+    ],
+    'AI_PeriodFacts': [
+        ('level', 'bhukti or antaram'), ('dasa_lord', '1st level'), ('bhukti_lord', '2nd level'),
+        ('antaram_lord', '3rd level; empty on bhukti rows'),
+        ('start_local', f'Start of the period, {_LOCAL}'), ('end_local', f'End of the period, {_LOCAL}'),
+        ('age_at_start_years', 'Age when it starts'),
+    ] + _PERIOD_LORD_COLUMNS + [
+        ('bhukti_top_quarter_topics', 'Topics for which the bhukti of this row (the parent bhukti on an antaram '
+                                      'row) has in_top_quarter = yes in AI_TopicScores'),
+    ],
+    'AI_TransitsFast': [col for col in COLUMNS['AI_Transits']
+                        if col[0] not in ('planet', 'own_bav_bindus', 'saturn_from_moon')],
+    'AI_Stations': [
+        ('planet', 'Mars, Jupiter or Saturn'),
+        ('station', 'retrograde = the planet turns backward here; direct = it turns forward again'),
+        ('moment_local', f'Moment the daily motion is zero, {_LOCAL}; read it as a date'),
+        ('moment_utc', 'The same moment, UTC'), ('longitude_deg', 'Sidereal longitude at the station'),
+        ('sign_no', '1 = Mesha ... 12 = Meena'), ('sign', 'Sign of the station'),
+        ('deg_in_sign_text', 'Degrees, minutes, seconds inside that sign'),
+        ('house_from_lagna', 'House of that sign from the natal lagna'),
+        ('house_from_moon', 'Place of that sign from the natal Moon'),
+    ],
+    'AI_TopicPromise': [
+        ('topic', 'Common question'), ('row_type', 'factor = one test that fired; total = the two counts of the topic'),
+        ('subject', 'What was tested: the lord of key houses, a key house, a significator or a yoga'),
+        ('factor', 'The test, from the fixed list in the rule "Topic promise"'),
+        ('side', 'supports or weakens'), ('fact', 'What was found in this chart'),
+        ('supports_count', 'Total rows only: number of factor rows of the topic with side = supports'),
+        ('weakens_count', 'Total rows only: number of factor rows of the topic with side = weakens'),
+    ],
+    'AI_TopicWindows': [
+        ('topic', 'Common question'), ('start_local', f'Start of the piece, {_LOCAL}'),
+        ('end_local', f'End of the piece, {_LOCAL}'), ('days', 'Length in days'),
+        ('layers_agreeing', 'How many of the four layers hold, 2 to 4'),
+        ('layers', 'Which ones: bhukti, antaram, jupiter, saturn'),
+        ('dasa_lord', '1st level'), ('bhukti_lord', '2nd level'),
+        ('antaram_lords', 'Antaram lords (3rd level) during the window, in time order'),
+        ('bhukti_score', 'relevance_score_not_a_prediction of that bhukti for the topic (AI_TopicScores)'),
+        ('bhukti_rank_in_topic', 'rank_in_topic of that bhukti'),
+        ('jupiter_signs', 'Signs Jupiter transits during the window, in time order'),
+        ('jupiter_own_bindus', 'Bindus of those signs in Jupiter\'s own chart, in the same order'),
+        ('jupiter_key_houses_reached', 'Key houses of the topic Jupiter occupies or aspects during the window, or none'),
+        ('saturn_signs', 'Signs Saturn transits during the window, in time order'),
+        ('saturn_own_bindus', 'Bindus of those signs in Saturn\'s own chart, in the same order'),
+        ('saturn_key_houses_reached', 'Key houses of the topic Saturn occupies or aspects during the window, or none'),
+        ('key_houses_reached_by_both', 'Key houses reached by both at the same time (double transit, modern '
+                                       'method), or none'),
+        ('label', 'Always "rule-based overlap, not a prediction"'),
+    ],
+    'AI_EventCheck': [
+        ('event_type', 'Kind of event, as entered by the user'), ('year', 'Calendar year, as entered'),
+        ('topic', 'Topic the event is checked against'), ('dasa_lord', 'Dasa running in that year'),
+        ('bhukti_lord', 'Bhukti running in that year; one row for each bhukti that overlaps the year'),
+        ('overlap_start_local', f'Start of the part of that bhukti inside the year, {_LOCAL}'),
+        ('overlap_end_local', f'End of that part, {_LOCAL}'),
+        ('relevance_score_not_a_prediction', 'Score of that bhukti for the topic (AI_TopicScores)'),
+        ('rank_in_topic', 'Its rank_in_topic'), ('in_top_quarter', 'Its in_top_quarter'),
+        ('antaram_lords_tied_to_topic', 'Antaram lords inside the overlap that own a key house, sit in one or are '
+                                        'a significator, or none'),
+        ('jupiter_signs', 'Signs Jupiter was in during the overlap, with the house from the lagna'),
+        ('jupiter_reaches_key_house', 'yes when Jupiter occupied or aspected a key house of the topic in that time'),
+        ('saturn_signs', 'Signs Saturn was in during the overlap, with the house from the lagna'),
+        ('saturn_reaches_key_house', 'yes when Saturn occupied or aspected a key house of the topic in that time'),
+    ],
+}
+_NEW_SHEETS['AI_TransitsFast'] = (
+    [('planet', 'Mars, Sun, Mercury or Venus; rows are in time order for each planet')]
+    + _NEW_SHEETS['AI_TransitsFast'][:10]
+    + [('own_bav_bindus', 'Bindus of the sign in the natal Bhinnashtakavarga of that planet')]
+    + _NEW_SHEETS['AI_TransitsFast'][10:])
+COLUMNS.update(_NEW_SHEETS)
+SHEETS = [
+    'AI_ReadMe', 'AI_Brief', 'AI_Facts', 'AI_LifeFacts', 'AI_LifeEvents', 'AI_Planets', 'AI_Houses', 'AI_Pairs',
+    'AI_Vargas', 'AI_VargaLagnas', 'AI_Strength', 'AI_Ashtakavarga', 'AI_Yogas', 'AI_DasaPeriods', 'AI_Dasa',
+    'AI_Antaram', 'AI_Pratyantar', 'AI_PeriodFacts', 'AI_Transits', 'AI_TransitsFast', 'AI_Stations',
+    'AI_TransitNow', 'AI_SadeSati', 'AI_DoubleTransit', 'AI_TopicMap', 'AI_TopicFacts', 'AI_TopicPromise',
+    'AI_TopicScores', 'AI_TopicWindows', 'AI_EventCheck',
+]
+assert set(SHEETS) == set(COLUMNS)
+COLUMNS = {sheet: COLUMNS[sheet] for sheet in SHEETS}
+# Sheets that are written only when they have rows: they hold what the user entered about past events.
+OPTIONAL_SHEETS = ('AI_LifeEvents', 'AI_EventCheck')
+NOT_GIVEN = 'not given'
 
 
-def _readme(c, tables):
+def _readme(c, tables, sheets=None):
     m = c.meta
+    sheets = sheets or SHEETS
     lines = []
 
     def add(section, item, text):
@@ -1723,10 +2833,14 @@ def _readme(c, tables):
     add('About', 'language', 'Always English, whatever language the rest of the report uses. Names follow the '
         'engine: signs Mesha ... Meena, nakshatras Ashwini ... Revati, planets Sun ... Ketu.')
     add('About', 'schema', SCHEMA)
+    add('About', 'where to start', 'AI_Brief is a short copy of the main facts and is enough for a first reading. '
+        'To judge a period read its row in AI_PeriodFacts; for the promise of a topic read AI_TopicPromise; '
+        'for timing read AI_TopicWindows. Every other sheet holds the full detail behind them.')
     add('Defaults', 'house system', 'Whole sign from the lagna: every "house" column means this unless its name '
         'says bhava_sripati or kp_.')
     add('Defaults', 'dasa table', f"AI_Dasa and AI_Pratyantar: Vimshottari from the Moon with the Vedic ayanamsha "
-        f"({m['ayanamsha_name']}). Use these dates.")
+        f"({m['ayanamsha_name']}). Use these dates. AI_DasaPeriods (1st level) and AI_Antaram (3rd level) "
+        'belong to the same tree.')
     add('Defaults', 'ayanamsha', f"{m['ayanamsha_name']} for everything except the columns that begin with kp_.")
     add('Warnings', 'KP', 'The KP sheet of the workbook (the "kp" part of the JSON file) and the kp_ columns here '
         'use the Krishnamurti ayanamsha, Placidus houses and their own dasa dates, which differ by weeks from '
@@ -1741,6 +2855,17 @@ def _readme(c, tables):
         'changes its lagna if the birth time is wrong by under two minutes; treat its houses with caution.')
     add('Warnings', 'scores', 'AI_TopicScores is rule-based relevance, not a prediction. AI_DoubleTransit is a '
         'modern method. Kala Sarpa is popular and not in BPHS.')
+    add('Warnings', 'counts and windows', 'AI_TopicPromise counts fixed tests and AI_TopicWindows marks where '
+        'fixed layers overlap. Both are rule-based aids, not predictions: a high count or four layers says '
+        'that the rules agree, not that an event will happen.')
+    add('Warnings', 'D2 Hora', 'By Parashara\'s rule every point of D2 falls in Kataka or Simha. A house number in '
+        'D2, and the words Exalted or debilitated there, come from that rule and say nothing about the '
+        'planet: do not read them as strength, gain or loss.')
+    add('Warnings', 'as-of lines', 'AI_TransitNow and the section "As of the report date" of AI_Brief were true at '
+        'the report date only and go stale like the "Current" labels of the other sheets.')
+    add('Warnings', 'life facts', 'AI_LifeFacts, AI_LifeEvents and birth_time_uncertainty_minutes are as entered by '
+        'the user: not computed and not checked against the chart. AI_LifeEvents and AI_EventCheck are '
+        'present only when the user entered past events.')
     add('Conventions', 'times', f"Columns ending in _local are clock time at the birth place with the fixed offset "
         f"{off} (the offset in force at birth). Columns ending in _utc are UTC. Transit moments are given "
         'to the minute, dasa moments to the second.')
@@ -1768,10 +2893,10 @@ def _readme(c, tables):
         add('Not in this file', str(i), text)
     for name, text in RULES:
         add('Rules', name, text)
-    for sheet in SHEETS:
+    for sheet in sheets:
         rows = len(tables[sheet]) if sheet in tables else None
         add('Sheets', sheet, SHEET_ABOUT[sheet] + (f' ({rows} rows)' if rows is not None else ''))
-    for sheet in SHEETS:
+    for sheet in sheets:
         for col, meaning in COLUMNS[sheet]:
             add('Columns', f'{sheet}.{col}', meaning)
     return lines
@@ -1789,7 +2914,7 @@ SHEET_ABOUT = {
     'AI_Ashtakavarga': 'Bindus by sign and house for each planet and for the Sarvashtakavarga.',
     'AI_Yogas': 'Every yoga checked, with found, cancelled or not found.',
     'AI_Dasa': 'One row per Vimshottari bhukti from birth, with the state of both lords.',
-    'AI_Pratyantar': 'The 4th dasa level from 1 year before the report date to 5 years after.',
+    'AI_Pratyantar': 'The 4th dasa level from 1 year before the report date to 10 years after.',
     'AI_Transits': 'Sign entries of Saturn, Jupiter, Rahu and Ketu from birth to 10 years after the report date; '
                    'each planet starts with the stay running at birth.',
     'AI_TransitNow': 'Positions of the nine planets on the report date.',
@@ -1799,21 +2924,47 @@ SHEET_ABOUT = {
     'AI_TopicMap': 'Where to look for each common question.',
     'AI_TopicFacts': 'The facts of this chart for each common question.',
     'AI_TopicScores': 'Rule-based relevance of every bhukti to each common question.',
+    'AI_Brief': 'Start here: a short copy of the other sheets (birth facts, planets, houses, yogas, the periods and '
+                'transits running on the report date, and per topic the promise counts and next windows).',
+    'AI_LifeFacts': 'What the user chose to enter about their life; not computed. "not given" where nothing was '
+                    'entered.',
+    'AI_LifeEvents': 'Past events the user chose to enter (kind and year); not computed. This sheet is present '
+                     'only when at least one event was entered.',
+    'AI_DasaPeriods': 'One row per Vimshottari dasa (1st level) with its dates and the state of its lord.',
+    'AI_Antaram': 'One row per antaram (3rd dasa level) for the whole life.',
+    'AI_PeriodFacts': 'One row per bhukti (whole life) and per antaram (1 year before the report date to 10 years '
+                      'after) with every fact about the lord of that period.',
+    'AI_TransitsFast': 'Sign entries of Mars (2 years before the report date to 10 after) and of the Sun, Mercury '
+                       'and Venus (1 year before to 2 after).',
+    'AI_Stations': 'Retrograde and direct stations of Mars, Jupiter and Saturn from 1 year before the report date '
+                   'to 10 years after.',
+    'AI_TopicPromise': 'Per topic, the fixed tests that support or weaken it in this chart, with the two counts. '
+                       'Rule-based, not a prediction.',
+    'AI_TopicWindows': 'Per topic, the pieces of the 10 years after the report date in which two or more of the '
+                       'layers bhukti, antaram, Jupiter and Saturn agree. Rule-based overlap, not a prediction.',
+    'AI_EventCheck': 'For each past event the user entered: the bhuktis of that year with their score for the '
+                     'matching topic, and where Jupiter and Saturn were. This sheet is present only when at '
+                     'least one event was entered.',
 }
 
 
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────
 
-def enrich(res, now=None):
+def enrich(res, now=None, extras=None):
     """
     Build the AI block from compute() output.
 
     now: the report moment (naive clock time at the birth place); defaults to
     the moment the horoscope was generated.
+    extras: optional facts only the user knows, see clean_extras():
+    {'tob_uncertainty_min', 'coordinates_source', 'life'}. A bad value raises
+    astro_engine.InputError.
     Returns {'schema', 'report_datetime_local', 'sheets', 'columns', 'tables',
-    'rules'}; tables[sheet] is a list of rows keyed by column name.
+    'rules'}; tables[sheet] is a list of rows keyed by column name. 'sheets' is
+    SHEETS without the OPTIONAL_SHEETS that have no rows.
     """
-    c = Ctx(res, now)
+    c = Ctx(res, now, extras)
+    check_years(c)
     c.margins = lagna_margins(c)
     c.transit = _transit_data(c)
     tables = {}
@@ -1836,11 +2987,23 @@ def enrich(res, now=None):
     tables['AI_TopicMap'] = _topic_map(c)
     tables['AI_TopicFacts'] = _topic_facts(c)
     tables['AI_TopicScores'] = _topic_scores(c)
-    tables['AI_ReadMe'] = _readme(c, tables)
+    tables['AI_LifeFacts'] = _life_facts(c)
+    tables['AI_LifeEvents'] = _life_events(c)
+    tables['AI_DasaPeriods'] = _dasa_periods(c)
+    tables['AI_Antaram'] = _antaram(c)
+    tables['AI_PeriodFacts'] = _period_facts(c)
+    tables['AI_TransitsFast'] = _transits_fast(c)
+    tables['AI_Stations'] = _stations(c)
+    tables['AI_TopicPromise'] = _topic_promise(c)
+    tables['AI_TopicWindows'] = _topic_windows(c)
+    tables['AI_EventCheck'] = _event_check(c)
+    tables['AI_Brief'] = _brief(c, tables)
+    sheets = [s for s in SHEETS if tables.get(s) or s not in OPTIONAL_SHEETS]
+    tables['AI_ReadMe'] = _readme(c, tables, sheets)
 
     # every row carries every column of its sheet, in the declared order
     ordered = {}
-    for sheet in SHEETS:
+    for sheet in sheets:
         cols = [name for name, _ in COLUMNS[sheet]]
         ordered[sheet] = [{k: row.get(k) for k in cols} for row in tables[sheet]]
         for row in tables[sheet]:
@@ -1851,8 +3014,8 @@ def enrich(res, now=None):
         'schema': SCHEMA,
         'report_datetime_local': _sec(c.now),
         'utc_offset_hours': round(c.offset, 6),
-        'sheets': SHEETS,
-        'columns': {s: [{'name': n, 'meaning': t} for n, t in COLUMNS[s]] for s in SHEETS},
+        'sheets': sheets,
+        'columns': {s: [{'name': n, 'meaning': t} for n, t in COLUMNS[s]] for s in sheets},
         'tables': ordered,
         'rules': [{'rule': n, 'variant': t} for n, t in RULES],
     }

@@ -1,6 +1,8 @@
 """
 Tests for enrich.py (derived facts for AI readers), the AI_ sheets of the
-workbook and the JSON routes.
+workbook and the JSON routes. What schema horoscopegen-ai/2 added is tested
+in test_reader.py; here only the figures it changed on purpose were updated
+(pratyantar range, two more topics, one more yoga row, the list of sheets).
 
 Reference values that do not come from the code under test:
   * Ashtakavarga totals 48, 49, 39, 54, 56, 52, 39 and 337 (fixed for every chart).
@@ -86,9 +88,13 @@ def res():
     return A.compute(now=NOW, **S)
 
 
+# What the routes pass to enrich() for a request that carries latitude and longitude and nothing optional.
+EXTRAS = {'coordinates_source': 'entered'}
+
+
 @pytest.fixture(scope='module')
 def ai(res):
-    return E.enrich(res)
+    return E.enrich(res, extras=EXTRAS)
 
 
 @pytest.fixture(scope='module')
@@ -104,7 +110,7 @@ def workbooks():
     out = {}
     for lang in ('en', 'ta'):
         r = A.compute(lang=lang, now=NOW, **S)
-        data = generate_excel(r, lang, ai=E.enrich(r))
+        data = generate_excel(r, lang, ai=E.enrich(r, extras=EXTRAS))
         out[lang] = (data, openpyxl.load_workbook(io.BytesIO(data)))
     return out
 
@@ -321,7 +327,7 @@ def test_chart_s_yogas(T):
     assert found == sorted([
         'Sasa yoga', 'Neecha bhanga of Sun - condition (a)', 'Neecha bhanga of Sun - condition (b)',
         'Raja yoga', 'Dhana yoga', 'Harsha yoga (Viparita raja yoga)', 'Vesi yoga', 'Amala yoga',
-        'Kuja dosha from Venus'])
+        'Kuja dosha from Venus', 'Dharma-Karmadhipati yoga'])          # schema 2: lords of 9 and 10, Jupiter and Mars
     assert [n for n, r in y.items() if r['status'] == 'cancelled'] == ['Kemadruma yoga']
     assert 'Formed: yes' in y['Kemadruma yoga']['note'] and 'Cancelled: yes' in y['Kemadruma yoga']['note']
     assert y['Sasa yoga']['planets'] == 'Saturn' and y['Sasa yoga']['houses'] == '4'
@@ -530,7 +536,8 @@ def test_transit_speed_limits_hold():
     """The step rule relies on no body ever moving faster than its limit."""
     jd0 = swe.julday(1900, 1, 1, 0.0)
     swe.set_sid_mode(swe.SIDM_LAHIRI)
-    for body, node in (('Saturn', 'mean'), ('Jupiter', 'mean'), ('Rahu', 'mean'), ('Rahu', 'true')):
+    for body, node in (('Saturn', 'mean'), ('Jupiter', 'mean'), ('Rahu', 'mean'), ('Rahu', 'true'),
+                       ('Mars', 'mean'), ('Sun', 'mean'), ('Mercury', 'mean'), ('Venus', 'mean')):
         pid, vmax = E._body(body, node)
         top = max(abs(swe.calc_ut(jd0 + 2.0 * i, pid, swe.FLG_MOSEPH | swe.FLG_SIDEREAL | swe.FLG_SPEED)[0][3])
                   for i in range(36525))
@@ -615,9 +622,9 @@ def test_pratyantar_of_a_known_antaram():
     assert [p[0] for p in clipped] == ['Rahu', 'Jupiter', 'Saturn', 'Mercury', 'Ketu']
 
 
-def test_pratyantar_table_covers_one_year_back_to_five_ahead(T):
-    rows = T['AI_Pratyantar']
-    lo, hi = NOW - timedelta(days=365.25), NOW + timedelta(days=5 * 365.25)
+def test_pratyantar_table_covers_one_year_back_to_ten_ahead(T):
+    rows = T['AI_Pratyantar']                           # schema 2: 10 years ahead, to end with the transit tables
+    lo, hi = NOW - timedelta(days=365.25), NOW + timedelta(days=10 * 365.25)
     assert rows[0]['start_local'] <= lo < rows[0]['end_local'] and rows[-1]['start_local'] < hi <= rows[-1]['end_local']
     for a, b in zip(rows, rows[1:]):
         assert a['end_local'] == b['start_local']
@@ -884,7 +891,12 @@ def test_adhi_amala_kuja_and_kala_sarpa():
 def test_topic_map_is_the_fixed_table(T):
     rows = by(T['AI_TopicMap'], 'topic')
     assert list(rows) == ['Job and career', 'Business', 'Marriage', 'Children', 'Abroad / onsite', 'Education',
-                          'Home and vehicle', 'Money', 'Strain (general)', 'Parents', 'Siblings', 'Spiritual life']
+                          'Home and vehicle', 'Money', 'Strain (general)', 'Parents', 'Siblings', 'Spiritual life',
+                          'Mother', 'Father']                         # the last two came with schema 2
+    assert (rows['Mother']['d1_houses'], rows['Mother']['significators'], rows['Mother']['divisional_charts']) == (
+        '4', 'Moon', 'D12')
+    assert (rows['Father']['d1_houses'], rows['Father']['significators'], rows['Father']['divisional_charts']) == (
+        '9', 'Sun', 'D12')
     job = rows['Job and career']
     assert (job['d1_houses'], job['significators'], job['divisional_charts'], job['kp_houses']) == (
         '10, 6, 2, 11', 'Sun, Saturn, Mercury', 'D10', '2, 6, 10, 11')
@@ -922,7 +934,7 @@ def test_topic_facts_repeat_the_other_sheets(T):
 
 def test_topic_scores_follow_the_rule(T, res):
     rows = T['AI_TopicScores']
-    assert len(rows) == 80 * 12
+    assert len(rows) == 80 * 14
     c = E.Ctx(res)
     E._yogas(c)
     planets = by(T['AI_Planets'], 'point')
@@ -956,11 +968,17 @@ def test_topic_scores_follow_the_rule(T, res):
 # ── the block as a whole ──────────────────────────────────────────────────────
 
 def test_block_shape(ai, T):
-    assert ai['schema'] == 'horoscopegen-ai/1' and ai['report_datetime_local'] == NOW
+    assert ai['schema'] == 'horoscopegen-ai/2' and ai['report_datetime_local'] == NOW
+    old = ['AI_ReadMe', 'AI_Facts', 'AI_Planets', 'AI_Houses', 'AI_Pairs', 'AI_Vargas', 'AI_VargaLagnas', 'AI_Strength',
+           'AI_Ashtakavarga', 'AI_Yogas', 'AI_Dasa', 'AI_Pratyantar', 'AI_Transits', 'AI_TransitNow', 'AI_SadeSati',
+           'AI_DoubleTransit', 'AI_TopicMap', 'AI_TopicFacts', 'AI_TopicScores']
     assert ai['sheets'] == list(T) == [
-        'AI_ReadMe', 'AI_Facts', 'AI_Planets', 'AI_Houses', 'AI_Pairs', 'AI_Vargas', 'AI_VargaLagnas', 'AI_Strength',
-        'AI_Ashtakavarga', 'AI_Yogas', 'AI_Dasa', 'AI_Pratyantar', 'AI_Transits', 'AI_TransitNow', 'AI_SadeSati',
-        'AI_DoubleTransit', 'AI_TopicMap', 'AI_TopicFacts', 'AI_TopicScores']
+        'AI_ReadMe', 'AI_Brief', 'AI_Facts', 'AI_LifeFacts', 'AI_Planets', 'AI_Houses', 'AI_Pairs', 'AI_Vargas',
+        'AI_VargaLagnas', 'AI_Strength', 'AI_Ashtakavarga', 'AI_Yogas', 'AI_DasaPeriods', 'AI_Dasa', 'AI_Antaram',
+        'AI_Pratyantar', 'AI_PeriodFacts', 'AI_Transits', 'AI_TransitsFast', 'AI_Stations', 'AI_TransitNow',
+        'AI_SadeSati', 'AI_DoubleTransit', 'AI_TopicMap', 'AI_TopicFacts', 'AI_TopicPromise', 'AI_TopicScores',
+        'AI_TopicWindows']
+    assert [s for s in ai['sheets'] if s in old] == old             # the sheets of schema 1 keep their order
     for sheet, rows in T.items():
         cols = [c['name'] for c in ai['columns'][sheet]]
         assert rows and len(cols) == len(set(cols)) and all(c and c == c.strip() for c in cols)
@@ -973,7 +991,7 @@ def test_block_shape(ai, T):
                 assert v is None or isinstance(v, (str, int, float, datetime, date)) and not isinstance(v, bool)
                 assert not (isinstance(v, str) and (v.startswith('=') or v == '' or 'None' in v))
     assert len(T['AI_Planets']) == 11 and len(T['AI_Houses']) == 12 and len(T['AI_Pairs']) == 36
-    assert len(T['AI_VargaLagnas']) == 16 and len(T['AI_Strength']) == 7 and len(T['AI_TopicMap']) == 12
+    assert len(T['AI_VargaLagnas']) == 16 and len(T['AI_Strength']) == 7 and len(T['AI_TopicMap']) == 14
     assert [r['rule'] for r in ai['rules']] == [n for n, _ in E.RULES]
 
 
@@ -1077,7 +1095,7 @@ def test_other_reference_charts_are_consistent(b):
 def test_ai_sheets_follow_notes_in_order(workbooks, ai):
     for lang in ('en', 'ta'):
         wb = workbooks[lang][1]
-        assert len(wb.sheetnames) == 7 + 19
+        assert len(wb.sheetnames) == 7 + 28
         assert wb.sheetnames[7:] == ai['sheets']
     assert workbooks['en'][1].sheetnames[:7] == ['Summary', 'Vedic', 'Divisional Charts', 'KP', 'ALP', 'Dasa', 'Notes']
 
@@ -1248,7 +1266,7 @@ def test_api_download_excel_has_the_ai_sheets(client):
     rv = client.post('/api/download/excel', json=G.API_BODY)
     assert rv.status_code == 200 and rv.data[:2] == b'PK'
     wb = openpyxl.load_workbook(io.BytesIO(rv.data), read_only=True)
-    assert len(wb.sheetnames) == 26 and wb.sheetnames[7] == 'AI_ReadMe' and wb.sheetnames[-1] == 'AI_TopicScores'
+    assert len(wb.sheetnames) == 35 and wb.sheetnames[7] == 'AI_ReadMe' and wb.sheetnames[-1] == 'AI_TopicWindows'
 
 
 def test_api_json_errors(client):

@@ -1,7 +1,9 @@
 """
 excel_generator.py — HoroscopeGen Excel workbook.
 
-Sheets: Summary, Vedic, Divisional Charts, KP, ALP, Dasa, Notes.
+Sheets: Summary, Vedic, Divisional Charts, KP, ALP, Dasa, Notes. When the
+AI block from enrich.py is passed in, the flat "AI_" sheets follow Notes:
+plain tables for AI readers (values only, no merged cells), in landscape.
 
 Charts are drawn with real cells (merged cells, borders and diagonal
 borders), never pasted images, on a grid of narrow columns: every chart is
@@ -11,13 +13,14 @@ sorted and filtered. Dates are real Excel dates. Every sheet is set up for
 A4 portrait, one page wide.
 """
 import io
-from datetime import datetime, time
+from datetime import date, datetime, time
 from functools import lru_cache
 
 import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.pagebreak import Break
+from openpyxl.worksheet.properties import PageSetupProperties
 
 import charts
 import i18n
@@ -737,7 +740,7 @@ def _dasa(wb, res, lang):
     _page_setup(ws, m['name'], 9, title_rows='1:3')
 
 
-def _notes(wb, res, lang):
+def _notes(wb, res, lang, ai=None):
     ws = wb.create_sheet(_sheet_name('notes', lang))
     ws.sheet_view.showGridLines = False
     m, v, kp = res['meta'], res['vedic'], res['kp']
@@ -820,13 +823,102 @@ def _notes(wb, res, lang):
     c = ws.cell(row=r + 1, column=2, value=L('disclaimer'))
     c.font = _font(8, False, MUTED, True)
     c.alignment = Alignment(horizontal='center')
+    if ai:
+        # Added below everything that was already on the sheet, so no existing cell moves.
+        r = band(r + 3, 'AI sheets: rules and variants')
+        r = row(r, 'About', 'The sheets named AI_ repeat this horoscope as flat tables for AI readers and add '
+                            'derived data. They are always in English. AI_ReadMe explains every column. '
+                            'The rules below say how each derived value was obtained and which variant was used.')
+        for item in ai['rules']:
+            r = row(r, item['rule'], item['variant'])
     _page_setup(ws, m['name'], 3)
+
+
+# ── AI SHEETS ─────────────────────────────────────────────────────────────────
+# Flat tables for AI readers: header in row 1, one table per sheet from A1,
+# values only, no merged cells, no formulas, no colour that carries meaning.
+
+AI_DATETIME_FMT = 'yyyy-mm-dd hh:mm:ss'
+AI_DATE_FMT = 'yyyy-mm-dd'
+AI_DEG_FMT = '0.000000'
+AI_WRAP = {('AI_ReadMe', 'text'): 120, ('AI_Facts', 'note'): 70, ('AI_Yogas', 'rule'): 75,
+           ('AI_Yogas', 'note'): 70}
+AI_DEG_COLUMNS = ('deg_in_sign', 'deg_in_chart', 'lagna_deg_in_chart', 'speed_deg_per_day')
+AI_MAX_WIDTH = 60
+
+
+def _ai_sheets(wb, ai):
+    """One worksheet per table of the AI block, in the order given by ai['sheets']."""
+    head_font = _font(10, True)
+    wrap = Alignment(vertical='top', wrap_text=True)
+    top = Alignment(vertical='top')
+    for sheet in ai['sheets']:
+        ws = wb.create_sheet(sheet)
+        cols = [c['name'] for c in ai['columns'][sheet]]
+        rows = ai['tables'][sheet]
+        ws.append(cols)
+        for c in ws[1]:
+            c.font = head_font
+        widths = [len(name) for name in cols]
+        dated = set()                               # columns holding at least one date or datetime
+        for row in rows:
+            values = []
+            for i, name in enumerate(cols):
+                val = row.get(name)
+                if isinstance(val, datetime):
+                    dated.add(i)
+                    size = 19
+                elif isinstance(val, date):
+                    dated.add(i)
+                    size = 10
+                elif val is None:
+                    size = 0
+                else:
+                    size = len(str(val))
+                if size > widths[i]:
+                    widths[i] = size
+                values.append(val)
+            ws.append(values)
+        last = len(rows) + 1
+        tall = any(s == sheet for s, _ in AI_WRAP)       # rows grow with wrapped text: keep every cell at the top
+        for i, name in enumerate(cols):
+            letter = get_column_letter(i + 1)
+            degrees = name.endswith('_deg') or name in AI_DEG_COLUMNS
+            wrap_width = AI_WRAP.get((sheet, name))
+            if degrees or wrap_width or tall or i in dated:
+                # The format follows the value in each cell, not the column: AI_Facts
+                # keeps dates, numbers and text in one "value" column.
+                for (cell,) in ws.iter_rows(min_row=2, max_row=last, min_col=i + 1, max_col=i + 1):
+                    val = cell.value
+                    if isinstance(val, datetime):
+                        cell.number_format = AI_DATETIME_FMT
+                    elif isinstance(val, date):
+                        cell.number_format = AI_DATE_FMT
+                    elif degrees and isinstance(val, float):
+                        cell.number_format = AI_DEG_FMT
+                    if wrap_width:
+                        cell.alignment = wrap
+                    elif tall:
+                        cell.alignment = top
+            ws.column_dimensions[letter].width = wrap_width or min(max(widths[i], 6) + 2, AI_MAX_WIDTH)
+        ws.freeze_panes = 'A2'
+        # If printed: landscape, all columns on one page width, as many pages down as needed.
+        ws.page_setup.paperSize = ws.PAPERSIZE_A4
+        ws.page_setup.orientation = 'landscape'
+        ws.sheet_properties.pageSetUpPr = PageSetupProperties(fitToPage=True)
+        ws.page_setup.fitToWidth = 1
+        ws.page_setup.fitToHeight = 0
+        ws.print_title_rows = '1:1'
 
 
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────
 
-def generate_excel(res, lang=None):
-    """Build the workbook from compute() output. Returns bytes."""
+def generate_excel(res, lang=None, ai=None):
+    """
+    Build the workbook from compute() output. Returns bytes.
+    ai: the block returned by enrich.enrich(res); when given, the AI_ sheets
+    are added after Notes and the Notes sheet gains a section on their rules.
+    """
     lang = lang or res['meta'].get('lang', 'en')
     if lang not in i18n.LANGS:
         lang = 'en'
@@ -838,7 +930,9 @@ def generate_excel(res, lang=None):
     _kp(wb, res, specs, lang)
     _alp(wb, res, specs, lang)
     _dasa(wb, res, lang)
-    _notes(wb, res, lang)
+    _notes(wb, res, lang, ai)
+    if ai:
+        _ai_sheets(wb, ai)
     wb.properties.title = f"HoroscopeGen - {res['meta']['name']}"
     wb.properties.creator = 'horoscopegen.in'
     buf = io.BytesIO()

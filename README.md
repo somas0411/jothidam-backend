@@ -24,9 +24,9 @@ Nothing is stored: birth details are used for the calculation and discarded.
 | `i18n.py` | Names and labels (en, ta, hi, te, kn, ml, mr, bn, and `bi` = English + Tamil) |
 | `excel_generator.py` | Workbook: Summary, Vedic, Divisional Charts, KP, ALP, Dasa, Notes; charts drawn with cells. With the AI block, the `AI_` sheets (28, or 30 when past events were entered) follow Notes |
 | `pdf_generator.py` | PDF with the same content; Noto fonts embedded, text shaped by HarfBuzz |
-| `app.py` | Flask routes |
+| `app.py` | Flask routes, request limits and CORS |
 | `fonts/` | Noto Sans fonts (SIL Open Font License, see `fonts/OFL.txt`) |
-| `tests/` | `pytest` suite: `test_engine.py` (engine and reports), `test_enrich.py` (AI tables, AI sheets, JSON routes), `test_reader.py` (what schema 2 added: dasa levels, faster transits, stations, period facts, topic promise and windows, optional inputs, the brief). `golden_main.json` holds fingerprints of the seven report sheets and of the `/api/horoscope` response, made by `make_golden.py`, so a change to the old output is caught |
+| `tests/` | `pytest` suite: `test_engine.py` (engine and reports), `test_enrich.py` (AI tables, AI sheets, JSON routes), `test_protection.py` (request limits, body size cap, CORS, bad input), `test_reader.py` (what schema 2 added: dasa levels, faster transits, stations, period facts, topic promise and windows, optional inputs, the brief). `golden_main.json` holds fingerprints of the seven report sheets and of the `/api/horoscope` response, made by `make_golden.py`, so a change to the old output is caught |
 
 ## API
 
@@ -94,6 +94,42 @@ they are checked (a bad value is HTTP 400) and nothing is stored.
   `year` between the birth year and the report year. They go into
   `AI_LifeFacts` and `AI_LifeEvents` as entered, and `AI_EventCheck` shows the
   periods and transits of each event's year.
+
+### Limits
+
+The website calls this API from the visitor's browser, so the address and
+every request can be seen in the browser's Network tab, and the source is
+public. Nothing here depends on either being hidden. What protects the
+service is that each visitor can only ask for so much:
+
+| What | Limit | Counted |
+|---|---|---|
+| `POST /api/horoscope` | 30 a minute, 300 an hour | per visitor |
+| `POST /api/download/excel`, `pdf`, `json` | 10 a minute, 100 an hour, the three together | per visitor |
+| `GET /api/geocode` | 20 a minute, 200 an hour | per visitor |
+| Any other route | 120 a minute | per visitor |
+| `/health`, `/api/ping` | none | |
+| Place look-ups sent to OpenStreetMap (a search, or a horoscope without `lat` / `lon`) | 60 a minute | all visitors together |
+| Request body | 64 KB | per request |
+
+- Over a limit the answer is HTTP 429 with `{"error": "..."}` and a
+  `Retry-After` header (seconds). An oversized body is HTTP 413. Every error,
+  including 404 and 405, has the same `{"error": "..."}` shape.
+- A visitor is an IP address (an IPv6 visitor is the /64 network). People
+  behind one shared address, such as an office, share its limits. The address
+  is used only to count, in memory; it is not logged or stored.
+- The address is read from the `CF-Connecting-IP` header, which Render's
+  Cloudflare front sets. Without that header the first address in
+  `X-Forwarded-For` is used, then the connecting address.
+- The counts live in the memory of the one gunicorn worker. They start again
+  when the service restarts, and with more than one worker each would count
+  separately.
+- These limits stop one address from keeping the server busy. They do not
+  stop a flood from many addresses at once; that needs a service in front of
+  the API, such as a CDN or firewall.
+- CORS lets only the website's own addresses read the answers from a browser.
+  It does not stop a script calling the API directly, which is why the limits
+  above do not rely on it.
 
 ## AI sheets and JSON
 
@@ -176,11 +212,20 @@ python -m pytest -q tests
 
 `EXTRA_ORIGINS` (comma-separated) adds allowed CORS origins for local testing.
 
+Python 3.10 or later is needed (`flask-limiter` and `requests` require it).
+
 ## Deploy (Render)
 
 - Build command: `pip install -r requirements.txt`
 - Start command: `gunicorn app:app` (`gunicorn.conf.py` sets the timeout)
-- No environment variables are required.
+- Python 3.10 or later.
+- No environment variables are required. Two optional ones:
+  - `RATE_LIMIT_ENABLED=false` switches the request limits off (the body size
+    cap stays). Use it if the limits ever get in the way of real visitors.
+  - `CLIENT_IP_HEADER` names the header that carries the visitor's address
+    (default `CF-Connecting-IP`). Set it only if the hosting changes.
+- No keys, passwords or other secrets belong in this repository. If the
+  service ever needs one, set it as an environment variable in Render.
 
 ## Calculation notes
 

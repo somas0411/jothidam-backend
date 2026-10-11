@@ -450,6 +450,7 @@ def match_route():
             # The two rasi and navamsa charts, for the page to draw side by side.
             out['charts'] = {role: {k: v for k, v in charts.build_specs(res, lang).items() if k in ('d1', 'd9')}
                              for role, res in people.items()}
+        out['local'] = i18n.match_bundle(result, lang)      # names and labels in the report language
         if _wants_ai():
             out['ai'] = to_jsonable(match_tables(result))
         return jsonify(out)

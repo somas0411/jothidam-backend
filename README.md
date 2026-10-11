@@ -231,7 +231,9 @@ is stored.
   (Rohini in Mesha) is HTTP 400.
 - The answer: `persons`, `settings`, `rows`, `summary`, `windows`, `rules`, `table_sources`,
   `not_included`, and in full mode `charts` (the rasi and navamsa chart of
-  each, for the page to draw side by side).
+  each, for the page to draw side by side). `local` holds the names of the
+  checks, the labels and the star-row values in the report language (`lang`),
+  for the page to display; the rows themselves are always in English.
 
 Every row has `key`, `group`, `name`, `boy_value`, `girl_value`, `result`,
 `points`, `max_points`, `rule_applied`, `exception_applied`, `note`.

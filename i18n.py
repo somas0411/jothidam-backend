@@ -642,3 +642,32 @@ def match_value(text, lang='en'):
         name = MATCH_TREES_TA[tree] if lang == 'ta' else tree
         return f"{name} ({ML(kind.rstrip(')'), lang)})"
     return text
+
+
+def match_bundle(result, lang='en'):
+    """
+    Names and labels of a marriage match in one language, for the web page to
+    show the rows (as bundle() does for a horoscope). result: the result of
+    match_engine.match(). The rows themselves stay in English.
+    """
+    def person(p):
+        out = {'nakshatra': nak(p['nakshatra_number'] - 1, lang), 'rasi': rasi(p['rasi_number'] - 1, lang),
+               'rasi_lord': planet(p['rasi_lord'], lang)}
+        if p.get('lagna_number'):
+            out['lagna'] = rasi(p['lagna_number'] - 1, lang)
+        return out
+
+    rows = result['rows']
+    by_name = {r['name']: r['key'] for r in rows}
+    labels = {k: ML(k, lang) for k in MATCH_LABELS['en']}
+    labels.update({k: L(k, lang) for k in ('name', 'dob', 'tob', 'pob', 'lagna', 'janma_rasi', 'nakshatra', 'pada')})
+    return {
+        'lang': lang,
+        'labels': labels,
+        'checks': {r['key']: match_check(r['key'], r['name'], lang) for r in rows},
+        'values': {r['key']: {'boy': match_value(r['boy_value'], lang), 'girl': match_value(r['girl_value'], lang)}
+                   for r in rows},
+        'persons': {role: person(p) for role, p in result['persons'].items()},
+        'key_poruthams_not_matched': [match_check(by_name[n], n, _base(lang))
+                                      for n in result['summary']['key_poruthams_not_matched']],
+    }

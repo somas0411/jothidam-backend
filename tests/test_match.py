@@ -1677,3 +1677,24 @@ def test_route_adds_the_flat_tables_when_asked(client):
     assert out['ai']['sheets'] == M.MATCH_SHEETS and out['ai']['schema'] == 'horoscopegen-match/1'
     assert len(out['ai']['tables']['AI_Match']) == len(out['rows'])
     assert len(out['generated_utc']) == 19
+
+
+def test_route_sends_the_names_in_the_report_language(client):
+    out = client.post('/api/match', json={'boy': BOY, 'girl': GIRL, 'lang': 'ta'}).get_json()
+    local = out['local']
+    assert local['lang'] == 'ta' and set(local['checks']) == set(local['values']) == {r['key'] for r in out['rows']}
+    assert local['checks']['dinam'] == 'தினப் பொருத்தம்' and local['labels']['matched'] == 'பொருத்தம் உண்டு'
+    assert local['labels']['group_A'] == 'பத்துப் பொருத்தங்கள் (நாடி, விருட்சம் உடன்)' and local['labels']['dob'] == 'பிறந்த தேதி'
+    assert local['values']['dinam'] == {'boy': 'மிருகசீரிடம் - பாதம் 2', 'girl': 'பூராடம் - பாதம் 1'}
+    assert local['values']['kuja_lagna']['boy'] == 'Mars in the 5th from the lagna: absent'      # sentences stay
+    assert local['persons']['boy'] == {'nakshatra': 'மிருகசீரிடம்', 'rasi': 'ரிஷபம்', 'rasi_lord': 'சுக்கிரன்',
+                                       'lagna': 'விருச்சிகம்'}
+    assert local['key_poruthams_not_matched'] == ['ராசிப் பொருத்தம்']
+    # The rows themselves are the same whatever the language.
+    english = client.post('/api/match', json={'boy': BOY, 'girl': GIRL}).get_json()
+    assert english['rows'] == out['rows'] and english['local']['checks']['dinam'] == 'Dinam'
+    assert english['local']['values']['dinam'] == {'boy': 'Mrigashira pada 2', 'girl': 'Purva Ashadha pada 1'}
+    star = client.post('/api/match', json={'mode': 'star', 'boy': {'nakshatra': 4}, 'girl': {'nakshatra': 14, 'pada': 1},
+                                           'lang': 'hi'}).get_json()['local']
+    assert 'lagna' not in star['persons']['boy'] and star['values']['kuja_lagna'] == {'boy': '—', 'girl': '—'}
+    assert star['labels']['needs_birth_details'] == 'दोनों के जन्म विवरण चाहिए'

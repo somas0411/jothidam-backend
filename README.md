@@ -226,7 +226,7 @@ is stored.
   name}`. The pada may be left out; the rasi is needed only for a star that
   lies in two rasis when the pada is not given. A record that cannot be true
   (Rohini in Mesha) is HTTP 400.
-- The answer: `persons`, `settings`, `rows`, `summary`, `rules`, `table_sources`,
+- The answer: `persons`, `settings`, `rows`, `summary`, `windows`, `rules`, `table_sources`,
   `not_included`, and in full mode `charts` (the rasi and navamsa chart of
   each, for the page to draw side by side).
 
@@ -242,6 +242,7 @@ does not arise for this pair, or a fact it needs was not given) or
 | B. Star rules | Tara of each star counted from the other, Vadha (7th star), Vainasika (22nd star), Vainasika pada (the 4th pada of the 22nd star, the 88th pada), the 27th star, the same star, the same rasi |
 | C. Ashtakoota, 36 points | Varna 1, Vashya 2, Tara 3, Yoni 4, Graha Maitri 5, Gana 6, Bhakoot 7, Nadi 8 |
 | D. Chart checks (full mode only) | Kuja dosha from the lagna, the Moon and Venus; seven exceptions, each its own row; Kuja dosha in both charts, before and after the exceptions; Rahu and Ketu in 1, 2, 7, 8; three Kalathra rows (planets in the 7th, the 7th lord, Venus); Papa samyam as a plain count and weighted by reference; Punarpoo; Kala Sarpa; the two lagnas; the 7th lords; navamsa; Venus and Mars across the charts; the 5th house and Jupiter |
+| E. Timing and KP (full mode only) | Dasa sandhi; the dasas running together; the sub lord of the 7th cusp in KP and whether it signifies 2, 7 or 11; the overlap of the two horoscopes' Marriage windows |
 
 What the rows keep to:
 
@@ -257,10 +258,17 @@ What the rows keep to:
   and never changes a result or the points.
 - The rule and the variant behind every row are in `match_engine.MATCH_RULES`
   and in `rules` of the answer.
-- Group D needs the birth details of both: in star mode its rows are `not
-  applicable`. Only three of its checks compare the two charts by a rule (Kuja
-  dosha in both charts, Rahu and Ketu, Papa samyam); the rest state facts with
-  the result `information`, because no single published rule exists for them.
+- Groups D and E need the birth details of both: in star mode their rows are
+  `not applicable`. Only four of their checks compare the two charts by a
+  rule (Kuja dosha in both charts, Rahu and Ketu, Papa samyam, dasa sandhi);
+  the rest state facts with the result `information`, because no single
+  published rule exists for them.
+- `"sandhiMonths"` in the request (1 to 36, default 12) sets how close a
+  change of mahadasa of one must be to a change of the other to count as
+  dasa sandhi. Changes up to 30 years ahead are compared, as moments in UTC.
+- `windows` in the answer lists every span of the next 10 years in which a
+  Marriage window of the boy's horoscope (`AI_TopicWindows`) overlaps one of
+  the girl's, in UTC. Rule-based overlap, not a prediction.
 - `"kujaHouses"` in the request chooses the places of Mars that count:
   `"south"` (2, 4, 7, 8, 12, the default), `"north"` (1, 4, 7, 8, 12) or
   `"all"` (1, 2, 4, 7, 8, 12, the set `AI_Yogas` uses).

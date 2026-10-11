@@ -20,11 +20,15 @@ Reference values that do not come from match_engine.py:
     by sign, with the places counted by hand; the sample horoscopes are first
     pinned to the signs their planets are in, and every expected value is
     then counted from those signs by hand.
+  * Group E (timing): dasa tables written out by hand with their dates; the
+    sample horoscopes' own dasa tables (checked in test_engine.py) with the
+    months between two changes worked out here; and for the marriage windows
+    a day-by-day count of the days that lie in a window of each horoscope.
 
 No test here reaches the network.
 """
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -887,7 +891,7 @@ def test_the_balance_rows_before_and_after_the_exceptions(charts):
 
 def test_the_places_that_count_can_be_chosen(charts):
     boy, girl = charts
-    assert M.match(boy, girl)['settings'] == {'kuja_houses': 'south', 'kuja_places_that_count': [2, 4, 7, 8, 12]}
+    assert M.match(boy, girl)['settings']['kuja_places_that_count'] == [2, 4, 7, 8, 12]
     out = M.match(boy, girl, {'kuja_houses': 'ALL'})
     assert out['settings']['kuja_places_that_count'] == [1, 2, 4, 7, 8, 12]
     assert next(r for r in out['rows'] if r['key'] == 'kuja_lagna')['note'] == 'Places that count: 1, 2, 4, 7, 8, 12'
@@ -911,6 +915,225 @@ def test_with_stars_only_the_chart_checks_are_not_applicable(charts):
             assert (r['result'], r['boy_value'], r['girl_value'], r['points']) == ('not applicable', None, None, None)
             assert r['note'] == 'The birth details of both are needed'
         assert out['summary']['groups']['D']['not_applicable'] == 25
+
+
+# ── group E: timing and KP ────────────────────────────────────────────────────
+
+def dasa_chart(offset_hours, *periods):
+    """A horoscope reduced to its dasa table: periods are (lord, start, end) in local time."""
+    local = periods[0][1]
+    return {'meta': {'local_dt': local, 'ut_dt': local - timedelta(hours=offset_hours)},
+            'vedic': {'dasa': {'dasas': [{'lord': lord, 'start': a, 'end': b} for lord, a, b in periods]}}}
+
+
+D = datetime
+
+
+def test_changes_of_mahadasa_inside_the_period():
+    chart = dasa_chart(5.5, ('Venus', D(2000, 1, 1), D(2020, 1, 1)), ('Sun', D(2020, 1, 1), D(2026, 1, 1)),
+                       ('Moon', D(2026, 1, 1), D(2036, 1, 1)), ('Mars', D(2036, 1, 1), D(2043, 1, 1)))
+    got = M.dasa_changes(chart, D(2024, 6, 1), D(2040, 1, 1))
+    assert [(c['from'], c['to'], c['local']) for c in got] == [('Sun', 'Moon', D(2026, 1, 1)),
+                                                               ('Moon', 'Mars', D(2036, 1, 1))]
+    assert got[0]['utc'] == D(2025, 12, 31, 18, 30)                 # 5 h 30 min behind the clock at the birth place
+    # A change exactly at the start is not counted; one exactly at the end is.
+    assert [c['to'] for c in M.dasa_changes(chart, D(2025, 12, 31, 18, 30), D(2035, 12, 31, 18, 30))] == ['Mars']
+    assert M.dasa_lord_at(chart, D(2025, 12, 31, 18, 29)) == 'Sun'
+    assert M.dasa_lord_at(chart, D(2025, 12, 31, 18, 30)) == 'Moon'
+    assert M.dasa_lord_at(chart, D(2050, 1, 1)) is None
+
+
+def test_two_changes_are_compared_as_moments_not_as_local_dates():
+    """One year is 365.25 days here, so 12 months are 365.25 days and one month 30.4375 days."""
+    assert M.MONTH_DAYS == 30.4375 and M.SANDHI_MONTHS_DEFAULT == 12 and M.SANDHI_YEARS_AHEAD == 30
+    boy = [{'utc': D(2030, 1, 1), 'local': D(2030, 1, 1, 5, 30)}]
+
+    def girl(days):
+        return [{'utc': D(2030, 1, 1) + timedelta(days=days), 'local': D(2030, 1, 1)}]
+    assert [p['months_apart'] for p in M.sandhi_pairs(boy, girl(365.25), 12)] == [12.0]       # exactly 12 months
+    assert M.sandhi_pairs(boy, girl(365.26), 12) == []
+    assert [p['months_apart'] for p in M.sandhi_pairs(boy, girl(-365.25), 12)] == [12.0]      # before or after
+    assert M.sandhi_pairs(boy, girl(-366), 12) == []
+    assert [p['months_apart'] for p in M.sandhi_pairs(boy, girl(182.625), 6)] == [6.0]
+    assert M.sandhi_pairs(boy, girl(183), 6) == []
+    # The same clock date in two time zones is not the same moment.
+    here = dasa_chart(5.5, ('Sun', D(2020, 1, 1), D(2030, 1, 1)), ('Moon', D(2030, 1, 1), D(2040, 1, 1)))
+    there = dasa_chart(-8, ('Sun', D(2020, 1, 1), D(2030, 1, 1)), ('Moon', D(2030, 1, 1), D(2040, 1, 1)))
+    a = M.dasa_changes(here, D(2025, 1, 1), D(2035, 1, 1))[0]['utc']
+    b = M.dasa_changes(there, D(2025, 1, 1), D(2035, 1, 1))[0]['utc']
+    assert b - a == timedelta(hours=13.5)
+
+
+def test_spans_in_which_both_run_one_dasa_lord():
+    boy = dasa_chart(0, ('Sun', D(2020, 1, 1), D(2026, 1, 1)), ('Moon', D(2026, 1, 1), D(2036, 1, 1)),
+                     ('Mars', D(2036, 1, 1), D(2043, 1, 1)))
+    girl = dasa_chart(0, ('Moon', D(2022, 1, 1), D(2032, 1, 1)), ('Mars', D(2032, 1, 1), D(2039, 1, 1)),
+                      ('Rahu', D(2039, 1, 1), D(2057, 1, 1)))
+    spans = M.shared_dasa_spans(boy, girl, D(2024, 1, 1), D(2054, 1, 1))
+    # Moon for both from 2026 (the boy's starts) to 2032 (the girl's ends); Mars for both 2036 to 2039.
+    assert spans == [{'lord': 'Moon', 'start_utc': D(2026, 1, 1), 'end_utc': D(2032, 1, 1)},
+                     {'lord': 'Mars', 'start_utc': D(2036, 1, 1), 'end_utc': D(2039, 1, 1)}]
+    assert M.shared_dasa_spans(boy, girl, D(2030, 1, 1), D(2037, 1, 1)) == [
+        {'lord': 'Moon', 'start_utc': D(2030, 1, 1), 'end_utc': D(2032, 1, 1)},
+        {'lord': 'Mars', 'start_utc': D(2036, 1, 1), 'end_utc': D(2037, 1, 1)}]
+    assert M.shared_dasa_spans(boy, girl, D(2032, 1, 1), D(2036, 1, 1)) == []
+
+
+def test_window_overlaps_by_hand():
+    def window(a, b, layers='bhukti, antaram'):
+        return {'start_utc': a, 'end_utc': b, 'layers': layers, 'layers_agreeing': 2, 'dasa_lord': 'Moon',
+                'bhukti_lord': 'Mars'}
+    boy = [window(D(2027, 1, 1), D(2027, 3, 1)), window(D(2027, 6, 1), D(2027, 7, 1))]
+    girl = [window(D(2027, 2, 1), D(2027, 6, 11), 'jupiter, saturn'), window(D(2027, 7, 1), D(2027, 8, 1))]
+    got = M.window_overlaps(boy, girl)
+    # February is in both; then the first ten days of June. Windows that only touch do not overlap.
+    assert [(x['start_utc'], x['end_utc'], x['days']) for x in got] == [
+        (D(2027, 2, 1), D(2027, 3, 1), 28.0), (D(2027, 6, 1), D(2027, 6, 11), 10.0)]
+    assert got[0]['boy_layers'] == 'bhukti, antaram' and got[0]['girl_layers'] == 'jupiter, saturn'
+    assert got[0]['label'] == 'rule-based overlap, not a prediction'
+    assert M.window_overlaps(boy, []) == []
+
+
+def test_timing_rows_of_the_two_sample_horoscopes(charts):
+    boy, girl = charts
+    out = M.match(boy, girl)
+    got = {r['key']: r for r in out['rows'] if r['group'] == 'E'}
+    assert list(got) == ['dasa_sandhi', 'eka_dasa', 'kp_seventh', 'marriage_windows']
+    # The dasa tables of the two (the engine's, checked in test_engine.py), as dates at the birth place.
+    def table(res):
+        return [(d['lord'], d['end'].strftime('%Y-%m-%d')) for d in res['vedic']['dasa']['dasas']][:5]
+    assert table(boy) == [('Mars', '2003-03-04'), ('Rahu', '2021-03-03'), ('Jupiter', '2037-03-03'),
+                          ('Saturn', '2056-03-03'), ('Mercury', '2073-03-03')]
+    assert table(girl) == [('Venus', '2016-04-17'), ('Sun', '2022-04-18'), ('Moon', '2032-04-17'),
+                           ('Mars', '2039-04-18'), ('Rahu', '2057-04-18')]
+    # Report date 3 October 2026; 30 years ahead ends in October 2056.
+    assert got['dasa_sandhi']['boy_value'] == 'Jupiter to Saturn on 2037-03-03; Saturn to Mercury on 2056-03-03'
+    assert got['dasa_sandhi']['girl_value'] == 'Moon to Mars on 2032-04-17; Mars to Rahu on 2039-04-18'
+    # Nearest pair: 3 March 2037 and 18 April 2039: 2 years, 1 month and 15 days, about 25.5 months.
+    assert got['dasa_sandhi']['result'] == 'matched'
+    assert got['dasa_sandhi']['note'] == 'Changes within 12 months of each other: none'
+    for months, result in ((25, 'matched'), (26, 'not matched'), (36, 'not matched')):
+        row = next(r for r in M.match(boy, girl, {'sandhi_months': months})['rows'] if r['key'] == 'dasa_sandhi')
+        assert row['result'] == result
+    assert row['note'] == ("Changes within 36 months of each other: the boy's on 2037-03-03 and the girl's on "
+                           "2039-04-18 (25.5 months apart)")
+    # On the report date: the boy in Jupiter (2021 to 2037), the girl in the Moon (2022 to 2032). Until
+    # October 2056 the boy runs Jupiter, Saturn, Mercury and the girl Moon, Mars, Rahu: never one lord.
+    assert (got['eka_dasa']['boy_value'], got['eka_dasa']['girl_value'], got['eka_dasa']['result']) == \
+        ('Jupiter', 'Moon', 'information')
+    assert got['eka_dasa']['note'] == ('On the report date the mahadasa lords are different. Spans with one '
+                                       'lord for both (UTC dates): none')
+    # KP: the engine's own 7th cusp and significators.
+    for res, value in ((boy, got['kp_seventh']['boy_value']), (girl, got['kp_seventh']['girl_value'])):
+        sub = res['kp']['cusps'][6]['sub_lord']
+        houses = next(x['all'] for x in res['kp']['planet_significators'] if x['planet'] == sub)
+        assert res['kp']['cusps'][6]['house'] == 7 and M.kp_seventh(res) == (sub, houses)
+        assert value.startswith(f'{sub}; signifies houses {", ".join(map(str, houses))}; 2, 7 or 11 among them: ')
+        assert value.endswith(': no') == (not {2, 7, 11} & set(houses))
+    assert got['kp_seventh']['boy_value'].endswith(': yes (2, 7, 11)')         # Rahu: 2, 6, 7, 9, 11
+    assert got['kp_seventh']['girl_value'].endswith(': yes (7)')               # Rahu: 3, 5, 7, 9
+    assert out['settings'] == {'kuja_houses': 'south', 'kuja_places_that_count': [2, 4, 7, 8, 12],
+                               'sandhi_months': 12, 'sandhi_years_ahead': 30}
+
+
+def test_one_dasa_lord_for_both_is_stated(charts):
+    boy, _ = charts
+    twin = dict(boy, meta=dict(boy['meta'], name='Twin', gender='female'))
+    row = next(r for r in M.match(boy, twin)['rows'] if r['key'] == 'eka_dasa')
+    assert (row['boy_value'], row['girl_value'], row['result']) == ('Jupiter', 'Jupiter', 'information')
+    # Jupiter until 3 March 2037 (14:07 at Delhi, 08:37 UTC), Saturn until 2056, then Mercury to the end of
+    # the 30 years: 30 x 365.25 = 10,957.5 days after 3 October 2026 14:30 UTC. The calendar has 10,958
+    # days to 3 October 2056, so the end is 3 October 2056 at 02:30 UTC.
+    assert row['note'] == ('On the report date both run the mahadasa of one planet. Spans with one lord for both '
+                           '(UTC dates): Jupiter 2026-10-03 to 2037-03-03; Saturn 2037-03-03 to 2056-03-03; '
+                           'Mercury 2056-03-03 to 2056-10-03')
+    sandhi = next(r for r in M.match(boy, twin)['rows'] if r['key'] == 'dasa_sandhi')
+    assert sandhi['result'] == 'not matched' and '(0.0 months apart)' in sandhi['note']
+
+
+def test_marriage_windows_overlap_day_by_day(charts):
+    """Every noon of the next ten years: it lies in an overlap exactly when it lies in a window of each."""
+    import enrich as E
+    boy, girl = charts
+    out = M.match(boy, girl)
+    overlaps = out['windows']
+    row = next(r for r in out['rows'] if r['key'] == 'marriage_windows')
+
+    def windows(res):
+        off = res['meta']['local_dt'] - res['meta']['ut_dt']
+        return [(r['start_local'] - off, r['end_local'] - off)
+                for r in E.enrich(res)['tables']['AI_TopicWindows'] if r['topic'] == 'Marriage']
+    bw, gw = windows(boy), windows(girl)
+    assert row['boy_value'] == f'{len(bw)} windows in the next 10 years'
+    assert row['girl_value'] == f'{len(gw)} windows in the next 10 years'
+    assert row['note'].startswith(f'{len(overlaps)} spans in which a window of each overlaps (UTC dates). The first: ')
+    assert row['result'] == 'information' and len(overlaps) > 0
+
+    def inside(moment, spans):
+        return any(a <= moment < b for a, b in spans)
+    spans = [(x['start_utc'], x['end_utc']) for x in overlaps]
+    start = boy['meta']['generated_at'] - timedelta(hours=5.5)
+    days_in = 0
+    for day in range(3700):
+        noon = start + timedelta(days=day, hours=12)
+        want = inside(noon, bw) and inside(noon, gw)
+        assert inside(noon, spans) == want, noon
+        days_in += want
+    assert days_in > 100
+    # The spans are in time order, each has a length, and none lies outside both sets of windows.
+    assert spans == sorted(spans) and all(a < b for a, b in spans)
+    assert abs(sum(x['days'] for x in overlaps) - days_in) < len(spans) + 2
+    assert all(x['label'] == 'rule-based overlap, not a prediction' for x in overlaps)
+    first = overlaps[0]
+    assert set(first) == {'start_utc', 'end_utc', 'days', 'boy_layers_agreeing', 'girl_layers_agreeing',
+                          'boy_layers', 'boy_dasa_lord', 'boy_bhukti_lord', 'girl_layers', 'girl_dasa_lord',
+                          'girl_bhukti_lord', 'label'}
+
+
+def test_with_stars_only_the_timing_rows_are_not_applicable(charts):
+    boy, _ = charts
+    for b, g in ((person(3), person(50)), (boy, person(50))):
+        out = M.match(b, g)
+        rows_e = [r for r in out['rows'] if r['group'] == 'E']
+        assert len(rows_e) == 4 and out['windows'] == []
+        for r in rows_e:
+            assert (r['result'], r['boy_value'], r['girl_value']) == ('not applicable', None, None)
+            assert r['note'] == 'The birth details of both are needed'
+
+
+@pytest.mark.parametrize('months', [0, 37, -1, 'six', 2.5, True, [12]])
+def test_sandhi_months_must_be_1_to_36(charts, months):
+    with pytest.raises(A.InputError) as e:
+        M.match(*charts, {'sandhi_months': months})
+    assert str(e.value) == '"sandhiMonths" must be a whole number from 1 to 36.'
+
+
+def test_sandhi_months_given_as_text_or_left_out(charts):
+    assert M.match(*charts, {'sandhi_months': '6'})['settings']['sandhi_months'] == 6
+    assert M.match(*charts, {'sandhi_months': ''})['settings']['sandhi_months'] == 12
+    assert M.clean_options(None) == {'kuja_houses': 'south', 'sandhi_months': 12}
+
+
+def test_nothing_about_length_of_life_with_birth_details(charts):
+    banned = ('marak', 'ayur', 'longevity', 'lifespan', 'life span', 'death', 'mrityu', 'alpayu', 'alive', 'died',
+              'widow', 'kill', 'fatal', 'surviv', 'length of life')
+    allowed = ('Ayul porutham, and anything about length of life: left out on purpose',
+               'Ayul porutham and the rules about particular stars and the in-laws.')
+
+    def texts(value):
+        if isinstance(value, dict):
+            for k, v in value.items():
+                yield from texts(k)
+                yield from texts(v)
+        elif isinstance(value, (list, tuple)):
+            for v in value:
+                yield from texts(v)
+        elif isinstance(value, str):
+            yield value
+    seen = [t for t in texts(M.match(*charts)) if t not in allowed]
+    assert len(seen) > 500
+    for text in seen:
+        assert not any(word in text.lower() for word in banned), text
 
 
 def test_match_leaves_the_horoscopes_alone(charts):
@@ -1023,6 +1246,19 @@ def test_route_takes_the_places_of_mars_that_count(client):
     assert rv.status_code == 400 and rv.get_json()['error'].startswith('"kujaHouses" must be "south"')
     star = client.post('/api/match', json={'mode': 'star', 'boy': {'nakshatra': 1}, 'girl': {'nakshatra': 2}})
     assert {r['result'] for r in star.get_json()['rows'] if r['group'] == 'D'} == {'not applicable'}
+
+
+def test_route_takes_the_months_of_dasa_sandhi_and_sends_the_windows_as_text(client):
+    out = client.post('/api/match', json={'boy': BOY, 'girl': GIRL, 'sandhiMonths': 26}).get_json()
+    assert out['settings']['sandhi_months'] == 26
+    assert next(r for r in out['rows'] if r['key'] == 'dasa_sandhi')['result'] == 'not matched'
+    first = out['windows'][0]
+    assert isinstance(first['start_utc'], str) and len(first['start_utc']) == 19 and first['start_utc'][10] == 'T'
+    rv = client.post('/api/match', json={'boy': BOY, 'girl': GIRL, 'sandhiMonths': 40})
+    assert rv.status_code == 400
+    assert rv.get_json() == {'error': '"sandhiMonths" must be a whole number from 1 to 36.'}
+    star = client.post('/api/match', json={'mode': 'star', 'boy': {'nakshatra': 1}, 'girl': {'nakshatra': 2}})
+    assert star.get_json()['windows'] == []
 
 
 def test_the_settings_of_the_request_apply_to_both_people(client):

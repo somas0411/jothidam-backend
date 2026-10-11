@@ -245,6 +245,7 @@ def _match_from_request():
     "full": each person holds birth details as for /api/horoscope (the name
     may be left out). "star": each holds {"nakshatra", "pada", "rasi"}.
     "kujaHouses": "south" (the default), "north" or "all".
+    "sandhiMonths": 1 to 36 (default 12), for the dasa sandhi row.
     Returns (match result, the two compute() results or None, language).
     """
     body = _body()
@@ -257,7 +258,8 @@ def _match_from_request():
         if not isinstance(details, dict) or not details:
             raise InputError(f'The details of the {role} are required.')
         people[role] = details if mode == 'star' else _compute(details, body, role)
-    result = match(people['boy'], people['girl'], {'kuja_houses': body.get('kujaHouses')})
+    result = match(people['boy'], people['girl'],
+                   {'kuja_houses': body.get('kujaHouses'), 'sandhi_months': body.get('sandhiMonths')})
     return result, (people if mode == 'full' else None), _lang(body)
 
 

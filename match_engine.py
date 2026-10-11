@@ -15,6 +15,9 @@ Groups of checks
      the lagna, the Moon and Venus with its exceptions; Rahu and Ketu;
      Kalathra facts; Papa samyam; Punarpoo; Kala Sarpa; the lagnas, the 7th
      lords, the navamsa, Venus and Mars, the 5th house.
+  E  Timing and KP, which also need the birth details of both: dasa sandhi,
+     the dasas running together, the sub lord of the 7th cusp, and the spans
+     in which the marriage windows of the two horoscopes overlap.
 
 What every row is
   key, group, name, boy_value, girl_value,
@@ -37,6 +40,8 @@ Nothing here changes compute(): the module only reads its result.
 """
 from __future__ import annotations
 
+from datetime import timedelta
+
 import astro_engine as A
 import enrich as E
 from astro_engine import NAKS, RASIS, SIGN_LORDS, InputError
@@ -53,6 +58,7 @@ GROUPS = {
     'B': 'Star rules',
     'C': 'Ashtakoota (36 points)',
     'D': 'Chart checks (birth details of both)',
+    'E': 'Timing and KP (birth details of both)',
 }
 TAMIL_TEN = ('dinam', 'ganam', 'mahendram', 'stree_deergham', 'yoni', 'rasi', 'rasi_adhipathi',
              'vasiyam', 'rajju', 'vedhai')
@@ -267,6 +273,18 @@ PAPA_WEIGHTS = (('the lagna', 1.0), ('the Moon', 0.5), ('Venus', 0.25))
 SATURN_ASPECTS = {3: '3rd', 7: '7th', 10: '10th'}
 
 
+# ── TIMING (GROUP E) ──────────────────────────────────────────────────────────
+
+# Dasa sandhi: changes of mahadasa of the two people that fall close together.
+# The 12-month convention is the one stated at astrosight.ai; another page
+# (sreenivasdesabhatla.wordpress.com) gives 6 months. The request can set it.
+SANDHI_MONTHS_DEFAULT = 12
+SANDHI_MONTHS_MAX = 36
+SANDHI_YEARS_AHEAD = 30                     # changes later than this are not listed
+MONTH_DAYS = A.YEAR_DAYS / 12
+KP_MARRIAGE_HOUSES = (2, 7, 11)             # the KP houses of the Marriage topic in enrich.TOPICS
+WINDOWS_IN_NOTE = 3                         # overlapping spans named in the row; all are in 'windows'
+
 TABLE_SOURCES = [
     ('Checked against one or more published pages, which agree',
      'Dinam counts; Mahendram counts; Stree Deergham limits; the stars of each gana, yoni, rajju and nadi; '
@@ -283,7 +301,9 @@ TABLE_SOURCES = [
      'The Tamil Vasiyam list; the seven exceptions to Kuja dosha.'),
     ('No single published rule; the rows state facts and give no result',
      'Kalathra dosha, Punarpoo, Kala Sarpa, the lagnas, the 7th lords, the navamsa, Venus and Mars, the 5th '
-     'house.'),
+     'house; the dasas running together (the practice of avoiding one dasa lord for both at the same time '
+     'was not found on a published page); the sub lord of the 7th cusp; the overlap of the marriage '
+     'windows.'),
     ('Left out because no table could be checked', 'Pakshi and Bhutha porutham.'),
     ('Left out on purpose', 'Ayul porutham and the rules about particular stars and the in-laws.'),
 ]
@@ -449,6 +469,24 @@ CHECKS = {
     'fifth_house': ('D', 'The 5th house and Jupiter', 'The 5th house from the lagna: its sign, its lord and the '
                     'lord\'s house and dignity, the planets in it; and Jupiter\'s house and dignity. No result.',
                     'Whole-sign houses.'),
+    'dasa_sandhi': ('E', 'Dasa sandhi', 'No change of mahadasa of the boy falls within the set number of months '
+                    'of a change of mahadasa of the girl: matched. One or more such pairs: not matched.',
+                    'Vimshottari mahadasa only. 12 months unless the request sets another figure (1 to 36). '
+                    'Changes from the report date to 30 years ahead are compared. Each row value lists that '
+                    'person\'s changes with the date at the birth place.'),
+    'eka_dasa': ('E', 'Dasas running together', 'The mahadasa lord of each on the report date, and the spans of '
+                 'the next 30 years in which both run the mahadasa of one planet. No result.',
+                 'Some families avoid one dasa lord for both at the same time; no published rule was found, '
+                 'so the row states the facts.'),
+    'kp_seventh': ('E', 'KP: sub lord of the 7th cusp', 'The sub lord of the 7th cusp of each chart, the houses '
+                   'it signifies, and whether 2, 7 or 11 is among them. No result.',
+                   'KP ayanamsha and Placidus cusps, four-level significators as on the KP sheet. Rahu and '
+                   'Ketu also act for their sign lord and the planets with them, which is not added here.'),
+    'marriage_windows': ('E', 'Marriage windows of both', 'The spans of the next 10 years in which a Marriage '
+                         'window of the boy\'s horoscope and one of the girl\'s overlap. No result.',
+                         'A window is a span of AI_TopicWindows for the topic Marriage: two or more of bhukti, '
+                         'antaram, Jupiter and Saturn agreeing. Rule-based overlap, not a prediction. The row '
+                         'names the first spans; all are in "windows".'),
 }
 
 MATCH_RULES = [(f'{GROUPS[group].split(" (")[0]}: {name}', f'{rule} {variant}')
@@ -865,7 +903,11 @@ def _group_c(pair):
 # ── GROUP D: CHART CHECKS ─────────────────────────────────────────────────────
 
 def clean_options(raw=None):
-    """Settings of a match: {'kuja_houses': 'south' | 'north' | 'all'}. Raises InputError."""
+    """
+    Settings of a match. Raises InputError.
+      kuja_houses:   'south' (the default), 'north' or 'all'
+      sandhi_months: 1 to 36, how close two changes of mahadasa must be to count (default 12)
+    """
     raw = raw or {}
     if not isinstance(raw, dict):
         raise InputError('The matching options must be a JSON object.')
@@ -873,7 +915,13 @@ def clean_options(raw=None):
     if kuja not in KUJA_HOUSE_SETS:
         raise InputError('"kujaHouses" must be "south" (2, 4, 7, 8, 12), "north" (1, 4, 7, 8, 12) or "all" '
                          '(1, 2, 4, 7, 8, 12).')
-    return {'kuja_houses': kuja}
+    months = raw.get('sandhi_months')
+    if months in (None, ''):
+        months = SANDHI_MONTHS_DEFAULT
+    elif (isinstance(months, bool) or not str(months).strip().isdigit()
+          or not 1 <= int(months) <= SANDHI_MONTHS_MAX):
+        raise InputError(f'"sandhiMonths" must be a whole number from 1 to {SANDHI_MONTHS_MAX}.')
+    return {'kuja_houses': kuja, 'sandhi_months': int(months)}
 
 
 def _house_text(n):
@@ -1057,6 +1105,151 @@ def _group_d(pair, options):
     both('fifth_house', fifth)
 
 
+# ── GROUP E: TIMING AND KP ────────────────────────────────────────────────────
+
+def _offset(res):
+    """UTC offset in force at birth, as a timedelta: local = UTC + offset."""
+    return res['meta']['local_dt'] - res['meta']['ut_dt']
+
+
+def _report_utc(res):
+    return res['meta']['generated_at'] - _offset(res)
+
+
+def dasa_changes(res, start_utc, end_utc):
+    """Changes of mahadasa after start_utc up to end_utc: [{'from', 'to', 'local', 'utc'}]."""
+    dasas = res['vedic']['dasa']['dasas']
+    off = _offset(res)
+    out = []
+    for old, new in zip(dasas, dasas[1:]):
+        utc = new['start'] - off
+        if start_utc < utc <= end_utc:
+            out.append({'from': old['lord'], 'to': new['lord'], 'local': new['start'], 'utc': utc})
+    return out
+
+
+def sandhi_pairs(boy_changes, girl_changes, months):
+    """The pairs of changes that fall within the set number of months of each other."""
+    limit = months * MONTH_DAYS
+    pairs = []
+    for bc in boy_changes:
+        for gc in girl_changes:
+            days = abs((bc['utc'] - gc['utc']).total_seconds()) / 86400.0
+            if days <= limit:
+                pairs.append({'boy': bc, 'girl': gc, 'months_apart': round(days / MONTH_DAYS, 1)})
+    return pairs
+
+
+def shared_dasa_spans(boy_res, girl_res, start_utc, end_utc):
+    """Spans between start_utc and end_utc in which both run the mahadasa of one planet."""
+    spans = []
+    for bd in boy_res['vedic']['dasa']['dasas']:
+        for gd in girl_res['vedic']['dasa']['dasas']:
+            if bd['lord'] != gd['lord']:
+                continue
+            lo = max(bd['start'] - _offset(boy_res), gd['start'] - _offset(girl_res), start_utc)
+            hi = min(bd['end'] - _offset(boy_res), gd['end'] - _offset(girl_res), end_utc)
+            if lo < hi:
+                spans.append({'lord': bd['lord'], 'start_utc': lo, 'end_utc': hi})
+    return sorted(spans, key=lambda x: x['start_utc'])
+
+
+def dasa_lord_at(res, moment_utc):
+    off = _offset(res)
+    for d in res['vedic']['dasa']['dasas']:
+        if d['start'] - off <= moment_utc < d['end'] - off:
+            return d['lord']
+    return None
+
+
+def kp_seventh(res):
+    """(sub lord of the 7th cusp, houses it signifies)"""
+    kp = res['kp']
+    sub = next(c for c in kp['cusps'] if c['house'] == 7)['sub_lord']
+    houses = next(x for x in kp['planet_significators'] if x['planet'] == sub)['all']
+    return sub, list(houses)
+
+
+def marriage_windows(res):
+    """The Marriage rows of AI_TopicWindows of one horoscope, with their moments in UTC."""
+    off = _offset(res)
+    rows = [r for r in E.enrich(res)['tables']['AI_TopicWindows'] if r['topic'] == 'Marriage']
+    return [dict(r, start_utc=r['start_local'] - off, end_utc=r['end_local'] - off) for r in rows]
+
+
+def window_overlaps(boy_windows, girl_windows):
+    """The spans in which a window of the boy and a window of the girl overlap, in time order."""
+    out = []
+    for bw in boy_windows:
+        for gw in girl_windows:
+            lo, hi = max(bw['start_utc'], gw['start_utc']), min(bw['end_utc'], gw['end_utc'])
+            if lo < hi:
+                out.append({
+                    'start_utc': lo, 'end_utc': hi, 'days': round((hi - lo).total_seconds() / 86400.0, 3),
+                    'boy_layers_agreeing': bw['layers_agreeing'], 'girl_layers_agreeing': gw['layers_agreeing'],
+                    'boy_layers': bw['layers'], 'boy_dasa_lord': bw['dasa_lord'],
+                    'boy_bhukti_lord': bw['bhukti_lord'],
+                    'girl_layers': gw['layers'], 'girl_dasa_lord': gw['dasa_lord'],
+                    'girl_bhukti_lord': gw['bhukti_lord'], 'label': 'rule-based overlap, not a prediction',
+                })
+    return sorted(out, key=lambda x: x['start_utc'])
+
+
+def _day(moment):
+    return moment.strftime('%Y-%m-%d')
+
+
+def _group_e(pair, options):
+    """Adds the rows of group E; returns the overlapping marriage windows (empty without birth details)."""
+    boy, girl = pair.boy, pair.girl
+    if not (boy['res'] and girl['res']):
+        for key in (k for k, v in CHECKS.items() if v[0] == 'E'):
+            pair.add(key, None, None, NOT_APPLICABLE, note='The birth details of both are needed')
+        return []
+    b, g = boy['res'], girl['res']
+    start = _report_utc(b)
+    end = start + timedelta(days=SANDHI_YEARS_AHEAD * A.YEAR_DAYS)
+
+    # Dasa sandhi
+    months = options['sandhi_months']
+    bc, gc = dasa_changes(b, start, end), dasa_changes(g, start, end)
+
+    def listed(changes):
+        return '; '.join(f'{c["from"]} to {c["to"]} on {_day(c["local"])}' for c in changes) or 'no change'
+    pairs = sandhi_pairs(bc, gc, months)
+    note = f'Changes within {months} months of each other: ' + (
+        '; '.join(f'the boy\'s on {_day(p["boy"]["local"])} and the girl\'s on {_day(p["girl"]["local"])} '
+                  f'({p["months_apart"]} months apart)' for p in pairs) if pairs else 'none')
+    pair.add('dasa_sandhi', listed(bc), listed(gc), NOT_MATCHED if pairs else MATCHED, note=note)
+
+    # Dasas running together
+    b_lord, g_lord = dasa_lord_at(b, start), dasa_lord_at(g, start)
+    spans = shared_dasa_spans(b, g, start, end)
+    note = ('On the report date both run the mahadasa of one planet. ' if b_lord == g_lord else
+            'On the report date the mahadasa lords are different. ')
+    note += 'Spans with one lord for both (UTC dates): ' + (
+        '; '.join(f'{x["lord"]} {_day(x["start_utc"])} to {_day(x["end_utc"])}' for x in spans) if spans else 'none')
+    pair.add('eka_dasa', b_lord, g_lord, INFORMATION, note=note)
+
+    # KP
+    def kp_text(res):
+        sub, houses = kp_seventh(res)
+        linked = [h for h in KP_MARRIAGE_HOUSES if h in houses]
+        return (f'{sub}; signifies houses {", ".join(str(h) for h in houses) or "none"}; '
+                f'2, 7 or 11 among them: {"yes (" + ", ".join(str(h) for h in linked) + ")" if linked else "no"}')
+    pair.add('kp_seventh', kp_text(b), kp_text(g), INFORMATION)
+
+    # Marriage windows
+    bw, gw = marriage_windows(b), marriage_windows(g)
+    overlaps = window_overlaps(bw, gw)
+    first = '; '.join(f'{_day(x["start_utc"])} to {_day(x["end_utc"])}' for x in overlaps[:WINDOWS_IN_NOTE])
+    note = (f'{len(overlaps)} spans in which a window of each overlaps (UTC dates). The first: {first}'
+            if overlaps else 'No span in which a window of each overlaps')
+    pair.add('marriage_windows', f'{len(bw)} windows in the next 10 years',
+             f'{len(gw)} windows in the next 10 years', INFORMATION, note=note)
+    return overlaps
+
+
 # ── SUMMARY ───────────────────────────────────────────────────────────────────
 
 def summarise(rows):
@@ -1091,8 +1284,10 @@ def match(boy, girl, options=None):
     {nakshatra, pada, rasi, name}. options: see clean_options(). Raises
     InputError for a record or an option that cannot be read.
 
-    Groups A to C need only the Moon's star and rasi. Group D needs the birth
-    details of both: with a star-only record its rows are "not applicable".
+    Groups A to C need only the Moon's star and rasi. Groups D and E need the
+    birth details of both: with a star-only record their rows are "not
+    applicable". 'windows' lists the spans in which the marriage windows of
+    the two horoscopes overlap.
     """
     options = clean_options(options)
     boy, girl = as_person(boy, 'boy'), as_person(girl, 'girl')
@@ -1101,17 +1296,20 @@ def match(boy, girl, options=None):
     _group_b(pair)
     _group_c(pair)
     _group_d(pair, options)
+    windows = _group_e(pair, options)
     full = bool(boy['res'] and girl['res'])
     return {
         'schema': SCHEMA, 'label': LABEL, 'mode': 'full' if full else 'star',
         'persons': {'boy': person_facts(boy), 'girl': person_facts(girl)},
         'settings': {'kuja_houses': options['kuja_houses'],
-                     'kuja_places_that_count': list(KUJA_HOUSE_SETS[options['kuja_houses']])},
+                     'kuja_places_that_count': list(KUJA_HOUSE_SETS[options['kuja_houses']]),
+                     'sandhi_months': options['sandhi_months'], 'sandhi_years_ahead': SANDHI_YEARS_AHEAD},
         'counts': {'boy_star_from_girl_star': pair.n, 'girl_star_from_boy_star': pair.m,
                    'boy_rasi_from_girl_rasi': pair.r},
         'groups': dict(GROUPS),
         'rows': pair.rows,
         'summary': summarise(pair.rows),
+        'windows': windows,
         'rules': [{'name': name, 'rule': rule} for name, rule in MATCH_RULES],
         'table_sources': [{'status': status, 'tables': tables} for status, tables in TABLE_SOURCES],
         'not_included': list(NOT_INCLUDED),

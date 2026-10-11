@@ -1,0 +1,1679 @@
+"""
+Tests for marriage matching (match_engine.py and POST /api/match).
+
+Reference values that do not come from match_engine.py:
+  * The star tables below (gana, rajju, nadi, yoni, vedha, same-star lists)
+    are typed here in a different form from the engine's: one letter or word
+    per star in star order, or as star numbers, taken from the published
+    pages named in match_engine.TABLE_SOURCES.
+  * `Reference` is a second statement of every rule of groups A to C, written
+    with star and rasi numbers from 1. Every pair of the 108 padas with every
+    other (11,664 pairs) is run through both. No published table of all
+    pairs was found to compare with, so this catches a slip in the code, not
+    a rule that was read wrongly from its source.
+  * The pairs worked by hand, with the counting written out beside them.
+  * A fact that follows from the rules alone: the same star, rasi and pada
+    scores 28 of 36 (every Ashtakoota row in full except Nadi).
+  * The request limit of the route is written here as a plain figure:
+    15 matches a minute for one visitor.
+  * Group D (chart checks): the functions are given charts written out sign
+    by sign, with the places counted by hand; the sample horoscopes are first
+    pinned to the signs their planets are in, and every expected value is
+    then counted from those signs by hand.
+  * Group E (timing): dasa tables written out by hand with their dates; the
+    sample horoscopes' own dasa tables (checked in test_engine.py) with the
+    months between two changes worked out here; and for the marriage windows
+    a day-by-day count of the days that lie in a window of each horoscope.
+
+  * The reports: the Marriage sheet and the AI_Match sheets are read back
+    with openpyxl; the PDF is read back with pdftotext where it is installed
+    (as test_engine.py does). The first seven sheets of a workbook with a
+    Marriage sheet are compared, cell by cell, with the same workbook
+    without one (tests/make_golden.py).
+
+No test here reaches the network.
+"""
+import io
+import shutil
+import subprocess
+import sys
+from datetime import datetime, timedelta
+from pathlib import Path
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+import astro_engine as A          # noqa: E402
+import match_engine as M          # noqa: E402
+
+NOW = datetime(2026, 10, 3, 20, 0)
+STARS = ['Ashwini', 'Bharani', 'Krittika', 'Rohini', 'Mrigashira', 'Ardra', 'Punarvasu', 'Pushya', 'Ashlesha',
+         'Magha', 'Purva Phalguni', 'Uttara Phalguni', 'Hasta', 'Chitra', 'Swati', 'Vishakha', 'Anuradha',
+         'Jyeshtha', 'Moola', 'Purva Ashadha', 'Uttara Ashadha', 'Shravana', 'Dhanishtha', 'Shatabhisha',
+         'Purva Bhadrapada', 'Uttara Bhadrapada', 'Revati']
+SIGNS = ['Mesha', 'Rishabha', 'Mithuna', 'Kataka', 'Simha', 'Kanya', 'Thula', 'Vrischika', 'Dhanu', 'Makara',
+         'Kumbha', 'Meena']
+
+# One letter per star, Ashwini first. D deva, M manushya, R rakshasa.
+GANA = 'DMRMDMDDRRMMDRDRDRRMMDRRMMD'
+# P pada, K kati, N nabhi, C kantha, S siro: up the body and down again, three times.
+RAJJU = 'PKNCSCNKP' * 3
+# A aadi, M madhya, Z antya.
+NADI = 'AMZZMA' * 4 + 'AMZ'
+YONI = ['Horse', 'Elephant', 'Sheep', 'Serpent', 'Serpent', 'Dog', 'Cat', 'Sheep', 'Cat', 'Rat', 'Rat', 'Cow',
+        'Buffalo', 'Tiger', 'Buffalo', 'Tiger', 'Deer', 'Deer', 'Dog', 'Monkey', 'Mongoose', 'Monkey', 'Lion',
+        'Horse', 'Lion', 'Cow', 'Elephant']
+ENEMIES = ['Cow Tiger', 'Elephant Lion', 'Horse Buffalo', 'Dog Deer', 'Cat Rat', 'Serpent Mongoose',
+           'Sheep Monkey']
+# Vedha, by star number: twelve pairs and one set of three.
+VEDHA = [(1, 18), (2, 17), (3, 16), (4, 15), (6, 22), (7, 21), (8, 20), (9, 19), (10, 27), (11, 26), (12, 25),
+         (13, 24), (5, 14, 23)]
+# The same star for both: + matched, o medium, - not matched.
+SAME_STAR = 'o-o+o+oo-+oo+o-+o--oo+---++'
+# A milk tree: y, or not: n (grouping of horoscope.hosuronline.com).
+PAAL = 'nnyynnnyyyyyynnnnyyyyynnyny'
+SIGN_LORD = ['Mars', 'Venus', 'Mercury', 'Moon', 'Sun', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn',
+             'Saturn', 'Jupiter']
+# Natural friendship: friends and enemies of each planet; the rest are neutral.
+FRIENDS = {'Sun': 'Moon Mars Jupiter', 'Moon': 'Sun Mercury', 'Mars': 'Sun Moon Jupiter', 'Mercury': 'Sun Venus',
+           'Jupiter': 'Sun Moon Mars', 'Venus': 'Mercury Saturn', 'Saturn': 'Mercury Venus'}
+FOES = {'Sun': 'Venus Saturn', 'Moon': '', 'Mars': 'Mercury', 'Mercury': 'Moon', 'Jupiter': 'Mercury Venus',
+        'Venus': 'Sun Moon', 'Saturn': 'Sun Moon Mars'}
+VASYA = {1: (5, 8), 2: (4, 7), 3: (6,), 4: (8, 9), 5: (7,), 6: (12, 3), 7: (10, 6), 8: (4,), 9: (12,),
+         10: (1, 11), 11: (1,), 12: (10,)}
+# Varna by rasi number, 4 the highest.
+VARNA_RANK = {4: 4, 8: 4, 12: 4, 1: 3, 5: 3, 9: 3, 2: 2, 6: 2, 10: 2, 3: 1, 7: 1, 11: 1}
+VASHYA_ORDER = ['Chatushpada', 'Manava', 'Jalachara', 'Vanachara', 'Keeta']
+# Rows the girl, columns the boy, in VASHYA_ORDER (vedicmarga.com).
+VASHYA_TABLE = [[2, 1, 1, 0.5, 1], [1, 2, 0.5, 0, 1], [1, 0.5, 2, 1, 1], [0, 0, 0, 2, 0], [1, 1, 1, 0, 2]]
+# Rows the girl, columns the boy: deva, manushya, rakshasa (vedicmarga.com).
+GANA_TABLE = {'D': {'D': 6, 'M': 5, 'R': 1}, 'M': {'D': 6, 'M': 6, 'R': 0}, 'R': {'D': 0, 'M': 0, 'R': 6}}
+
+
+def person(pada_index, name=None):
+    """Star-only record for one of the 108 padas (0 = Ashwini pada 1)."""
+    record = {'nakshatra': pada_index // 4 + 1, 'pada': pada_index % 4 + 1}
+    if name:
+        record['name'] = name
+    return record
+
+
+def star(name, pada=None, rasi=None):
+    record = {'nakshatra': name}
+    if pada:
+        record['pada'] = pada
+    if rasi:
+        record['rasi'] = rasi
+    return record
+
+
+def rows(boy, girl):
+    return {r['key']: r for r in M.match(boy, girl)['rows']}
+
+
+def results(boy, girl):
+    return {k: r['result'] for k, r in rows(boy, girl).items()}
+
+
+# ── the tables ────────────────────────────────────────────────────────────────
+
+def test_engine_names_are_the_ones_the_tables_use():
+    assert A.NAKS == STARS and A.RASIS == SIGNS and A.SIGN_LORDS == SIGN_LORD
+
+
+def test_star_tables_match_the_published_lists():
+    assert len(GANA) == len(RAJJU) == len(NADI) == len(SAME_STAR) == len(PAAL) == len(YONI) == 27
+    assert [g[0] for g in M.GANA] == list(GANA)
+    assert [{'Pada': 'P', 'Kati': 'K', 'Nabhi': 'N', 'Kantha': 'C', 'Siro': 'S'}[r] for r in M.RAJJU] == list(RAJJU)
+    assert [{'Aadi': 'A', 'Madhya': 'M', 'Antya': 'Z'}[n] for n in M.NADI] == list(NADI)
+    assert M.YONI == YONI
+    assert [{M.MATCHED: '+', M.MEDIUM: 'o', M.NOT_MATCHED: '-'}[s] for s in M.SAME_STAR] == list(SAME_STAR)
+    assert ['y' if p else 'n' for p in M.PAAL] == list(PAAL)
+
+
+def test_group_sizes():
+    assert sorted(GANA.count(c) for c in 'DMR') == [9, 9, 9]
+    assert [RAJJU.count(c) for c in 'PKNCS'] == [6, 6, 6, 6, 3]
+    assert [NADI.count(c) for c in 'AMZ'] == [9, 9, 9]
+    assert sorted(YONI.count(a) for a in set(YONI)) == [1] + [2] * 13      # the mongoose has one star
+    assert [SAME_STAR.count(c) for c in '+o-'] == [8, 11, 8]
+    assert PAAL.count('y') == 15
+
+
+def test_vedha_sets():
+    engine = sorted(sorted(i + 1 for i, v in enumerate(M.VEDHA) if v == g) for g in set(M.VEDHA))
+    assert engine == sorted(sorted(s) for s in VEDHA)
+    assert sorted(n for s in VEDHA for n in s) == list(range(1, 28))        # every star once
+    # The pairs mirror each other inside three runs of the zodiac.
+    assert {a + b for a, b in VEDHA[:4]} == {19} and {a + b for a, b in VEDHA[4:8]} == {28}
+    assert {a + b for a, b in VEDHA[8:12]} == {37}
+
+
+def test_yoni_points_table():
+    table, order = M.YONI_POINTS, M.YONI_ORDER
+    assert len(table) == 14 and all(len(row) == 14 for row in table) and set(order) == set(YONI)
+    for i, a in enumerate(order):
+        assert table[i][i] == 4
+        for j, b in enumerate(order):
+            assert table[i][j] == table[j][i], (a, b)
+            enemies = f'{a} {b}' in ENEMIES or f'{b} {a}' in ENEMIES
+            assert (table[i][j] == 0) == enemies, (a, b)
+    # Cells quoted from the published table (saravali.github.io).
+    quoted = {('Horse', 'Serpent'): 3, ('Horse', 'Cow'): 1, ('Elephant', 'Sheep'): 3, ('Elephant', 'Tiger'): 1,
+              ('Dog', 'Monkey'): 2, ('Cat', 'Deer'): 3, ('Cow', 'Buffalo'): 3, ('Tiger', 'Lion'): 1,
+              ('Monkey', 'Mongoose'): 3, ('Rat', 'Lion'): 2}
+    for (a, b), points in quoted.items():
+        assert M.yoni_points(a, b) == M.yoni_points(b, a) == points
+
+
+def test_points_tables():
+    assert [[M.VASHYA_POINTS[g][b] for b in VASHYA_ORDER] for g in VASHYA_ORDER] == VASHYA_TABLE
+    full = {'D': 'Deva', 'M': 'Manushya', 'R': 'Rakshasa'}
+    assert {g: {b: M.GANA_POINTS[full[g]][full[b]] for b in 'DMR'} for g in 'DMR'} == GANA_TABLE
+    assert {SIGNS.index(s) + 1: 4 - M.VARNA_ORDER.index(v) for s, v in M.VARNA.items()} == VARNA_RANK
+    assert {SIGNS.index(s) + 1: tuple(SIGNS.index(x) + 1 for x in v) for s, v in M.VASYA.items()} == VASYA
+    assert M.DINAM_COUNTS == (2, 4, 6, 8, 9, 11, 13, 15, 18, 20, 24, 26)
+    assert M.MAHENDRAM_COUNTS == (4, 7, 10, 13, 16, 19, 22, 25)
+
+
+def test_every_check_has_a_rule_and_every_rule_is_listed():
+    out = M.match(person(13), person(52))
+    assert [r['key'] for r in out['rows']] == list(M.CHECKS)
+    names = [r['name'] for r in out['rules']]
+    assert len(names) == len(set(names))
+    for group, name, rule, variant in M.CHECKS.values():
+        listed = next(r['rule'] for r in out['rules'] if r['name'].endswith(': ' + name))
+        assert rule in listed and variant in listed
+    for r in out['rows']:
+        assert r['rule_applied'] == M.CHECKS[r['key']][2] and r['result'] in M.RESULTS
+        assert set(r) == {'key', 'group', 'name', 'boy_value', 'girl_value', 'result', 'points', 'max_points',
+                          'rule_applied', 'exception_applied', 'note'}
+
+
+# ── a second statement of the rules, with numbers from 1 ──────────────────────
+
+def relation(a, b):
+    return 'F' if b in FRIENDS[a].split() else ('E' if b in FOES[a].split() else 'N')
+
+
+class Reference:
+    """Groups A to C for a pair of padas (0 to 107), written apart from the engine."""
+
+    def __init__(self, boy, girl):
+        self.bs, self.gs = boy // 4 + 1, girl // 4 + 1              # stars, 1 to 27
+        self.bp = boy % 4 + 1                                       # boy's pada
+        self.gp = girl % 4 + 1
+        self.br, self.gr = boy // 9 + 1, girl // 9 + 1              # rasis, 1 to 12
+        n = self.bs - self.gs + 1
+        self.n = n if n >= 1 else n + 27                            # boy's star from the girl's
+        m = self.gs - self.bs + 1
+        self.m = m if m >= 1 else m + 27
+        r = self.br - self.gr + 1
+        self.r = r if r >= 1 else r + 12
+        bl, gl = SIGN_LORD[self.br - 1], SIGN_LORD[self.gr - 1]
+        self.same_lord = bl == gl
+        self.rel = '' if self.same_lord else ''.join(sorted(relation(bl, gl) + relation(gl, bl)))
+        self.friends = self.same_lord or self.rel == 'FF'
+        self.boy_deg = (boy % 9) * 10 / 3                            # start of his pada inside the rasi
+        self.girl_deg = (girl % 9) * 10 / 3
+
+    def vashya(self, rasi, deg):
+        if rasi in (9, 10):
+            if deg < 15 < deg + 10 / 3:
+                return None                                         # the pada lies across 15 degrees
+            first = deg + 10 / 3 <= 15
+            return ('Manava' if first else 'Chatushpada') if rasi == 9 else ('Chatushpada' if first else 'Jalachara')
+        return {1: 'Chatushpada', 2: 'Chatushpada', 3: 'Manava', 4: 'Jalachara', 5: 'Vanachara', 6: 'Manava',
+                7: 'Manava', 8: 'Keeta', 11: 'Manava', 12: 'Jalachara'}[rasi]
+
+    def nadi_exception(self):
+        if self.br == self.gr and self.bs != self.gs:
+            return 'The same rasi with different stars'
+        if self.bs == self.gs and self.br != self.gr:
+            return 'The same star with different rasis'
+        if self.bs == self.gs and self.bp != self.gp:
+            return 'The same star with different padas'
+        return None
+
+    def expected(self):
+        yes, mid, no, na = 'matched', 'medium', 'not matched', 'not applicable'
+        same_star = {'+': yes, 'o': mid, '-': no}[SAME_STAR[self.bs - 1]]
+        out, points, exc = {}, {}, {}
+        n, m, r = self.n, self.m, self.r
+        bs, gs = self.bs - 1, self.gs - 1
+
+        if n == 1:
+            out['dinam'] = same_star
+        elif n == 27:
+            out['dinam'] = yes if self.br == self.gr else no
+        else:
+            out['dinam'] = yes if n in (2, 4, 6, 8, 9, 11, 13, 15, 18, 20, 24, 26) else no
+        gana = GANA_TABLE[GANA[gs]][GANA[bs]]
+        out['ganam'] = {6: yes, 5: mid}.get(gana, no)
+        out['mahendram'] = yes if n % 3 == 1 and n > 1 else no
+        out['stree_deergham'] = yes if n >= 14 else (mid if n >= 8 else no)
+        hostile = f'{YONI[bs]} {YONI[gs]}' in ENEMIES or f'{YONI[gs]} {YONI[bs]}' in ENEMIES
+        out['yoni'] = yes if YONI[bs] == YONI[gs] else (no if hostile else mid)
+        if r == 7 and {self.br, self.gr} in ({5, 11}, {4, 10}):
+            out['rasi'] = no
+        else:
+            out['rasi'] = yes if r in (1, 7) else (no if r in (2, 6, 8, 12) else mid)
+        out['rasi_adhipathi'] = yes if self.friends else (no if 'E' in self.rel else mid)
+        out['vasiyam'] = yes if self.br in VASYA[self.gr] else (mid if self.gr in VASYA[self.br] else no)
+        out['rajju'] = no if RAJJU[bs] == RAJJU[gs] else yes
+        vedha = any(self.bs in s and self.gs in s for s in VEDHA) and self.bs != self.gs
+        out['vedhai'] = no if vedha else yes
+        out['nadi'] = no if NADI[bs] == NADI[gs] else yes
+        out['vriksha'] = yes if 'y' in (PAAL[bs], PAAL[gs]) else no
+
+        def tara(k):
+            t = k % 9
+            return no if t in (3, 5, 7) else (mid if t == 1 else yes)
+        out['tara_boy'], out['tara_girl'] = tara(n), tara(m)
+        out['vadha'] = no if n == 7 else yes
+        out['vainasika'] = no if n == 22 else yes
+        out['vainasika_pada'] = no if n == 22 and self.bp == 4 else yes
+        out['star_27'] = (yes if self.br == self.gr else no) if n == 27 else na
+        out['eka_nakshatra'] = same_star if n == 1 else na
+        if self.br != self.gr or n == 1:
+            out['eka_rasi'] = na
+        else:
+            out['eka_rasi'] = yes if self.bs < self.gs else mid
+
+        points['ak_varna'] = 1 if VARNA_RANK[self.br] >= VARNA_RANK[self.gr] else 0
+        bv, gv = self.vashya(self.br, self.boy_deg), self.vashya(self.gr, self.girl_deg)
+        points['ak_vashya'] = (None if None in (bv, gv) else
+                               VASHYA_TABLE[VASHYA_ORDER.index(gv)][VASHYA_ORDER.index(bv)])
+        points['ak_tara'] = 1.5 * ((n % 9 not in (3, 5, 7)) + (m % 9 not in (3, 5, 7)))
+        points['ak_yoni'] = M.YONI_POINTS[M.YONI_ORDER.index(YONI[gs])][M.YONI_ORDER.index(YONI[bs])]
+        points['ak_graha_maitri'] = 5 if self.same_lord else {'FF': 5, 'FN': 4, 'NN': 3, 'EF': 1, 'EN': 0.5,
+                                                              'EE': 0}[self.rel]
+        points['ak_gana'] = gana
+        points['ak_bhakoot'] = 0 if r in (2, 12, 5, 9, 6, 8) else 7
+        points['ak_nadi'] = 0 if NADI[bs] == NADI[gs] else 8
+        top = {'ak_varna': 1, 'ak_vashya': 2, 'ak_tara': 3, 'ak_yoni': 4, 'ak_graha_maitri': 5, 'ak_gana': 6,
+               'ak_bhakoot': 7, 'ak_nadi': 8}
+        for key, p in points.items():
+            out[key] = na if p is None else (yes if p == top[key] else (no if p == 0 else mid))
+
+        lords = self.friends
+        exc['rasi'] = (out['rasi'] == no) and (lords or r == 7)
+        exc['ak_gana'] = gana < 6 and lords
+        exc['ak_bhakoot'] = points['ak_bhakoot'] == 0 and lords
+        exc['nadi'] = exc['ak_nadi'] = NADI[bs] == NADI[gs] and self.nadi_exception() is not None
+        exc['dinam'] = n in (1, 27)
+        return out, points, exc
+
+
+def test_every_pair_of_padas_against_the_second_statement_of_the_rules():
+    people = [M.star_person(person(i), 'boy') for i in range(108)]
+    wrong = []
+    for b in range(108):
+        for g in range(108):
+            pair = M.Pair(dict(people[b], role='boy'), dict(people[g], role='girl'))
+            M._group_a(pair)
+            M._group_b(pair)
+            M._group_c(pair)
+            got = {r['key']: r for r in pair.rows}
+            out, points, exc = Reference(b, g).expected()
+            assert set(got) == set(out)
+            for key, result in out.items():
+                row = got[key]
+                if row['result'] != result or (key in points and row['points'] != points[key]):
+                    wrong.append((b, g, key, row['result'], result, row['points'], points.get(key)))
+                elif key in exc and bool(row['exception_applied']) != exc[key]:
+                    wrong.append((b, g, key, 'exception', row['exception_applied'], exc[key]))
+    assert not wrong, wrong[:10]
+
+
+def test_the_grid_reaches_every_result_of_every_row():
+    """A rule that could never fail, or never pass, would pass the grid test unnoticed."""
+    seen = {}
+    for b in range(108):
+        for g in range(108):
+            out, _, _ = Reference(b, g).expected()
+            for key, result in out.items():
+                seen.setdefault(key, set()).add(result)
+    yes, mid, no, na = 'matched', 'medium', 'not matched', 'not applicable'
+    two = {yes, no}
+    want = {key: {yes, mid, no} for key in seen}
+    want.update({key: two for key in ('rajju', 'vedhai', 'nadi', 'vriksha', 'mahendram', 'vadha', 'vainasika',
+                                      'vainasika_pada', 'ak_varna', 'ak_bhakoot', 'ak_nadi')})
+    want.update({'star_27': {yes, no, na}, 'eka_nakshatra': {yes, mid, no, na}, 'eka_rasi': {yes, mid, na},
+                 'ak_vashya': {yes, mid, no, na},
+                 # The two counts add up to 29, so both cannot leave a remainder of 3, 5 or 7 by 9.
+                 'ak_tara': {yes, mid}})
+    assert seen == want
+
+
+# ── pairs worked by hand ──────────────────────────────────────────────────────
+
+def test_rohini_boy_and_chitra_girl():
+    """
+    Girl Chitra (14th star, pada 1: Kanya), boy Rohini (4th star: Rishabha).
+    Chitra to Revati is 14 stars, then Ashwini to Rohini 4 more: the 18th.
+    Kanya to Meena is 7 rasis, then Mesha, Rishabha: the 9th.
+    """
+    got = rows(star('Rohini', 2), star('Chitra', 1))
+    assert got['dinam']['note'] == "The boy's star is the 18th from the girl's star"
+    assert got['rasi']['note'] == "The boy's rasi is the 9th from the girl's rasi"
+    want = {'dinam': 'matched',            # 18 is on the list
+            'ganam': 'not matched',        # girl rakshasa, boy manushya
+            'mahendram': 'not matched',    # 18 is not 4, 7, 10 ...
+            'stree_deergham': 'matched',   # more than 13
+            'yoni': 'medium',              # serpent and tiger: different, not enemies
+            'rasi': 'medium',              # the 9th
+            'rasi_adhipathi': 'matched',   # Venus and Mercury are friends
+            'vasiyam': 'not matched',      # Kanya: Meena, Mithuna; Rishabha: Kataka, Thula
+            'rajju': 'matched',            # kantha and siro
+            'vedhai': 'matched', 'nadi': 'matched',      # antya and madhya
+            'vriksha': 'matched',          # Rohini has a milk tree
+            'tara_boy': 'matched',         # 18 = 9 + 9: the 9th tara, Parama Mitra
+            'tara_girl': 'matched',        # the 11th: 2nd tara, Sampat
+            'vadha': 'matched', 'vainasika': 'matched', 'vainasika_pada': 'matched',
+            'star_27': 'not applicable', 'eka_nakshatra': 'not applicable', 'eka_rasi': 'not applicable'}
+    assert {k: got[k]['result'] for k in want} == want
+    points = {k: got[k]['points'] for k in got if k.startswith('ak_')}
+    # varna 1 (both Vaishya), vashya 1 (girl manava, boy chatushpada), tara 3, yoni 2, maitri 5,
+    # gana 0, bhakoot 0 (5/9), nadi 8
+    assert points == {'ak_varna': 1, 'ak_vashya': 1, 'ak_tara': 3, 'ak_yoni': 2, 'ak_graha_maitri': 5,
+                      'ak_gana': 0, 'ak_bhakoot': 0, 'ak_nadi': 8}
+    summary = M.match(star('Rohini', 2), star('Chitra', 1))['summary']
+    assert summary['ashtakoota'] == {'points': 20, 'max_points': 36, 'rows_scored': 8, 'rows': 8}
+    assert summary['ten_poruthams'] == {'matched': 5, 'medium': 2, 'not_matched': 3, 'not_applicable': 0,
+                                        'information': 0, 'of': 10}
+    assert summary['key_poruthams_not_matched'] == ['Ganam']
+    assert summary['label'] == 'rule-based, not a prediction'
+    assert got['ak_bhakoot']['exception_applied'] == 'The rasi lords are friends to each other (Venus, Mercury)'
+
+
+def test_the_seventh_and_the_twenty_second_star_are_one_pair_seen_from_each_side():
+    # Ashwini 1, Punarvasu 7.
+    got = rows(star('Punarvasu', 4), star('Ashwini'))
+    assert (got['vadha']['result'], got['vainasika']['result']) == ('not matched', 'matched')
+    assert got['tara_boy']['boy_value'] == 'Vadha' and got['tara_boy']['result'] == 'not matched'
+    back = rows(star('Ashwini', 2), star('Punarvasu', 4))
+    assert back['dinam']['note'] == "The boy's star is the 22nd from the girl's star"
+    assert (back['vadha']['result'], back['vainasika']['result']) == ('matched', 'not matched')
+    assert back['dinam']['result'] == 'not matched'          # 22 is not on the Tamil list
+    assert back['mahendram']['result'] == 'matched'           # 22 is on the Mahendram list
+    for n in range(2, 28):
+        assert n + (29 - n) == 29                             # boy's count + girl's count is 29 when stars differ
+    for b in range(27):
+        for g in range(27):
+            if b != g:
+                assert M.count(g, b) + M.count(b, g) == 29
+
+
+@pytest.mark.parametrize('pada,result', [(1, 'matched'), (2, 'matched'), (3, 'matched'), (4, 'not matched'),
+                                         (None, 'not applicable')])
+def test_vainasika_pada_is_the_fourth_pada_of_the_22nd_star(pada, result):
+    # Girl Bharani (2nd star); the 22nd from it is Dhanishtha (23rd). Pada 4 of Dhanishtha is in Kumbha.
+    boy = star('Dhanishtha', pada, None if pada else 'Kumbha')
+    got = rows(boy, star('Bharani'))
+    assert got['vainasika']['result'] == 'not matched' and got['vainasika_pada']['result'] == result
+    # The 88th pada counted from the first pada of the girl's star: 21 stars of 4 padas, then 4.
+    assert 21 * 4 + 4 == 88
+
+
+def test_the_27th_star():
+    one_rasi = rows(star('Ashwini'), star('Bharani'))                 # both in Mesha
+    assert one_rasi['star_27']['result'] == 'matched' and one_rasi['dinam']['result'] == 'matched'
+    assert one_rasi['dinam']['exception_applied'] == 'The 27th star: judged by the 27th-star rule'
+    two_rasis = rows(star('Revati'), star('Ashwini'))                 # Meena and Mesha
+    assert two_rasis['star_27']['result'] == 'not matched' and two_rasis['dinam']['result'] == 'not matched'
+    assert two_rasis['rasi']['note'] == "The boy's rasi is the 12th from the girl's rasi"
+    # Krittika lies in two rasis: the 27th star from Rohini is in the same rasi only from pada 2.
+    assert rows(star('Krittika', 2), star('Rohini'))['star_27']['result'] == 'matched'
+    assert rows(star('Krittika', 1), star('Rohini'))['star_27']['result'] == 'not matched'
+
+
+def test_the_same_star():
+    for i, name in enumerate(STARS):
+        got = rows(star(name, 1), star(name, 1))
+        want = {'+': 'matched', 'o': 'medium', '-': 'not matched'}[SAME_STAR[i]]
+        assert got['eka_nakshatra']['result'] == got['dinam']['result'] == want
+        assert got['eka_nakshatra']['note'] == 'The padas are the same'
+        assert got['eka_rasi']['result'] == 'not applicable'
+        assert got['vedhai']['result'] == 'matched'
+        assert got['rajju']['result'] == got['nadi']['result'] == 'not matched'
+    assert rows(star('Rohini', 1), star('Rohini', 3))['eka_nakshatra']['note'] == 'The padas are different'
+    assert rows(star('Rohini'), star('Rohini', 3))['eka_nakshatra']['note'] == 'A pada was not given'
+
+
+def test_the_same_star_rasi_and_pada_scores_28():
+    """Every Ashtakoota row in full except Nadi: 1 + 2 + 3 + 4 + 5 + 6 + 7 = 28."""
+    for i in range(108):
+        summary = M.match(person(i), person(i))['summary']['ashtakoota']
+        if summary['rows_scored'] == 8:
+            assert summary['points'] == 28
+        else:                       # the pada lies across 15 degrees of Dhanu or Makara: Vashya is not scored
+            assert i in (19 * 4, 21 * 4 + 1) and summary == {'points': 26, 'max_points': 36, 'rows_scored': 7,
+                                                             'rows': 8}
+
+
+def test_the_same_rasi():
+    # Mesha holds Ashwini, Bharani and the first pada of Krittika, in that order.
+    assert results(star('Ashwini'), star('Krittika', 1))['eka_rasi'] == 'matched'
+    assert results(star('Krittika', 1), star('Bharani'))['eka_rasi'] == 'medium'
+    assert results(star('Krittika', 2), star('Bharani'))['eka_rasi'] == 'not applicable'
+
+
+def test_rasi_rule():
+    def rasi(boy, girl):
+        r = rows(star(boy), star(girl))['rasi']
+        return r['result'], r['exception_applied']
+    # Stars that lie wholly in one rasi: Ashwini Mesha, Rohini Rishabha, Ardra Mithuna, Pushya Kataka,
+    # Magha Simha, Hasta Kanya, Swati Thula, Anuradha Vrischika, Moola Dhanu, Shravana Makara,
+    # Shatabhisha Kumbha, Revati Meena.
+    assert rasi('Ashwini', 'Ashwini') == ('matched', None)
+    assert rasi('Swati', 'Ashwini') == ('matched', None)                                  # the 7th
+    assert rasi('Shatabhisha', 'Magha') == ('not matched', 'The 7th is not accepted for Simha with Kumbha')
+    assert rasi('Pushya', 'Shravana') == ('not matched', 'The 7th is not accepted for Makara with Kataka')
+    assert rasi('Rohini', 'Ashwini') == ('not matched', None)                             # 2nd: Mars, Venus
+    assert rasi('Anuradha', 'Ashwini') == ('not matched', 'One lord for both rasis (Mars)')    # the 8th
+    assert rasi('Ashwini', 'Anuradha') == ('not matched', 'One lord for both rasis (Mars)')    # the 6th
+    assert rasi('Shatabhisha', 'Shravana') == ('not matched', 'One lord for both rasis (Saturn)')
+    assert rasi('Magha', 'Pushya') == ('not matched',
+                                       'The rasi lords are friends to each other (Sun, Moon)')  # the 2nd
+    assert rasi('Ardra', 'Ashwini')[0] == rasi('Magha', 'Ashwini')[0] == 'medium'         # 3rd, 5th
+
+
+def test_ganam_follows_who_is_the_girl():
+    # Ashwini deva, Bharani manushya, Krittika rakshasa.
+    assert results(star('Ashwini'), star('Bharani'))['ganam'] == 'matched'       # girl manushya, boy deva
+    assert results(star('Bharani'), star('Ashwini'))['ganam'] == 'medium'        # girl deva, boy manushya
+    assert results(star('Krittika', 1), star('Ashwini'))['ganam'] == 'not matched'
+    assert results(star('Ashwini'), star('Krittika', 1))['ganam'] == 'not matched'
+    assert rows(star('Krittika', 1), star('Ashwini'))['ak_gana']['points'] == 1
+    assert rows(star('Ashwini'), star('Krittika', 1))['ak_gana']['points'] == 0
+
+
+def test_vasiyam_follows_who_is_the_girl():
+    # For Mesha, Simha and Vrischika are vasya.
+    assert results(star('Magha'), star('Ashwini'))['vasiyam'] == 'matched'       # boy Simha, girl Mesha
+    assert results(star('Ashwini'), star('Magha'))['vasiyam'] == 'medium'
+    assert results(star('Rohini'), star('Ashwini'))['vasiyam'] == 'not matched'
+
+
+def test_nadi_exceptions_are_named_and_do_not_change_the_result():
+    # Ashwini and Ardra are both aadi, in different rasis: no exception.
+    got = rows(star('Ashwini'), star('Ardra'))
+    assert (got['nadi']['result'], got['nadi']['exception_applied']) == ('not matched', None)
+    assert (got['ak_nadi']['points'], got['ak_nadi']['exception_applied']) == (0, None)
+    # Punarvasu and Ardra are both aadi; Punarvasu 1 to 3 is in Mithuna with Ardra.
+    got = rows(star('Punarvasu', 1), star('Ardra'))
+    assert got['nadi']['exception_applied'] == got['ak_nadi']['exception_applied'] == \
+        'The same rasi with different stars'
+    assert got['ak_nadi']['points'] == 0 and got['nadi']['result'] == 'not matched'
+    got = rows(star('Punarvasu', 1), star('Punarvasu', 4))
+    assert got['ak_nadi']['exception_applied'] == 'The same star with different rasis'
+    got = rows(star('Punarvasu', 1), star('Punarvasu', 2))
+    assert got['ak_nadi']['exception_applied'] == 'The same star with different padas'
+    assert rows(star('Punarvasu', 1), star('Punarvasu', 1))['ak_nadi']['exception_applied'] is None
+
+
+# ── direction ─────────────────────────────────────────────────────────────────
+
+def test_rajju_vedhai_yoni_and_nadi_do_not_depend_on_who_is_the_boy():
+    for b in range(0, 108, 2):
+        for g in range(1, 108, 3):
+            one, other = results(person(b), person(g)), results(person(g), person(b))
+            for key in ('rajju', 'vedhai', 'yoni', 'nadi', 'vriksha', 'rasi_adhipathi', 'ak_yoni',
+                        'ak_graha_maitri', 'ak_bhakoot', 'ak_nadi', 'ak_tara'):
+                assert one[key] == other[key], (b, g, key)
+
+
+def test_dinam_and_stree_deergham_depend_on_who_is_the_boy():
+    # Girl Ashwini, boy Rohini: the 4th. The other way round, Rohini to Revati is 24 stars and Ashwini
+    # one more: the 25th.
+    one, other = results(star('Rohini'), star('Ashwini')), results(star('Ashwini'), star('Rohini'))
+    assert (one['dinam'], other['dinam']) == ('matched', 'not matched')              # 4 is listed, 25 is not
+    assert (one['stree_deergham'], other['stree_deergham']) == ('not matched', 'matched')
+    # Girl Ashwini, boy Krittika: the 3rd; the other way round the 26th.
+    one, other = results(star('Krittika', 1), star('Ashwini')), results(star('Ashwini'), star('Krittika', 1))
+    assert (one['dinam'], other['dinam']) == ('not matched', 'matched')
+    # Girl Ashwini, boy Mrigashira: the 5th; the other way round the 24th.
+    one, other = results(star('Mrigashira', 1), star('Ashwini')), results(star('Ashwini'), star('Mrigashira', 1))
+    assert (one['dinam'], other['dinam']) == ('not matched', 'matched')
+    differs = {key: sum(results(person(b), person(g))[key] != results(person(g), person(b))[key]
+                        for b in range(0, 108, 4) for g in range(0, 108, 4))
+               for key in ('dinam', 'stree_deergham', 'ganam', 'vasiyam', 'tara_boy', 'vadha', 'vainasika')}
+    assert all(differs.values()), differs
+
+
+def test_mahendram_is_counted_from_the_girl_but_comes_out_the_same_both_ways():
+    """
+    The list 4, 7, 10 ... 25 is every count that leaves 1 when divided by 3.
+    The two counts add up to 29, which leaves 2, so when one count is on the
+    list the other is too: 4 and 25, 7 and 22, 10 and 19, 13 and 16.
+    """
+    assert [n for n in range(2, 28) if n % 3 == 1] == list(M.MAHENDRAM_COUNTS)
+    assert all((29 - n) in M.MAHENDRAM_COUNTS for n in M.MAHENDRAM_COUNTS)
+    for b in range(0, 108, 4):
+        for g in range(0, 108, 4):
+            assert results(person(b), person(g))['mahendram'] == results(person(g), person(b))['mahendram']
+    assert results(star('Rohini'), star('Ashwini'))['mahendram'] == 'matched'          # the 4th
+
+
+# ── star-only records ─────────────────────────────────────────────────────────
+
+def test_a_star_given_by_number_or_by_name_is_the_same_person():
+    by_name = M.star_person({'nakshatra': 'purva phalguni', 'pada': '3', 'rasi': 'SIMHA', 'name': ' Kumar '}, 'boy')
+    by_number = M.star_person({'nakshatra': 11, 'pada': 3, 'rasi': 5, 'name': 'Kumar'}, 'boy')
+    assert by_name == by_number and by_name['name'] == 'Kumar'
+    assert M.star_person({'nakshatra': '11'}, 'girl')['rasi'] == 4 and M.star_person({'nakshatra': 11}, 'girl')['name'] == 'Girl'
+
+
+def test_the_rasi_of_every_pada():
+    # 9 padas to a rasi: Ashwini 1-4, Bharani 1-4, Krittika 1 are Mesha, and so on round the zodiac.
+    for i in range(108):
+        p = M.star_person(person(i), 'boy')
+        assert (p['nak'], p['pada'], p['rasi']) == (i // 4, i % 4 + 1, i // 9)
+    split = [s for s in range(27) if (s * 4) // 9 != (s * 4 + 3) // 9]
+    assert [STARS[s] for s in split] == ['Krittika', 'Mrigashira', 'Punarvasu', 'Uttara Phalguni', 'Chitra',
+                                         'Vishakha', 'Uttara Ashadha', 'Dhanishtha', 'Purva Bhadrapada']
+    # A star in two rasis with the rasi given and no pada.
+    assert M.star_person({'nakshatra': 'Krittika', 'rasi': 'Rishabha'}, 'boy')['pada'] is None
+
+
+@pytest.mark.parametrize('record,message', [
+    ({}, "The boy's nakshatra is required."),
+    ({'nakshatra': 0}, "The boy's nakshatra must be a whole number from 1 to 27."),
+    ({'nakshatra': 28}, "The boy's nakshatra must be a whole number from 1 to 27."),
+    ({'nakshatra': 3.5}, "The boy's nakshatra must be a whole number from 1 to 27."),
+    ({'nakshatra': True}, "The boy's nakshatra is required."),
+    ({'nakshatra': 'Abhijit'}, '"Abhijit" is not a boy\'s nakshatra this service knows.'),
+    ({'nakshatra': 'Rohini', 'pada': 5}, "The boy's pada must be 1, 2, 3 or 4."),
+    ({'nakshatra': 'Rohini', 'pada': 'x'}, "The boy's pada must be 1, 2, 3 or 4."),
+    ({'nakshatra': 'Rohini', 'rasi': 13}, "The boy's rasi must be a whole number from 1 to 12."),
+    ({'nakshatra': 'Rohini', 'rasi': 'Mesha'}, 'Rohini is in Rishabha, not in Mesha.'),
+    ({'nakshatra': 'Krittika'}, "Krittika lies in Mesha and Rishabha: give the boy's pada or rasi."),
+    ({'nakshatra': 'Krittika', 'rasi': 'Mithuna'}, 'Krittika is in Mesha or Rishabha, not in Mithuna.'),
+    ({'nakshatra': 'Krittika', 'pada': 1, 'rasi': 'Rishabha'}, 'Krittika pada 1 is in Mesha, not in Rishabha.'),
+    ('Rohini', 'The details of the boy must be a JSON object.'),
+])
+def test_a_star_record_that_cannot_be_read(record, message):
+    with pytest.raises(A.InputError) as e:
+        M.star_person(record, 'boy')
+    assert str(e.value) == message
+
+
+def test_vashya_needs_the_degree_only_across_15_degrees_of_dhanu_and_makara():
+    # Dhanu: Moola 1-4 (0 to 13°20'), Purva Ashadha 1 (13°20' to 16°40') ... ; Makara: Uttara Ashadha 2-4,
+    # Shravana 1 (10° to 13°20'), Shravana 2 (13°20' to 16°40') ...
+    def group(name, pada):
+        return M.vashya_group(M.star_person(star(name, pada), 'boy'))
+    assert group('Moola', 4) == 'Manava' and group('Purva Ashadha', 1) is None
+    assert group('Purva Ashadha', 2) == 'Chatushpada' and group('Uttara Ashadha', 1) == 'Chatushpada'
+    assert group('Uttara Ashadha', 2) == 'Chatushpada' and group('Shravana', 1) == 'Chatushpada'
+    assert group('Shravana', 2) is None and group('Shravana', 3) == 'Jalachara'
+    assert M.vashya_group(M.star_person(star('Krittika', None, 'Mesha'), 'boy')) == 'Chatushpada'
+    got = rows(star('Purva Ashadha', 1), star('Rohini'))['ak_vashya']
+    assert (got['result'], got['points'], got['max_points']) == ('not applicable', None, 2)
+    # With birth details the degree is known.
+    for lon, want in ((254.9, 'Manava'), (255.0, 'Chatushpada'), (284.9, 'Chatushpada'), (285.0, 'Jalachara')):
+        assert M.vashya_group({'rasi': int(lon // 30), 'moon_lon': lon, 'nak': 0, 'pada': 1}) == want
+
+
+# ── two horoscopes ────────────────────────────────────────────────────────────
+
+BOY = dict(name='Sample Native', dob='1998-03-06', tob='01:37', pob='Delhi', lat=28.6139, lon=77.2090)
+GIRL = dict(name='Sample Bride', dob='2000-07-15', tob='14:20', pob='Chennai', lat=13.0827, lon=80.2707)
+
+
+@pytest.fixture(scope='module')
+def charts():
+    return (A.compute(**BOY, gender='male', now=NOW), A.compute(**GIRL, gender='female', now=NOW))
+
+
+def test_two_horoscopes_give_the_rows_of_their_moon_stars(charts):
+    boy, girl = charts
+    out = M.match(boy, girl)
+    assert out['schema'] == 'horoscopegen-match/1' and out['mode'] == 'full'
+    people = out['persons']
+    # The sample chart of tests/test_engine.py: Moon in Mrigashira pada 2, Rishabha.
+    assert (people['boy']['nakshatra'], people['boy']['pada'], people['boy']['rasi']) == ('Mrigashira', 2, 'Rishabha')
+    moon = next(p for p in girl['vedic']['planets'] if p['name'] == 'Moon')
+    assert (people['girl']['nakshatra'], people['girl']['pada'], people['girl']['rasi']) == \
+        (STARS[moon['nak']], moon['pada'], SIGNS[moon['sign']])
+    assert people['boy']['source'] == people['girl']['source'] == 'birth details'
+    assert people['boy']['dob'] == '1998-03-06' and people['girl']['pob'] == 'Chennai'
+    star_only = M.match({'nakshatra': people['boy']['nakshatra'], 'pada': people['boy']['pada']},
+                        {'nakshatra': people['girl']['nakshatra'], 'pada': people['girl']['pada']})
+    assert star_only['mode'] == 'star'
+    scored = {r['key']: (r['result'], r['points']) for r in out['rows'] if r['group'] in 'ABC'}
+    again = {r['key']: (r['result'], r['points']) for r in star_only['rows'] if r['group'] in 'ABC'}
+    again['ak_vashya'] = scored['ak_vashya']          # the girl's Moon is in Dhanu: its degree decides
+    assert scored == again
+
+
+# ── group D: chart checks ─────────────────────────────────────────────────────
+
+class Chart:
+    """A chart written out sign by sign, with what the chart checks read from a chart."""
+
+    def __init__(self, **signs):
+        self.sign = {name: SIGNS.index(sign) for name, sign in signs.items()}
+        self.lagna_sign, self.moon_sign = self.sign['Lagna'], self.sign['Moon']
+
+    def exchange(self, a, b):
+        return SIGN_LORD[self.sign[a]] == b and SIGN_LORD[self.sign[b]] == a
+
+
+SOUTH, NORTH, ALL = (2, 4, 7, 8, 12), (1, 4, 7, 8, 12), (1, 2, 4, 7, 8, 12)
+
+
+def test_kuja_places_that_count():
+    assert M.KUJA_HOUSE_SETS == {'south': SOUTH, 'north': NORTH, 'all': ALL} and M.KUJA_DEFAULT == 'south'
+    # Lagna Mesha, Moon Kataka, Venus Thula; Mars in Rishabha: 2nd, 11th and 8th.
+    c = Chart(Lagna='Mesha', Moon='Kataka', Venus='Thula', Mars='Rishabha', Jupiter='Dhanu')
+    k = M.kuja_state(c, SOUTH)
+    assert k['places'] == {'the lagna': 2, 'the Moon': 11, 'Venus': 8}
+    assert k['present'] == k['after'] == ['the lagna', 'Venus'] and k['mars'] == 'Rishabha'
+    assert M.kuja_state(c, NORTH)['present'] == ['Venus']
+    # Mars in the lagna counts only when the 1st is on the list.
+    c = Chart(Lagna='Mesha', Moon='Mithuna', Venus='Makara', Mars='Mesha', Jupiter='Dhanu')
+    assert M.kuja_state(c, SOUTH)['places'] == {'the lagna': 1, 'the Moon': 11, 'Venus': 4}
+    assert M.kuja_state(c, SOUTH)['present'] == ['Venus']
+    assert M.kuja_state(c, ALL)['present'] == ['the lagna', 'Venus']
+    # Mars in the 3rd, 5th and 9th: none.
+    c = Chart(Lagna='Mesha', Moon='Kumbha', Venus='Thula', Mars='Mithuna', Jupiter='Dhanu')
+    assert M.kuja_state(c, ALL)['present'] == []
+
+
+@pytest.mark.parametrize('key,lagna,mars,place', [
+    ('kuja_x_2nd', 'Rishabha', 'Mithuna', 2), ('kuja_x_2nd', 'Simha', 'Kanya', 2),
+    ('kuja_x_12th', 'Mithuna', 'Rishabha', 12), ('kuja_x_12th', 'Vrischika', 'Thula', 12),
+    ('kuja_x_4th', 'Makara', 'Mesha', 4), ('kuja_x_4th', 'Simha', 'Vrischika', 4),
+    ('kuja_x_7th', 'Kataka', 'Makara', 7), ('kuja_x_7th', 'Makara', 'Kataka', 7),
+    ('kuja_x_8th', 'Rishabha', 'Dhanu', 8), ('kuja_x_8th', 'Simha', 'Meena', 8),
+])
+def test_each_exception_by_place_covers_only_the_reference_it_is_true_for(key, lagna, mars, place):
+    # The Moon and Venus are put in the sign after Mars, so from them Mars is in the 12th. Jupiter is
+    # put in the sign before Mars: away from Mars.
+    after = SIGNS[(SIGNS.index(mars) + 1) % 12]
+    before = SIGNS[(SIGNS.index(mars) - 1) % 12]
+    c = Chart(Lagna=lagna, Moon=after, Venus=after, Mars=mars, Jupiter=before)
+    k = M.kuja_state(c, SOUTH)
+    assert k['places'] == {'the lagna': place, 'the Moon': 12, 'Venus': 12}
+    assert k['present'] == ['the lagna', 'the Moon', 'Venus']
+    twelfth_too = mars in ('Rishabha', 'Thula')          # then the 12th-house exception covers the other two
+    for other, _, _, _ in M.KUJA_EXCEPTIONS:
+        if other == key:
+            want = ['the lagna'] if key != 'kuja_x_12th' else ['the lagna', 'the Moon', 'Venus']
+        else:
+            want = ['the Moon', 'Venus'] if other == 'kuja_x_12th' and twelfth_too else []
+        assert k['exceptions'][other] == want, other
+    covered = ['the lagna'] + (['the Moon', 'Venus'] if twelfth_too else [])
+    assert k['after'] == [r for r in ('the lagna', 'the Moon', 'Venus') if r not in covered]
+
+
+def test_the_exception_by_place_needs_both_the_place_and_the_sign():
+    # Mars in Mithuna in the 8th (lagna Vrischika): not the 2nd, so no exception.
+    c = Chart(Lagna='Vrischika', Moon='Dhanu', Venus='Kataka', Mars='Mithuna', Jupiter='Rishabha')
+    k = M.kuja_state(c, SOUTH)
+    assert k['present'] == ['the lagna', 'the Moon', 'Venus'] == k['after']
+    assert not any(k['exceptions'].values())
+    # Mars in the 2nd in Kataka (lagna Mithuna): the place without the sign.
+    c = Chart(Lagna='Mithuna', Moon='Meena', Venus='Meena', Mars='Kataka', Jupiter='Rishabha')
+    assert M.kuja_state(c, SOUTH)['exceptions']['kuja_x_2nd'] == []
+
+
+def test_the_two_exceptions_that_cover_every_reference():
+    # Mars in Simha: 4th from the lagna (Rishabha), 2nd from the Moon (Kataka), 12th from Venus (Kanya).
+    c = Chart(Lagna='Rishabha', Moon='Kataka', Venus='Kanya', Mars='Simha', Jupiter='Dhanu')
+    k = M.kuja_state(c, SOUTH)
+    assert k['present'] == ['the lagna', 'the Moon', 'Venus'] and k['after'] == []
+    assert k['exceptions']['kuja_x_sign'] == ['the lagna', 'the Moon', 'Venus']
+    assert [key for key, refs in k['exceptions'].items() if refs] == ['kuja_x_sign']
+    assert M.kuja_state(Chart(Lagna='Makara', Moon='Makara', Venus='Makara', Mars='Kumbha', Jupiter='Dhanu'),
+                        SOUTH)['after'] == []
+    # Mars with Jupiter in Dhanu, 8th from the lagna (Rishabha): the 8th-in-Dhanu exception as well.
+    c = Chart(Lagna='Rishabha', Moon='Mithuna', Venus='Mithuna', Mars='Dhanu', Jupiter='Dhanu')
+    k = M.kuja_state(c, SOUTH)
+    assert k['present'] == ['the lagna', 'the Moon', 'Venus'] and k['joined'] == ['Jupiter']
+    assert k['exceptions']['kuja_x_joined'] == ['the lagna', 'the Moon', 'Venus'] and k['after'] == []
+    assert k['exceptions']['kuja_x_8th'] == ['the lagna']
+    # Mars with the Moon: from the Moon Mars is in the 1st, which the Tamil list does not count.
+    c = Chart(Lagna='Rishabha', Moon='Mithuna', Venus='Mesha', Mars='Mithuna', Jupiter='Dhanu')
+    k = M.kuja_state(c, SOUTH)
+    assert k['places'] == {'the lagna': 2, 'the Moon': 1, 'Venus': 3} and k['present'] == ['the lagna']
+    assert k['joined'] == ['Moon'] and k['after'] == []
+    # No dosha: an exception covers nothing.
+    c = Chart(Lagna='Mesha', Moon='Kumbha', Venus='Thula', Mars='Mithuna', Jupiter='Mithuna')
+    assert not any(M.kuja_state(c, SOUTH)['exceptions'].values())
+
+
+def test_papa_points_by_hand():
+    """
+    Lagna Mesha, Moon Kataka, Venus Thula. Sun Mesha, Mars Kanya, Saturn Makara, Rahu Vrischika.
+      from the lagna (Mesha): Sun 1st, Mars 6th, Saturn 10th, Rahu 8th           -> Sun, Rahu
+      from the Moon (Kataka): Sun 10th, Mars 3rd, Saturn 7th, Rahu 5th           -> Saturn
+      from Venus (Thula):     Sun 7th, Mars 12th, Saturn 4th, Rahu 2nd           -> all four
+    """
+    c = Chart(Lagna='Mesha', Moon='Kataka', Venus='Thula', Sun='Mesha', Mars='Kanya', Saturn='Makara',
+              Rahu='Vrischika', Ketu='Rishabha')
+    assert M.papa_points(c) == {'the lagna': [('Sun', 1), ('Rahu', 8)], 'the Moon': [('Saturn', 7)],
+                                'Venus': [('Sun', 7), ('Mars', 12), ('Saturn', 4), ('Rahu', 2)]}
+    assert M.PAPA_PLANETS == ('Sun', 'Mars', 'Saturn', 'Rahu') and M.PAPA_HOUSES == ALL
+    assert M.PAPA_WEIGHTS == (('the lagna', 1.0), ('the Moon', 0.5), ('Venus', 0.25))
+
+
+@pytest.mark.parametrize('saturn,moon,want', [
+    ('Makara', 'Makara', ['Saturn and the Moon in one sign']),
+    ('Makara', 'Meena', ['Saturn aspects the Moon (3rd aspect)']),
+    ('Makara', 'Thula', ['Saturn aspects the Moon (10th aspect)']),
+    ('Makara', 'Kataka', ['Saturn aspects the Moon (7th aspect)']),              # each in its own sign
+    # Saturn in the Moon's sign and the Moon in one of Saturn's: Makara is the 7th from Kataka, Kumbha the 8th.
+    ('Kataka', 'Makara', ['Saturn aspects the Moon (7th aspect)', "Saturn and the Moon in each other's signs"]),
+    ('Kataka', 'Kumbha', ["Saturn and the Moon in each other's signs"]),
+    ('Makara', 'Rishabha', []), ('Simha', 'Kataka', []),
+])
+def test_punarpoo(saturn, moon, want):
+    assert M.punarpoo(Chart(Lagna='Mesha', Moon=moon, Saturn=saturn)) == want
+
+
+def signs_of(res):
+    return {p['name']: SIGNS[p['sign']] for p in res['vedic']['planets']}
+
+
+def test_chart_checks_of_the_two_sample_horoscopes(charts):
+    boy, girl = charts
+    # The facts every value below is counted from.
+    assert signs_of(boy) == {'Lagna': 'Vrischika', 'Sun': 'Kumbha', 'Moon': 'Rishabha', 'Mars': 'Meena',
+                             'Mercury': 'Meena', 'Jupiter': 'Kumbha', 'Venus': 'Makara', 'Saturn': 'Meena',
+                             'Rahu': 'Simha', 'Ketu': 'Kumbha'}
+    assert signs_of(girl) == {'Lagna': 'Vrischika', 'Sun': 'Mithuna', 'Moon': 'Dhanu', 'Mars': 'Mithuna',
+                              'Mercury': 'Mithuna', 'Jupiter': 'Rishabha', 'Venus': 'Kataka',
+                              'Saturn': 'Rishabha', 'Rahu': 'Kataka', 'Ketu': 'Makara'}
+    got = {r['key']: r for r in M.match(boy, girl)['rows'] if r['group'] == 'D'}
+    assert list(got) == [k for k, v in M.CHECKS.items() if v[0] == 'D'] and len(got) == 25
+
+    def row(key):
+        r = got[key]
+        return r['boy_value'], r['girl_value'], r['result']
+
+    # Boy: Mars in Meena is the 5th from Vrischika, the 11th from Rishabha, the 3rd from Makara.
+    # Girl: Mars in Mithuna is the 8th from Vrischika, the 7th from Dhanu, the 12th from Kataka.
+    assert row('kuja_lagna') == ('Mars in the 5th from the lagna: absent',
+                                 'Mars in the 8th from the lagna: present', 'information')
+    assert row('kuja_moon') == ('Mars in the 11th from the Moon: absent',
+                                'Mars in the 7th from the Moon: present', 'information')
+    assert row('kuja_venus') == ('Mars in the 3rd from Venus: absent',
+                                 'Mars in the 12th from Venus: present', 'information')
+    assert got['kuja_lagna']['note'] == 'Places that count: 2, 4, 7, 8, 12'
+    for key, _, _, _ in M.KUJA_EXCEPTIONS:          # Mithuna in the 8th, 7th and 12th: no exception
+        assert row(key) == ('does not arise: no Kuja dosha', 'does not apply', 'information')
+    assert row('kuja_balance') == ('absent', 'present from the lagna, the Moon, Venus', 'not matched')
+    assert row('kuja_balance_after') == ('absent', 'present from the lagna, the Moon, Venus', 'not matched')
+    assert got['kuja_balance_after']['exception_applied'] is None
+    # Boy: Rahu in Simha the 10th, Ketu in Kumbha the 4th. Girl: Rahu in Kataka the 9th, Ketu the 3rd.
+    assert row('sarpa') == ('Rahu in the 10th, Ketu in the 4th from the lagna: absent',
+                            'Rahu in the 9th, Ketu in the 3rd from the lagna: absent', 'matched')
+    # 7th from Vrischika is Rishabha: the girl's Saturn. 7th from the girl's Moon (Dhanu) is Mithuna:
+    # Sun and Mars. 7th from the boy's Moon (Rishabha) is Vrischika: empty.
+    assert row('kalathra_seventh') == ('From the lagna: none; from the Moon: none',
+                                       'From the lagna: Saturn; from the Moon: Sun, Mars', 'information')
+    # Papa samyam. Boy, from Vrischika: Sun 4th. From Rishabha: Rahu (Simha) 4th. From Makara: Sun 2nd,
+    # Rahu 8th. Girl, from Vrischika: Sun 8th, Mars 8th, Saturn 7th. From Dhanu: Sun 7th, Mars 7th,
+    # Rahu (Kataka) 8th. From Kataka: Sun 12th, Mars 12th, Rahu 1st.
+    assert row('papa_count') == (
+        '4: from the lagna 1 (Sun 4th); from the Moon 1 (Rahu 4th); from Venus 2 (Sun 2nd, Rahu 8th)',
+        '9: from the lagna 3 (Sun 8th, Mars 8th, Saturn 7th); from the Moon 3 (Sun 7th, Mars 7th, Rahu 8th); '
+        'from Venus 3 (Sun 12th, Mars 12th, Rahu 1st)', 'not matched')
+    # 1 + 1/2 + 2/4 = 2;  3 + 3/2 + 3/4 = 5.25
+    assert got['papa_weighted']['note'] == "The boy's total is 2, the girl's 5.25"
+    assert got['papa_weighted']['result'] == 'not matched'
+    # Boy: Saturn in Meena, the Moon in Rishabha is the 3rd from it. Girl: Saturn Rishabha, Moon Dhanu, the 8th.
+    assert row('punarpoo') == ('present: Saturn aspects the Moon (3rd aspect)', 'absent', 'information')
+    assert row('lagna_position')[:2] == ('Vrischika, lord Mars', 'Vrischika, lord Mars')
+    assert got['lagna_position']['note'] == ("The boy's lagna is the 1st from the girl's; the girl's is the 1st "
+                                             "from the boy's. One planet rules both lagnas")
+    # 7th from Vrischika is Rishabha, lord Venus; Venus regards Mars as neutral.
+    assert row('seventh_lords') == ("Venus: regards the other's lagna lord Mars as neutral",) * 2 + ('information',)
+    # The girl's Mars (Mithuna) from the boy's Venus (Makara): the 6th. The boy's Mars (Meena) from the
+    # girl's Venus (Kataka): the 9th.
+    assert row('venus_mars')[:2] == ('Venus in Makara, Mars in Meena', 'Venus in Kataka, Mars in Mithuna')
+    assert got['venus_mars']['note'] == ("The girl's Mars is the 6th from the boy's Venus; the boy's Mars is "
+                                         "the 9th from the girl's Venus")
+    # 5th from Vrischika is Meena, lord Jupiter: the boy's in Kumbha (4th), the girl's in Rishabha (7th).
+    assert got['fifth_house']['boy_value'].startswith('Meena; lord Jupiter in the 4th house, ')
+    assert '; planets in the 5th: Mars, Mercury, Saturn; Jupiter in the 4th house, ' in got['fifth_house']['boy_value']
+    assert got['fifth_house']['girl_value'].startswith('Meena; lord Jupiter in the 7th house, ')
+    assert '; planets in the 5th: none; ' in got['fifth_house']['girl_value']
+    # The navamsa signs are the engine's own.
+    for res, value in ((boy, got['navamsa']['boy_value']), (girl, got['navamsa']['girl_value'])):
+        d9 = next(v for v in res['vedic']['vargas'] if v['key'] == 'D9')['signs']
+        assert value == f"D9 lagna {SIGNS[d9['Lagna']]}, D9 Moon {SIGNS[d9['Moon']]}"
+    assert {r['result'] for r in got.values()} == {'information', 'matched', 'not matched'}
+    for key in ('kalathra_lord', 'kalathra_venus', 'kala_sarpa', 'navamsa', 'fifth_house'):
+        assert got[key]['result'] == 'information'
+
+
+def chennai(dob, tob, gender):
+    return A.compute('Sample', dob, tob, 'Chennai', lat=13.0827, lon=80.2707, utc_offset=5.5, gender=gender, now=NOW)
+
+
+def test_the_balance_rows_before_and_after_the_exceptions(charts):
+    boy, girl = charts
+
+    def balance(b, g, **options):
+        got = {r['key']: r for r in M.match(b, g, options)['rows']}
+        return ([got[k]['result'] for k in ('kuja_balance', 'kuja_balance_after', 'sarpa')],
+                got['kuja_balance_after']['exception_applied'])
+
+    assert balance(girl, girl) == (['matched', 'matched', 'matched'], None)
+    # Born 18 January 1995, 11:00, Chennai: Mars in Simha, the 2nd from the Moon in Kataka (6th from the
+    # lagna in Meena, 10th from Venus in Vrischika); Rahu in Thula the 8th, Ketu in Mesha the 2nd.
+    simha = chennai('1995-01-18', '11:00', 'male')
+    assert {k: v for k, v in signs_of(simha).items() if k in ('Lagna', 'Moon', 'Venus', 'Mars', 'Rahu', 'Ketu')} == \
+        {'Lagna': 'Meena', 'Moon': 'Kataka', 'Venus': 'Vrischika', 'Mars': 'Simha', 'Rahu': 'Thula', 'Ketu': 'Mesha'}
+    got = {r['key']: r for r in M.match(simha, girl)['rows']}
+    assert got['kuja_balance']['boy_value'] == 'present from the Moon'
+    assert got['kuja_balance_after']['boy_value'] == 'absent'
+    assert got['kuja_x_sign']['boy_value'] == 'applies from the Moon'
+    assert got['kuja_x_2nd']['boy_value'] == 'does not apply'                    # the 2nd, but in Simha
+    assert got['sarpa']['boy_value'] == 'Rahu in the 8th, Ketu in the 2nd from the lagna: present'
+    # Both have it before the exceptions; after them only the girl: the two rows differ.
+    assert balance(simha, girl) == (['matched', 'not matched', 'not matched'], 'Mars in Simha or Kumbha')
+    # Against the sample boy, who has none: the other way round.
+    assert balance(boy, dict(simha, meta=dict(simha['meta'], name='Girl'))) == \
+        (['not matched', 'matched', 'not matched'], 'Mars in Simha or Kumbha')
+    # Born 11 March 1995, 02:00: Mars in Kataka, 8th from the lagna (Dhanu), 2nd from the Moon (Mithuna),
+    # 7th from Venus (Makara). The 7th-in-Kataka exception covers Venus only.
+    partial = chennai('1995-03-11', '02:00', 'male')
+    got = {r['key']: r for r in M.match(partial, girl)['rows']}
+    assert got['kuja_balance']['boy_value'] == 'present from the lagna, the Moon, Venus'
+    assert got['kuja_balance_after']['boy_value'] == 'present from the lagna, the Moon'
+    assert got['kuja_x_7th']['boy_value'] == 'applies from Venus'
+    assert got['kuja_balance_after']['exception_applied'] == 'Mars in the 7th in Makara or Kataka'
+    # Born 20 October 1995, 19:00: Mars with Jupiter in Vrischika.
+    joined = chennai('1995-10-20', '19:00', 'male')
+    got = {r['key']: r for r in M.match(joined, girl)['rows']}
+    assert got['kuja_x_joined']['boy_value'] == 'applies from the lagna, the Moon, Venus'
+    assert got['kuja_x_4th']['boy_value'] == 'applies from the Moon'             # 4th from the Moon in Simha
+    assert got['kuja_balance_after']['exception_applied'] == \
+        'Mars in the 4th in Mesha or Vrischika; Mars in one sign with Jupiter or the Moon'
+
+
+def test_the_places_that_count_can_be_chosen(charts):
+    boy, girl = charts
+    assert M.match(boy, girl)['settings']['kuja_places_that_count'] == [2, 4, 7, 8, 12]
+    out = M.match(boy, girl, {'kuja_houses': 'ALL'})
+    assert out['settings']['kuja_places_that_count'] == [1, 2, 4, 7, 8, 12]
+    assert next(r for r in out['rows'] if r['key'] == 'kuja_lagna')['note'] == 'Places that count: 1, 2, 4, 7, 8, 12'
+    # The girl's Mars is in the 8th, 7th and 12th: all three are on the north list too.
+    north = {r['key']: r for r in M.match(boy, girl, {'kuja_houses': 'north'})['rows']}
+    assert north['kuja_balance']['girl_value'] == 'present from the lagna, the Moon, Venus'
+    for bad in ('east', 5, ['south']):
+        with pytest.raises(A.InputError):
+            M.match(boy, girl, {'kuja_houses': bad})
+    with pytest.raises(A.InputError):
+        M.match(boy, girl, 'south')
+
+
+def test_with_stars_only_the_chart_checks_are_not_applicable(charts):
+    boy, _ = charts
+    for b, g in ((person(3), person(50)), (boy, person(50)), (person(3), boy)):
+        out = M.match(b, g)
+        rows_d = [r for r in out['rows'] if r['group'] == 'D']
+        assert out['mode'] == 'star' and len(rows_d) == 25
+        for r in rows_d:
+            assert (r['result'], r['boy_value'], r['girl_value'], r['points']) == ('not applicable', None, None, None)
+            assert r['note'] == 'The birth details of both are needed'
+        assert out['summary']['groups']['D']['not_applicable'] == 25
+
+
+# ── group E: timing and KP ────────────────────────────────────────────────────
+
+def dasa_chart(offset_hours, *periods):
+    """A horoscope reduced to its dasa table: periods are (lord, start, end) in local time."""
+    local = periods[0][1]
+    return {'meta': {'local_dt': local, 'ut_dt': local - timedelta(hours=offset_hours)},
+            'vedic': {'dasa': {'dasas': [{'lord': lord, 'start': a, 'end': b} for lord, a, b in periods]}}}
+
+
+D = datetime
+
+
+def test_changes_of_mahadasa_inside_the_period():
+    chart = dasa_chart(5.5, ('Venus', D(2000, 1, 1), D(2020, 1, 1)), ('Sun', D(2020, 1, 1), D(2026, 1, 1)),
+                       ('Moon', D(2026, 1, 1), D(2036, 1, 1)), ('Mars', D(2036, 1, 1), D(2043, 1, 1)))
+    got = M.dasa_changes(chart, D(2024, 6, 1), D(2040, 1, 1))
+    assert [(c['from'], c['to'], c['local']) for c in got] == [('Sun', 'Moon', D(2026, 1, 1)),
+                                                               ('Moon', 'Mars', D(2036, 1, 1))]
+    assert got[0]['utc'] == D(2025, 12, 31, 18, 30)                 # 5 h 30 min behind the clock at the birth place
+    # A change exactly at the start is not counted; one exactly at the end is.
+    assert [c['to'] for c in M.dasa_changes(chart, D(2025, 12, 31, 18, 30), D(2035, 12, 31, 18, 30))] == ['Mars']
+    assert M.dasa_lord_at(chart, D(2025, 12, 31, 18, 29)) == 'Sun'
+    assert M.dasa_lord_at(chart, D(2025, 12, 31, 18, 30)) == 'Moon'
+    assert M.dasa_lord_at(chart, D(2050, 1, 1)) is None
+
+
+def test_two_changes_are_compared_as_moments_not_as_local_dates():
+    """One year is 365.25 days here, so 12 months are 365.25 days and one month 30.4375 days."""
+    assert M.MONTH_DAYS == 30.4375 and M.SANDHI_MONTHS_DEFAULT == 12 and M.SANDHI_YEARS_AHEAD == 30
+    boy = [{'utc': D(2030, 1, 1), 'local': D(2030, 1, 1, 5, 30)}]
+
+    def girl(days):
+        return [{'utc': D(2030, 1, 1) + timedelta(days=days), 'local': D(2030, 1, 1)}]
+    assert [p['months_apart'] for p in M.sandhi_pairs(boy, girl(365.25), 12)] == [12.0]       # exactly 12 months
+    assert M.sandhi_pairs(boy, girl(365.26), 12) == []
+    assert [p['months_apart'] for p in M.sandhi_pairs(boy, girl(-365.25), 12)] == [12.0]      # before or after
+    assert M.sandhi_pairs(boy, girl(-366), 12) == []
+    assert [p['months_apart'] for p in M.sandhi_pairs(boy, girl(182.625), 6)] == [6.0]
+    assert M.sandhi_pairs(boy, girl(183), 6) == []
+    # The same clock date in two time zones is not the same moment.
+    here = dasa_chart(5.5, ('Sun', D(2020, 1, 1), D(2030, 1, 1)), ('Moon', D(2030, 1, 1), D(2040, 1, 1)))
+    there = dasa_chart(-8, ('Sun', D(2020, 1, 1), D(2030, 1, 1)), ('Moon', D(2030, 1, 1), D(2040, 1, 1)))
+    a = M.dasa_changes(here, D(2025, 1, 1), D(2035, 1, 1))[0]['utc']
+    b = M.dasa_changes(there, D(2025, 1, 1), D(2035, 1, 1))[0]['utc']
+    assert b - a == timedelta(hours=13.5)
+
+
+def test_spans_in_which_both_run_one_dasa_lord():
+    boy = dasa_chart(0, ('Sun', D(2020, 1, 1), D(2026, 1, 1)), ('Moon', D(2026, 1, 1), D(2036, 1, 1)),
+                     ('Mars', D(2036, 1, 1), D(2043, 1, 1)))
+    girl = dasa_chart(0, ('Moon', D(2022, 1, 1), D(2032, 1, 1)), ('Mars', D(2032, 1, 1), D(2039, 1, 1)),
+                      ('Rahu', D(2039, 1, 1), D(2057, 1, 1)))
+    spans = M.shared_dasa_spans(boy, girl, D(2024, 1, 1), D(2054, 1, 1))
+    # Moon for both from 2026 (the boy's starts) to 2032 (the girl's ends); Mars for both 2036 to 2039.
+    assert spans == [{'lord': 'Moon', 'start_utc': D(2026, 1, 1), 'end_utc': D(2032, 1, 1)},
+                     {'lord': 'Mars', 'start_utc': D(2036, 1, 1), 'end_utc': D(2039, 1, 1)}]
+    assert M.shared_dasa_spans(boy, girl, D(2030, 1, 1), D(2037, 1, 1)) == [
+        {'lord': 'Moon', 'start_utc': D(2030, 1, 1), 'end_utc': D(2032, 1, 1)},
+        {'lord': 'Mars', 'start_utc': D(2036, 1, 1), 'end_utc': D(2037, 1, 1)}]
+    assert M.shared_dasa_spans(boy, girl, D(2032, 1, 1), D(2036, 1, 1)) == []
+
+
+def test_window_overlaps_by_hand():
+    def window(a, b, layers='bhukti, antaram'):
+        return {'start_utc': a, 'end_utc': b, 'layers': layers, 'layers_agreeing': 2, 'dasa_lord': 'Moon',
+                'bhukti_lord': 'Mars'}
+    boy = [window(D(2027, 1, 1), D(2027, 3, 1)), window(D(2027, 6, 1), D(2027, 7, 1))]
+    girl = [window(D(2027, 2, 1), D(2027, 6, 11), 'jupiter, saturn'), window(D(2027, 7, 1), D(2027, 8, 1))]
+    got = M.window_overlaps(boy, girl)
+    # February is in both; then the first ten days of June. Windows that only touch do not overlap.
+    assert [(x['start_utc'], x['end_utc'], x['days']) for x in got] == [
+        (D(2027, 2, 1), D(2027, 3, 1), 28.0), (D(2027, 6, 1), D(2027, 6, 11), 10.0)]
+    assert got[0]['boy_layers'] == 'bhukti, antaram' and got[0]['girl_layers'] == 'jupiter, saturn'
+    assert got[0]['label'] == 'rule-based overlap, not a prediction'
+    assert M.window_overlaps(boy, []) == []
+
+
+def test_timing_rows_of_the_two_sample_horoscopes(charts):
+    boy, girl = charts
+    out = M.match(boy, girl)
+    got = {r['key']: r for r in out['rows'] if r['group'] == 'E'}
+    assert list(got) == ['dasa_sandhi', 'eka_dasa', 'kp_seventh', 'marriage_windows']
+    # The dasa tables of the two (the engine's, checked in test_engine.py), as dates at the birth place.
+    def table(res):
+        return [(d['lord'], d['end'].strftime('%Y-%m-%d')) for d in res['vedic']['dasa']['dasas']][:5]
+    assert table(boy) == [('Mars', '2003-03-04'), ('Rahu', '2021-03-03'), ('Jupiter', '2037-03-03'),
+                          ('Saturn', '2056-03-03'), ('Mercury', '2073-03-03')]
+    assert table(girl) == [('Venus', '2016-04-17'), ('Sun', '2022-04-18'), ('Moon', '2032-04-17'),
+                           ('Mars', '2039-04-18'), ('Rahu', '2057-04-18')]
+    # Report date 3 October 2026; 30 years ahead ends in October 2056.
+    assert got['dasa_sandhi']['boy_value'] == 'Jupiter to Saturn on 2037-03-03; Saturn to Mercury on 2056-03-03'
+    assert got['dasa_sandhi']['girl_value'] == 'Moon to Mars on 2032-04-17; Mars to Rahu on 2039-04-18'
+    # Nearest pair: 3 March 2037 and 18 April 2039: 2 years, 1 month and 15 days, about 25.5 months.
+    assert got['dasa_sandhi']['result'] == 'matched'
+    assert got['dasa_sandhi']['note'] == 'Changes within 12 months of each other: none'
+    for months, result in ((25, 'matched'), (26, 'not matched'), (36, 'not matched')):
+        row = next(r for r in M.match(boy, girl, {'sandhi_months': months})['rows'] if r['key'] == 'dasa_sandhi')
+        assert row['result'] == result
+    assert row['note'] == ("Changes within 36 months of each other: the boy's on 2037-03-03 and the girl's on "
+                           "2039-04-18 (25.5 months apart)")
+    # On the report date: the boy in Jupiter (2021 to 2037), the girl in the Moon (2022 to 2032). Until
+    # October 2056 the boy runs Jupiter, Saturn, Mercury and the girl Moon, Mars, Rahu: never one lord.
+    assert (got['eka_dasa']['boy_value'], got['eka_dasa']['girl_value'], got['eka_dasa']['result']) == \
+        ('Jupiter', 'Moon', 'information')
+    assert got['eka_dasa']['note'] == ('On the report date the mahadasa lords are different. Spans with one '
+                                       'lord for both (UTC dates): none')
+    # KP: the engine's own 7th cusp and significators.
+    for res, value in ((boy, got['kp_seventh']['boy_value']), (girl, got['kp_seventh']['girl_value'])):
+        sub = res['kp']['cusps'][6]['sub_lord']
+        houses = next(x['all'] for x in res['kp']['planet_significators'] if x['planet'] == sub)
+        assert res['kp']['cusps'][6]['house'] == 7 and M.kp_seventh(res) == (sub, houses)
+        assert value.startswith(f'{sub}; signifies houses {", ".join(map(str, houses))}; 2, 7 or 11 among them: ')
+        assert value.endswith(': no') == (not {2, 7, 11} & set(houses))
+    assert got['kp_seventh']['boy_value'].endswith(': yes (2, 7, 11)')         # Rahu: 2, 6, 7, 9, 11
+    assert got['kp_seventh']['girl_value'].endswith(': yes (7)')               # Rahu: 3, 5, 7, 9
+    assert out['settings'] == {'kuja_houses': 'south', 'kuja_places_that_count': [2, 4, 7, 8, 12],
+                               'sandhi_months': 12, 'sandhi_years_ahead': 30}
+
+
+def test_one_dasa_lord_for_both_is_stated(charts):
+    boy, _ = charts
+    twin = dict(boy, meta=dict(boy['meta'], name='Twin', gender='female'))
+    row = next(r for r in M.match(boy, twin)['rows'] if r['key'] == 'eka_dasa')
+    assert (row['boy_value'], row['girl_value'], row['result']) == ('Jupiter', 'Jupiter', 'information')
+    # Jupiter until 3 March 2037 (14:07 at Delhi, 08:37 UTC), Saturn until 2056, then Mercury to the end of
+    # the 30 years: 30 x 365.25 = 10,957.5 days after 3 October 2026 14:30 UTC. The calendar has 10,958
+    # days to 3 October 2056, so the end is 3 October 2056 at 02:30 UTC.
+    assert row['note'] == ('On the report date both run the mahadasa of one planet. Spans with one lord for both '
+                           '(UTC dates): Jupiter 2026-10-03 to 2037-03-03; Saturn 2037-03-03 to 2056-03-03; '
+                           'Mercury 2056-03-03 to 2056-10-03')
+    sandhi = next(r for r in M.match(boy, twin)['rows'] if r['key'] == 'dasa_sandhi')
+    assert sandhi['result'] == 'not matched' and '(0.0 months apart)' in sandhi['note']
+
+
+def test_marriage_windows_overlap_day_by_day(charts):
+    """Every noon of the next ten years: it lies in an overlap exactly when it lies in a window of each."""
+    import enrich as E
+    boy, girl = charts
+    out = M.match(boy, girl)
+    overlaps = out['windows']
+    row = next(r for r in out['rows'] if r['key'] == 'marriage_windows')
+
+    def windows(res):
+        off = res['meta']['local_dt'] - res['meta']['ut_dt']
+        return [(r['start_local'] - off, r['end_local'] - off)
+                for r in E.enrich(res)['tables']['AI_TopicWindows'] if r['topic'] == 'Marriage']
+    bw, gw = windows(boy), windows(girl)
+    assert row['boy_value'] == f'{len(bw)} windows in the next 10 years'
+    assert row['girl_value'] == f'{len(gw)} windows in the next 10 years'
+    assert row['note'].startswith(f'{len(overlaps)} spans in which a window of each overlaps (UTC dates). The first: ')
+    assert row['result'] == 'information' and len(overlaps) > 0
+
+    def inside(moment, spans):
+        return any(a <= moment < b for a, b in spans)
+    spans = [(x['start_utc'], x['end_utc']) for x in overlaps]
+    start = boy['meta']['generated_at'] - timedelta(hours=5.5)
+    days_in = 0
+    for day in range(3700):
+        noon = start + timedelta(days=day, hours=12)
+        want = inside(noon, bw) and inside(noon, gw)
+        assert inside(noon, spans) == want, noon
+        days_in += want
+    assert days_in > 100
+    # The spans are in time order, each has a length, and none lies outside both sets of windows.
+    assert spans == sorted(spans) and all(a < b for a, b in spans)
+    assert abs(sum(x['days'] for x in overlaps) - days_in) < len(spans) + 2
+    assert all(x['label'] == 'rule-based overlap, not a prediction' for x in overlaps)
+    first = overlaps[0]
+    assert set(first) == {'start_utc', 'end_utc', 'days', 'boy_layers_agreeing', 'girl_layers_agreeing',
+                          'boy_layers', 'boy_dasa_lord', 'boy_bhukti_lord', 'girl_layers', 'girl_dasa_lord',
+                          'girl_bhukti_lord', 'label'}
+
+
+def test_with_stars_only_the_timing_rows_are_not_applicable(charts):
+    boy, _ = charts
+    for b, g in ((person(3), person(50)), (boy, person(50))):
+        out = M.match(b, g)
+        rows_e = [r for r in out['rows'] if r['group'] == 'E']
+        assert len(rows_e) == 4 and out['windows'] == []
+        for r in rows_e:
+            assert (r['result'], r['boy_value'], r['girl_value']) == ('not applicable', None, None)
+            assert r['note'] == 'The birth details of both are needed'
+
+
+@pytest.mark.parametrize('months', [0, 37, -1, 'six', 2.5, True, [12]])
+def test_sandhi_months_must_be_1_to_36(charts, months):
+    with pytest.raises(A.InputError) as e:
+        M.match(*charts, {'sandhi_months': months})
+    assert str(e.value) == '"sandhiMonths" must be a whole number from 1 to 36.'
+
+
+def test_sandhi_months_given_as_text_or_left_out(charts):
+    assert M.match(*charts, {'sandhi_months': '6'})['settings']['sandhi_months'] == 6
+    assert M.match(*charts, {'sandhi_months': ''})['settings']['sandhi_months'] == 12
+    assert M.clean_options(None) == {'kuja_houses': 'south', 'sandhi_months': 12}
+
+
+def test_nothing_about_length_of_life_with_birth_details(charts):
+    banned = ('marak', 'ayur', 'longevity', 'lifespan', 'life span', 'death', 'mrityu', 'alpayu', 'alive', 'died',
+              'widow', 'kill', 'fatal', 'surviv', 'length of life')
+    allowed = ('Ayul porutham, and anything about length of life: left out on purpose',
+               'Ayul porutham and the rules about particular stars and the in-laws.')
+
+    def texts(value):
+        if isinstance(value, dict):
+            for k, v in value.items():
+                yield from texts(k)
+                yield from texts(v)
+        elif isinstance(value, (list, tuple)):
+            for v in value:
+                yield from texts(v)
+        elif isinstance(value, str):
+            yield value
+    seen = [t for t in texts(M.match(*charts)) if t not in allowed]
+    assert len(seen) > 500
+    for text in seen:
+        assert not any(word in text.lower() for word in banned), text
+
+
+def test_match_leaves_the_horoscopes_alone(charts):
+    import copy
+    boy, girl = charts
+    before = copy.deepcopy((boy, girl))
+    M.match(boy, girl)
+    assert (boy, girl) == before
+
+
+def test_nothing_about_length_of_life():
+    banned = ('marak', 'ayur', 'longevity', 'lifespan', 'life span', 'death', 'mrityu', 'alpayu', 'alive', 'died',
+              'widow', 'kill', 'fatal', 'surviv')
+    allowed = ('Ayul porutham, and anything about length of life: left out on purpose',
+               'Ayul porutham and the rules about particular stars and the in-laws.')
+
+    def texts(value):
+        if isinstance(value, dict):
+            for k, v in value.items():
+                yield from texts(k)
+                yield from texts(v)
+        elif isinstance(value, (list, tuple)):
+            for v in value:
+                yield from texts(v)
+        elif isinstance(value, str):
+            yield value
+
+    seen = 0
+    for b in range(0, 108, 5):
+        for g in range(0, 108, 7):
+            for text in texts(M.match(person(b), person(g))):
+                seen += 1
+                if text not in allowed:
+                    low = text.lower()
+                    assert not any(word in low for word in banned), text
+                    assert 'length of life' not in low and 'remedy' not in low.replace('no remedy', ''), text
+    assert seen > 1000
+    assert allowed[0] in M.NOT_INCLUDED
+
+
+# ── the route ─────────────────────────────────────────────────────────────────
+
+@pytest.fixture()
+def client(monkeypatch):
+    import app as app_module
+
+    def no_network(*args, **kwargs):
+        raise AssertionError('a test tried to look a place up')
+
+    monkeypatch.setattr(app_module, 'geocode', no_network)
+    monkeypatch.setattr(A, 'geocode', no_network)
+    return app_module.app.test_client()
+
+
+def test_route_with_birth_details(client, charts):
+    rv = client.post('/api/match', json={'boy': BOY, 'girl': GIRL, 'lang': 'ta'})
+    assert rv.status_code == 200 and rv.headers['Cache-Control'] == 'no-store'
+    out = rv.get_json()
+    want = M.match(*charts)
+    assert out['mode'] == 'full' and out['schema'] == 'horoscopegen-match/1'
+    assert [(r['key'], r['result'], r['points']) for r in out['rows'] if r['group'] in 'ABC'] == \
+        [(r['key'], r['result'], r['points']) for r in want['rows'] if r['group'] in 'ABC']
+    assert set(out['charts']) == {'boy', 'girl'} and set(out['charts']['boy']) == {'d1', 'd9'}
+    assert len(out['charts']['girl']['d1']['signs']) == 12
+
+
+def test_route_with_stars_only(client):
+    rv = client.post('/api/match', json={'mode': 'star', 'boy': {'nakshatra': 'Rohini', 'pada': 2},
+                                         'girl': {'nakshatra': 14, 'pada': 1, 'name': 'Meena'}})
+    out = rv.get_json()
+    assert rv.status_code == 200 and out['mode'] == 'star' and 'charts' not in out
+    assert out['persons']['girl']['name'] == 'Meena' and out['persons']['boy']['name'] == 'Boy'
+    assert out['summary']['ashtakoota']['points'] == 20
+    assert out['persons']['boy']['source'] == 'star only' and 'dob' not in out['persons']['boy']
+
+
+def test_the_name_may_be_left_out(client):
+    nameless = {k: v for k, v in GIRL.items() if k != 'name'}
+    out = client.post('/api/match', json={'boy': BOY, 'girl': nameless}).get_json()
+    assert out['persons']['girl']['name'] == 'Girl' and out['persons']['boy']['name'] == 'Sample Native'
+
+
+@pytest.mark.parametrize('body,message', [
+    ({}, 'The details of the boy are required.'),
+    ({'boy': BOY}, 'The details of the girl are required.'),
+    ({'boy': BOY, 'girl': 'Rohini'}, 'The details of the girl are required.'),
+    ({'boy': BOY, 'girl': {}}, 'The details of the girl are required.'),
+    ({'boy': BOY, 'girl': GIRL, 'mode': 'quick'}, '"mode" must be "full" or "star".'),
+    ({'boy': BOY, 'girl': {'name': 'x', 'dob': '2000-07-15'}},
+     'Date, time and place of birth are required for the girl.'),
+    ({'boy': dict(BOY, dob='15-07-2000'), 'girl': GIRL}, 'Date must be YYYY-MM-DD and time HH:MM (24-hour).'),
+    ({'boy': dict(BOY, lat='north'), 'girl': GIRL}, '"north" is not a number.'),
+    ({'boy': BOY, 'girl': GIRL, 'ayanamsha': 'tropical'}, 'Unknown ayanamsha "tropical".'),
+    ({'mode': 'star', 'boy': {'nakshatra': 'Rohini'}, 'girl': {'nakshatra': 3}},
+     "Krittika lies in Mesha and Rishabha: give the girl's pada or rasi."),
+    ({'mode': 'star', 'boy': {'nakshatra': 40}, 'girl': {'nakshatra': 3}},
+     "The boy's nakshatra must be a whole number from 1 to 27."),
+    ({'mode': 'star', 'boy': BOY, 'girl': GIRL}, "The boy's nakshatra is required."),
+    ([1, 2], 'The request body must be a JSON object.'),
+])
+def test_bad_input_is_a_400_with_a_message(client, body, message):
+    rv = client.post('/api/match', json=body)
+    assert rv.status_code == 400 and rv.get_json() == {'error': message}
+
+
+def test_route_takes_the_places_of_mars_that_count(client):
+    out = client.post('/api/match', json={'boy': BOY, 'girl': GIRL, 'kujaHouses': 'all'}).get_json()
+    assert out['settings']['kuja_places_that_count'] == [1, 2, 4, 7, 8, 12]
+    rv = client.post('/api/match', json={'boy': BOY, 'girl': GIRL, 'kujaHouses': 'east'})
+    assert rv.status_code == 400 and rv.get_json()['error'].startswith('"kujaHouses" must be "south"')
+    star = client.post('/api/match', json={'mode': 'star', 'boy': {'nakshatra': 1}, 'girl': {'nakshatra': 2}})
+    assert {r['result'] for r in star.get_json()['rows'] if r['group'] == 'D'} == {'not applicable'}
+
+
+def test_route_takes_the_months_of_dasa_sandhi_and_sends_the_windows_as_text(client):
+    out = client.post('/api/match', json={'boy': BOY, 'girl': GIRL, 'sandhiMonths': 26}).get_json()
+    assert out['settings']['sandhi_months'] == 26
+    assert next(r for r in out['rows'] if r['key'] == 'dasa_sandhi')['result'] == 'not matched'
+    first = out['windows'][0]
+    assert isinstance(first['start_utc'], str) and len(first['start_utc']) == 19 and first['start_utc'][10] == 'T'
+    rv = client.post('/api/match', json={'boy': BOY, 'girl': GIRL, 'sandhiMonths': 40})
+    assert rv.status_code == 400
+    assert rv.get_json() == {'error': '"sandhiMonths" must be a whole number from 1 to 36.'}
+    star = client.post('/api/match', json={'mode': 'star', 'boy': {'nakshatra': 1}, 'girl': {'nakshatra': 2}})
+    assert star.get_json()['windows'] == []
+
+
+def test_the_settings_of_the_request_apply_to_both_people(client):
+    out = client.post('/api/match', json={'boy': BOY, 'girl': GIRL, 'ayanamsha': 'raman'}).get_json()
+    assert out['persons']['boy']['ayanamsha'] == out['persons']['girl']['ayanamsha'] == 'B.V. Raman'
+
+
+def test_a_person_without_coordinates_is_one_place_lookup(monkeypatch):
+    import app as app_module
+    asked = []
+
+    def fake(query, limit=5):
+        asked.append(query)
+        return [{'name': query, 'lat': 13.0827, 'lon': 80.2707, 'tz': 'Asia/Kolkata'}]
+
+    monkeypatch.setattr(app_module, 'geocode', fake)
+    monkeypatch.setattr(A, 'geocode', fake)
+    girl = {k: v for k, v in GIRL.items() if k not in ('lat', 'lon')}
+    rv = app_module.app.test_client().post('/api/match', json={'boy': BOY, 'girl': girl})
+    assert rv.status_code == 200 and asked == ['Chennai']
+
+
+def test_matching_is_limited_to_15_a_minute_for_one_visitor(client):
+    import app as app_module
+    app_module.limiter.enabled = True
+    app_module.limiter.reset()
+    try:
+        body = {'mode': 'star', 'boy': {'nakshatra': 1}, 'girl': {'nakshatra': 2}}
+        headers = {'CF-Connecting-IP': '203.0.113.9'}
+        got = [client.post('/api/match', json=body, headers=headers).status_code for _ in range(17)]
+        assert got == [200] * 15 + [429, 429]
+        assert client.post('/api/match', json=body, headers={'CF-Connecting-IP': '203.0.113.10'}).status_code == 200
+        # Matching has its own count: the horoscope route is still open to the first visitor.
+        assert client.post('/api/horoscope', json=BOY, headers=headers).status_code == 200
+    finally:
+        app_module.limiter.reset()
+
+
+def test_the_single_horoscope_route_still_needs_a_name(client):
+    rv = client.post('/api/horoscope', json={k: v for k, v in BOY.items() if k != 'name'})
+    assert rv.status_code == 400
+    assert rv.get_json() == {'error': 'Name, date, time and place of birth are required.'}
+
+
+# ── the reports ───────────────────────────────────────────────────────────────
+
+@pytest.fixture(scope='module')
+def matched(charts):
+    boy, girl = charts
+    return M.match(boy, girl), {'boy': boy, 'girl': girl}
+
+
+@pytest.fixture(scope='module')
+def star_match():
+    return M.match(star('Rohini', 2), star('Chitra', 1), now=NOW)
+
+
+def cell_texts(ws):
+    return [c.value for row in ws.iter_rows() for c in row if isinstance(c.value, str)]
+
+
+def load(data):
+    import openpyxl
+    return openpyxl.load_workbook(io.BytesIO(data))
+
+
+def pdf_text(data, tmp_path):
+    f = tmp_path / 'r.pdf'
+    f.write_bytes(data)
+    done = subprocess.run(['pdftotext', '-layout', str(f), '-'], capture_output=True, text=True)
+    return done.stdout, done.stderr
+
+
+def test_flat_tables_have_the_shape_of_the_ai_block(matched, star_match):
+    result, _ = matched
+    t = M.tables(result)
+    assert t['schema'] == 'horoscopegen-match/1'
+    assert t['sheets'] == ['AI_MatchReadMe', 'AI_MatchPersons', 'AI_MatchSummary', 'AI_Match', 'AI_MatchWindows',
+                           'AI_MatchRules'] == list(t['tables']) == list(t['columns'])
+    for sheet in t['sheets']:
+        names = [c['name'] for c in t['columns'][sheet]]
+        assert all(c['meaning'] for c in t['columns'][sheet]) and len(names) == len(set(names))
+        for row in t['tables'][sheet]:
+            assert list(row) == names, sheet
+    rows = t['tables']['AI_Match']
+    assert [(r['key'], r['result'], r['points']) for r in rows] == \
+        [(r['key'], r['result'], r['points']) for r in result['rows']]
+    assert {r['group']: r['group_title'] for r in rows} == result['groups']
+    assert len(t['tables']['AI_MatchWindows']) == len(result['windows']) > 0
+    assert isinstance(t['tables']['AI_MatchWindows'][0]['start_utc'], datetime)
+    assert t['tables']['AI_MatchRules'] == result['rules']
+    persons = {r['fact']: (r['boy'], r['girl']) for r in t['tables']['AI_MatchPersons']}
+    assert persons['name'] == ('Sample Native', 'Sample Bride') and persons['dob'] == ('1998-03-06', '2000-07-15')
+    assert persons['nakshatra'][0] == 'Mrigashira' and 'role' not in persons
+    summary = {r['key']: r['value'] for r in t['tables']['AI_MatchSummary']}
+    assert all(r['note'] for r in t['tables']['AI_MatchSummary'])
+    assert summary['mode'] == 'full' and summary['label'] == 'rule-based, not a prediction'
+    assert summary['ashtakoota_points'] == result['summary']['ashtakoota']['points']
+    assert summary['ashtakoota_max_points'] == 36 and summary['windows'] == len(result['windows'])
+    assert summary['ten_poruthams_matched'] + summary['ten_poruthams_medium'] + summary['ten_poruthams_not_matched'] == 10
+    assert summary['group_D_information'] == 20 and summary['kuja_places_that_count'] == '2, 4, 7, 8, 12'
+    assert summary['report_utc'] == NOW - timedelta(hours=5.5)
+    # Always in English: no letter of an Indian script anywhere.
+    for sheet in t['sheets']:
+        for row in t['tables'][sheet]:
+            for v in row.values():
+                assert not (isinstance(v, str) and any(ord(ch) >= 0x0590 and not 0x2000 <= ord(ch) < 0x2400 for ch in v)), v
+    # Star only: the same sheets, the chart and timing rows empty, no windows.
+    s = M.tables(star_match)
+    assert s['sheets'] == t['sheets'] and s['tables']['AI_MatchWindows'] == []
+    facts = {r['fact']: (r['boy'], r['girl']) for r in s['tables']['AI_MatchPersons']}
+    assert facts['source'] == ('star only', 'star only') and 'dob' not in facts
+    assert {r['key']: r['value'] for r in s['tables']['AI_MatchSummary']}['report_utc'] == NOW
+
+
+def test_match_workbook(matched):
+    from excel_generator import generate_match_excel
+    result, people = matched
+    wb = load(generate_match_excel(result, people, 'en'))
+    assert wb.sheetnames == ['Marriage'] + M.MATCH_SHEETS
+    ws = wb['Marriage']
+    texts = cell_texts(ws)
+    assert texts[0] == 'HoroscopeGen  ·  Marriage Matching'
+    assert 'Sample Native  ·  Sample Bride  ·  Rule-based, not a prediction' in texts
+    assert 'Boy: Sample Native' in texts and 'Girl: Sample Bride' in texts
+    assert texts.count('Rasi Chart (D1)') == 2                           # the two charts, side by side
+    for row in result['rows']:
+        assert row['name'] in texts, row['name']
+    for title in ('A. Ten Poruthams, with Nadi and Vriksha', 'B. Star Rules', 'C. Ashtakoota (36 Points)',
+                  'D. Chart Checks', 'E. Timing and KP', 'Summary of Results', 'Marriage Windows of Both (UTC)',
+                  'Rules and Variants', 'Where the Tables Were Checked', 'Not Included', 'Settings'):
+        assert texts.count(title) >= 1, title
+    ak = result['summary']['ashtakoota']
+    assert f"{ak['points']} / 36" in texts
+    assert 'Counts of rule-based checks; no overall verdict is given.' in texts
+    assert 'The first 12 of 72 spans are shown. All are on the sheet AI_MatchWindows.' in texts
+    for rule in result['rules']:
+        assert rule['rule'] in texts
+    assert ws.page_setup.orientation == 'portrait' and ws.print_area
+    # The window rows hold real dates.
+    dates = [c.value for row in ws.iter_rows() for c in row if isinstance(c.value, datetime)]
+    assert len(dates) == 24 and dates[0].date() == result['windows'][0]['start_utc'].date()
+
+
+def test_the_ai_match_sheets_are_plain_tables(matched):
+    from excel_generator import generate_match_excel
+    result, people = matched
+    wb = load(generate_match_excel(result, people, 'ta'))               # the report language does not reach them
+    t = M.tables(result)
+    for sheet in M.MATCH_SHEETS:
+        ws = wb[sheet]
+        assert not ws.merged_cells.ranges and ws.freeze_panes == 'A2'
+        assert [c.value for c in ws[1]] == [c['name'] for c in t['columns'][sheet]]
+        assert ws.max_row == len(t['tables'][sheet]) + 1
+        got = [[c.value for c in row] for row in ws.iter_rows(min_row=2)]
+        want = [list(row.values()) for row in t['tables'][sheet]]
+        assert got == want, sheet
+        for row in ws.iter_rows():
+            for c in row:
+                assert c.data_type != 'f' and c.fill.fill_type is None
+
+
+def test_match_workbook_in_tamil_and_bilingual(matched):
+    from excel_generator import generate_match_excel
+    result, people = matched
+    wb = load(generate_match_excel(result, people, 'ta'))
+    assert wb.sheetnames[0] == 'திருமணப் பொருத்தம்'
+    texts = cell_texts(wb.worksheets[0])
+    for word in ('தினப் பொருத்தம்', 'ரஜ்ஜுப் பொருத்தம்', 'வைநாசிகம் (22-வது நட்சத்திரம்)', 'பொருத்தம் உண்டு', 'பொருத்தம் இல்லை',
+                 'மிருகசீரிடம் - பாதம் 2', 'இருவருக்கும் செவ்வாய் தோஷம்', 'தசா சந்தி', 'ஆண்: Sample Native'):
+        assert word in texts, word
+    # The sentences of the chart rows stay in English.
+    assert 'Mars in the 5th from the lagna: absent' in texts
+    wb = load(generate_match_excel(result, people, 'bi'))
+    assert wb.sheetnames[0] == 'Marriage'
+    texts = cell_texts(wb.worksheets[0])
+    assert 'Dinam / தினப் பொருத்தம்' in texts and 'Matched / பொருத்தம் உண்டு' in texts
+    # Telugu has no labels of its own: English labels, as on the other sheets.
+    wb = load(generate_match_excel(result, people, 'te'))
+    assert wb.sheetnames[0] == 'Marriage' and 'Dinam' in cell_texts(wb.worksheets[0])
+
+
+def test_match_workbook_for_stars_only(star_match):
+    from excel_generator import generate_match_excel
+    wb = load(generate_match_excel(star_match, None, 'en'))
+    texts = cell_texts(wb['Marriage'])
+    assert 'Rasi Chart (D1)' not in texts and 'Marriage Windows of Both (UTC)' not in texts
+    assert texts.count('The birth details of both are needed') == 2            # groups D and E
+    assert 'Kuja dosha from the lagna' not in texts and 'Dinam' in texts
+    assert texts.count('Star only') == 2 and 'Rohini - Pada 2' in texts and '20 / 36' in texts
+    # Gana and Bhakoot score 0 for this pair, and the exception is named beside each.
+    exception = 'Exception: The rasi lords are friends to each other (Venus, Mercury)'
+    assert exception in texts and exception + '\nThe rasis are 5/9 from each other' in texts
+    assert wb['AI_MatchWindows'].max_row == 1
+    assert [r[6].value for r in wb['AI_Match'].iter_rows(min_row=2)].count('not applicable') == 3 + 25 + 4
+
+
+def test_a_marriage_sheet_leaves_the_seven_report_sheets_as_they_were(matched):
+    import enrich as E
+    import make_golden as G
+    from excel_generator import generate_excel
+    result, people = matched
+    boy = people['boy']
+    plain = generate_excel(boy, 'en')
+    with_match = generate_excel(boy, 'en', match=result, people=people)
+    assert G.workbook_print(with_match) == G.workbook_print(plain)
+    assert load(with_match).sheetnames == load(plain).sheetnames + ['Marriage'] + M.MATCH_SHEETS
+    ai = E.enrich(boy)
+    names = load(generate_excel(boy, 'en', ai=ai, match=result, people=people)).sheetnames
+    assert names[:8] == load(plain).sheetnames + ['Marriage']
+    assert names[8:] == ai['sheets'] + M.MATCH_SHEETS
+
+
+def test_nothing_about_length_of_life_in_the_reports(matched):
+    from excel_generator import generate_match_excel
+    result, people = matched
+    banned = ('marak', 'ayur', 'longevity', 'lifespan', 'life span', 'death', 'mrityu', 'alpayu', 'alive', 'died',
+              'widow', 'kill', 'fatal', 'surviv', 'length of life', 'remed')
+    allowed = ('Ayul porutham, and anything about length of life: left out on purpose',
+               'Ayul porutham and the rules about particular stars and the in-laws.',
+               'Not included: Ayul porutham, and anything about length of life: left out on purpose.',
+               'Remedies; a verdict on whether to marry', 'Not included: Remedies; a verdict on whether to marry.',
+               'Tables - Left out on purpose: Ayul porutham and the rules about particular stars and the in-laws.')
+    wb = load(generate_match_excel(result, people, 'en'))
+    seen = 0
+    for ws in wb.worksheets:
+        for text in cell_texts(ws):
+            seen += 1
+            if text not in allowed:
+                assert not any(word in text.lower() for word in banned), (ws.title, text)
+    assert seen > 800
+
+
+@pytest.mark.parametrize('lang', ['en', 'ta', 'hi', 'bi', 'te'])
+def test_match_pdf(matched, star_match, lang, tmp_path):
+    from pdf_generator import generate_match_pdf
+    result, people = matched
+    data = generate_match_pdf(result, people, lang)
+    assert data[:5] == b'%PDF-' and len(data) > 30000
+    star_data = generate_match_pdf(star_match, None, lang)
+    assert star_data[:5] == b'%PDF-'
+    if not shutil.which('pdftotext'):
+        pytest.skip('pdftotext not installed')
+    text, errors = pdf_text(data, tmp_path)
+    assert errors == ''
+    # Sentences of the chart rows, the points and the dates are the same in every language.
+    assert 'Sample Native' in text and 'Sample Bride' in text
+    assert 'Mars in the 5th from the lagna:' in text and '12 / 36' in text and '03-10-2026' in text
+    assert 'Jupiter to Saturn on 2037-03-03' in text
+    assert 'No overall verdict is given.' in text                               # the last rule: nothing was cut off
+    if lang in ('en', 'te'):
+        for words in ('Marriage Matching', 'Stree Deergham', 'Vainasika (22nd star)', 'Kuja dosha in both charts',
+                      'Papa samyam (count)', 'Dasa sandhi', 'Rules and Variants', 'Not matched', 'Information'):
+            assert words in text, words
+    star_text, errors = pdf_text(star_data, tmp_path)
+    assert errors == '' and '20 / 36' in star_text and 'Kuja dosha from the lagna' not in star_text
+
+
+def test_a_wrapped_cell_that_mixes_scripts_keeps_every_line(tmp_path):
+    """
+    A cell that starts in Tamil and wraps into a line of Latin text used to
+    lose that line (the PDF named no font for it). pdftotext reports the
+    fault as "No font in show".
+    """
+    if not shutil.which('pdftotext'):
+        pytest.skip('pdftotext not installed')
+    import pdf_generator as P
+    pdf = P.Report({'meta': {'name': 'x', 'generated_at': NOW}}, 'ta')
+    pdf.add_page()
+    cols = [('a', 20, 'LEFT'), ('b', 16, 'LEFT'), ('c', 12, 'CENTER'), ('d', 28, 'LEFT')]
+    pdf.table(cols, [['கணம் (6)', 'மனுஷ கணம்', '0 / 6',
+                      'விலக்கு: The rasi lords are friends to each other (Venus, Mercury) lastword'],
+                     ['வைநாசிகம் நட்சத்திரம் (22-வது நட்சத்திரம்) (88-வது பாதம்) 123 456 789 endword', 'x', 'y', 'z']],
+              font_size=6.8, line_h=4.0, wrap=True)
+    text, errors = pdf_text(bytes(pdf.output()), tmp_path)
+    assert errors == '' and 'lastword' in text and 'endword' in text and 'Mercury)' in text
+
+
+def test_a_marriage_section_in_the_horoscope_pdf(matched, tmp_path):
+    from pdf_generator import generate_pdf
+    result, people = matched
+    plain = generate_pdf(people['boy'], 'en')
+    with_match = generate_pdf(people['boy'], 'en', match=result, people=people)
+    assert with_match[:5] == b'%PDF-' and len(with_match) > len(plain) + 20000
+    if not shutil.which('pdftotext'):
+        pytest.skip('pdftotext not installed')
+    text, errors = pdf_text(with_match, tmp_path)
+    before, errors_before = pdf_text(plain, tmp_path)
+    assert errors == errors_before == ''
+    assert 'Marriage Matching' in text and 'Marriage Matching' not in before
+    assert text.index('How This Report Was Calculated') < text.index('Marriage Matching')     # after the notes
+    assert 'Kuja dosha in both charts' in text and 'Sample Bride' in text
+
+
+def test_labels_cover_every_check_and_the_page_bundle_is_untouched():
+    import i18n
+    assert set(i18n.MATCH_CHECKS['ta']) == set(i18n.MATCH_CHECKS['hi']) == set(M.CHECKS)
+    assert set(i18n.MATCH_LABELS['ta']) == set(i18n.MATCH_LABELS['hi']) == set(i18n.MATCH_LABELS['en'])
+    for result in M.RESULTS:
+        assert result in i18n.MATCH_LABELS['en']
+    for group in M.GROUPS:
+        assert 'group_' + group in i18n.MATCH_LABELS['en']
+    words = set(M.GANA) | set(M.YONI) | set(M.RAJJU) | set(M.NADI) | set(M.E.TARA_NAMES) | set(M.VARNA.values()) \
+        | set(M.VASHYA_POINTS)
+    assert set(i18n.MATCH_WORDS['ta']) == set(i18n.MATCH_WORDS['hi']) == words
+    assert set(M.TREE) == set(i18n.MATCH_TREES_TA)
+    # The labels sent to the web page with every horoscope do not gain the marriage labels.
+    assert 'marriage_title' not in i18n.bundle('ta')['labels'] and 'group_A' not in i18n.LABELS['en']
+    assert i18n.match_value('Rohini pada 2', 'ta') == 'ரோகிணி - பாதம் 2'
+    assert i18n.match_value('Deva', 'hi') == 'देव गण' and i18n.match_value('Deva', 'bi') == 'Deva'
+    assert i18n.match_value('Naval (milk tree)', 'ta') == 'நாவல் (பால் மரம்)'
+    assert i18n.match_value('Naval (milk tree)', 'en') == 'Naval (milk tree)'
+    assert i18n.match_value('Mars in the 5th from the lagna: absent', 'ta') == 'Mars in the 5th from the lagna: absent'
+    assert i18n.match_value(None, 'en') == '—' and i18n.match_value('Kanya', 'ta') == 'கன்னி'
+    assert i18n.match_check('dinam', 'Dinam', 'bi') == 'Dinam / தினப் பொருத்தம்'
+    assert i18n.match_check('dinam', 'Dinam', 'kn') == 'Dinam' and i18n.ML('marriage', 'mr') == 'विवाह मिलान'
+
+
+# ── the download routes ───────────────────────────────────────────────────────
+
+XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+
+def test_download_the_match_as_a_workbook_and_as_a_pdf(client):
+    body = {'boy': BOY, 'girl': GIRL, 'lang': 'en'}
+    rv = client.post('/api/download/match/excel', json=body)
+    assert rv.status_code == 200 and rv.headers['Content-Type'] == XLSX
+    assert 'filename="HoroscopeGen_Match_Sample_Native_Sample_Bride.xlsx"' in rv.headers['Content-Disposition']
+    assert rv.headers['Cache-Control'] == 'no-store'
+    assert load(rv.data).sheetnames == ['Marriage'] + M.MATCH_SHEETS
+    rv = client.post('/api/download/match/pdf', json=dict(body, lang='ta'))
+    assert rv.status_code == 200 and rv.data[:5] == b'%PDF-'
+    assert 'filename="HoroscopeGen_Match_Sample_Native_Sample_Bride.pdf"' in rv.headers['Content-Disposition']
+    stars = {'mode': 'star', 'boy': {'nakshatra': 4, 'pada': 2}, 'girl': {'nakshatra': 14, 'pada': 1}}
+    rv = client.post('/api/download/match/excel', json=stars)
+    assert rv.status_code == 200 and 'HoroscopeGen_Match_Boy_Girl.xlsx' in rv.headers['Content-Disposition']
+    assert client.post('/api/download/match/pdf', json=stars).data[:5] == b'%PDF-'
+    for route in ('/api/download/match/excel', '/api/download/match/pdf'):
+        rv = client.post(route, json={'boy': BOY})
+        assert rv.status_code == 400 and rv.get_json() == {'error': 'The details of the girl are required.'}
+        assert client.get(route).status_code == 405
+
+
+def test_a_partner_adds_the_marriage_sheet_and_section_to_a_horoscope(client):
+    plain = client.post('/api/download/excel', json=dict(BOY, gender='male'))
+    rv = client.post('/api/download/excel', json=dict(BOY, gender='male', partner=GIRL))
+    assert rv.status_code == 200 and 'HoroscopeGen_Sample_Native.xlsx' in rv.headers['Content-Disposition']
+    names, plain_names = load(rv.data).sheetnames, load(plain.data).sheetnames
+    assert 'Marriage' not in plain_names and names[:7] == plain_names[:7] and names[7] == 'Marriage'
+    assert names == plain_names[:7] + ['Marriage'] + plain_names[7:] + M.MATCH_SHEETS
+    texts = cell_texts(load(rv.data)['Marriage'])
+    assert 'Boy: Sample Native' in texts and 'Girl: Sample Bride' in texts
+    # A woman's horoscope with a partner: she is the girl, the partner the boy.
+    rv = client.post('/api/download/excel', json=dict(GIRL, gender='female', partner=BOY))
+    texts = cell_texts(load(rv.data)['Marriage'])
+    assert 'Boy: Sample Native' in texts and 'Girl: Sample Bride' in texts
+    pdf = client.post('/api/download/pdf', json=dict(BOY, gender='male', partner=GIRL))
+    plain_pdf = client.post('/api/download/pdf', json=dict(BOY, gender='male'))
+    assert pdf.status_code == 200 and pdf.data[:5] == b'%PDF-' and len(pdf.data) > len(plain_pdf.data) + 20000
+
+
+@pytest.mark.parametrize('body,message', [
+    (dict(BOY, partner=GIRL), 'Set "gender" to male or female to add a marriage match with a partner.'),
+    (dict(BOY, gender='other', partner=GIRL), 'Set "gender" to male or female to add a marriage match with a partner.'),
+    (dict(BOY, gender='male', partner='Sample Bride'), '"partner" must hold the birth details of the partner.'),
+    (dict(BOY, gender='male', partner={'name': 'x'}), 'Date, time and place of birth are required for the girl.'),
+    (dict(BOY, gender='male', partner=GIRL, kujaHouses='east'), None),
+])
+@pytest.mark.parametrize('route', ['/api/download/excel', '/api/download/pdf'])
+def test_a_partner_that_cannot_be_read_is_a_400(client, route, body, message):
+    rv = client.post(route, json=body)
+    assert rv.status_code == 400
+    if message:
+        assert rv.get_json() == {'error': message}
+
+
+def test_without_a_partner_the_downloads_are_as_before(client):
+    for empty in (None, '', {}):
+        rv = client.post('/api/download/excel', json=dict(BOY, partner=empty))
+        assert rv.status_code == 200 and 'Marriage' not in load(rv.data).sheetnames
+
+
+def test_the_match_downloads_share_the_10_a_minute_of_all_downloads(client):
+    import app as app_module
+    app_module.limiter.enabled = True
+    app_module.limiter.reset()
+    try:
+        stars = {'mode': 'star', 'boy': {'nakshatra': 1}, 'girl': {'nakshatra': 2}}
+        headers = {'CF-Connecting-IP': '203.0.113.21'}
+        routes = ['/api/download/match/excel', '/api/download/match/pdf'] * 4 + ['/api/download/json',
+                                                                              '/api/download/match/excel']
+        got = [client.post(route, json=BOY if route.endswith('json') else stars, headers=headers).status_code
+               for route in routes]
+        assert got == [200] * 10
+        for route in ('/api/download/match/pdf', '/api/download/excel', '/api/download/match/excel'):
+            assert client.post(route, json=stars, headers=headers).status_code == 429
+        # The match itself is counted apart from the downloads.
+        assert client.post('/api/match', json=stars, headers=headers).status_code == 200
+    finally:
+        app_module.limiter.reset()
+
+
+def test_route_adds_the_flat_tables_when_asked(client):
+    stars = {'mode': 'star', 'boy': {'nakshatra': 4, 'pada': 2}, 'girl': {'nakshatra': 14, 'pada': 1}}
+    assert 'ai' not in client.post('/api/match', json=stars).get_json()
+    out = client.post('/api/match', json=dict(stars, ai=True)).get_json()
+    assert out['ai']['sheets'] == M.MATCH_SHEETS and out['ai']['schema'] == 'horoscopegen-match/1'
+    assert len(out['ai']['tables']['AI_Match']) == len(out['rows'])
+    assert len(out['generated_utc']) == 19

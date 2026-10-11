@@ -21,10 +21,10 @@ Nothing is stored: birth details are used for the calculation and discarded.
 | `astro_engine.py` | All calculations. `compute()` is the single source for every output |
 | `enrich.py` | `enrich(res)`: derived facts as flat tables for AI readers. A separate step, so `compute()` and the web page are not slowed down |
 | `charts.py` | Chart contents and layout shared by web page, Excel and PDF |
-| `i18n.py` | Names and labels (en, ta, hi, te, kn, ml, mr, bn, and `bi` = English + Tamil) |
+| `i18n.py` | Names and labels (en, ta, hi, te, kn, ml, mr, bn, and `bi` = English + Tamil). The marriage labels are kept apart from the report labels, so the labels sent to the web page with each horoscope are unchanged |
 | `match_engine.py` | `match(boy, girl)`: marriage matching (porutham) of two people, one row per check. Reads two `compute()` results or two star-only records; changes nothing in `compute()`. See [Marriage matching](#marriage-matching) |
-| `excel_generator.py` | Workbook: Summary, Vedic, Divisional Charts, KP, ALP, Dasa, Notes; charts drawn with cells. With the AI block, the `AI_` sheets (28, or 30 when past events were entered) follow Notes |
-| `pdf_generator.py` | PDF with the same content; Noto fonts embedded, text shaped by HarfBuzz |
+| `excel_generator.py` | Workbook: Summary, Vedic, Divisional Charts, KP, ALP, Dasa, Notes; charts drawn with cells. With the AI block, the `AI_` sheets (28, or 30 when past events were entered) follow Notes. With a marriage match, a Marriage sheet follows Notes and the `AI_Match` sheets close the workbook; `generate_match_excel()` builds the Marriage sheet and the `AI_Match` sheets alone |
+| `pdf_generator.py` | PDF with the same content; Noto fonts embedded, text shaped by HarfBuzz. With a marriage match, a Marriage section follows the notes; `generate_match_pdf()` builds that section alone |
 | `app.py` | Flask routes, request limits and CORS |
 | `fonts/` | Noto Sans fonts (SIL Open Font License, see `fonts/OFL.txt`) |
 | `tests/` | `pytest` suite: `test_engine.py` (engine and reports), `test_enrich.py` (AI tables, AI sheets, JSON routes), `test_protection.py` (request limits, body size cap, CORS, bad input), `test_reader.py` (what schema 2 added: dasa levels, faster transits, stations, period facts, topic promise and windows, optional inputs, the brief), `test_match.py` (marriage matching: the star tables against the published lists, every pair of the 108 padas against a second statement of the rules, pairs worked by hand, the route). `golden_main.json` holds fingerprints of the seven report sheets and of the `/api/horoscope` response, made by `make_golden.py`, so a change to the old output is caught |
@@ -42,6 +42,9 @@ POST /api/download/pdf       -> .pdf
 POST /api/download/json      -> .json (meta, vedic, kp, alp and the "ai" block), named like the Excel file
                                 with "ai": "brief": meta and the short AI_Brief table only (under 45 KB)
 POST /api/match              -> JSON: marriage matching of two people (see Marriage matching)
+                                add "ai": true to also get the flat AI_Match tables
+POST /api/download/match/excel -> .xlsx: the Marriage sheet, then the AI_Match sheets
+POST /api/download/match/pdf   -> .pdf: the Marriage section
 GET  /api/geocode?q=Chennai  -> place candidates with latitude, longitude, time zone
 GET  /health
 ```
@@ -107,7 +110,7 @@ service is that each visitor can only ask for so much:
 | What | Limit | Counted |
 |---|---|---|
 | `POST /api/horoscope` | 30 a minute, 300 an hour | per visitor |
-| `POST /api/download/excel`, `pdf`, `json` | 10 a minute, 100 an hour, the three together | per visitor |
+| `POST /api/download/excel`, `pdf`, `json`, `match/excel`, `match/pdf` | 10 a minute, 100 an hour, the five together | per visitor |
 | `POST /api/match` | 15 a minute, 150 an hour (one match computes two horoscopes) | per visitor |
 | `GET /api/geocode` | 20 a minute, 200 an hour | per visitor |
 | Any other route | 120 a minute | per visitor |
@@ -280,8 +283,54 @@ is used, and what was written from memory. Left out: Pakshi and Bhutha
 porutham (no table could be checked), Ayul porutham and the rules about
 particular stars and the in-laws (on purpose).
 
+### Marriage sheet and Marriage section
+
+`POST /api/download/match/excel` and `/api/download/match/pdf` take the same
+body as `/api/match` and return the match as a file named
+`HoroscopeGen_Match_<boy>_<girl>`.
+
+- **Workbook**: one sheet named Marriage (the two people, their rasi charts
+  side by side, the summary of counts, the rows of each group, the first 12
+  overlapping marriage windows, the settings, the rules, where the tables
+  were checked, what is not included), then six flat sheets for AI readers.
+- **PDF**: the same content as one Marriage section.
+- In star mode there are no charts and no windows, and groups D and E are
+  one line each: "The birth details of both are needed".
+
+The two single-horoscope downloads also take a partner. Add `"partner"` (the
+birth details of the partner, as for `/api/horoscope`; the name may be left
+out) to the body of `/api/download/excel` or `/api/download/pdf`, with the
+person's own `"gender"` set to `male` or `female` so it is known who is the
+boy and who the girl. The workbook then has a Marriage sheet after Notes (the
+seven report sheets stay exactly where they were) and the `AI_Match` sheets
+at the end; the PDF has a Marriage section after the notes. Without
+`"partner"` both downloads are as before.
+
+Language: the labels, the names of the checks and the results are in
+English, Tamil and Hindi (Marathi reuses Hindi; the other languages show
+English labels, as the rest of the report does). Star, rasi and planet names
+and the one-word values of the star rows (gana, yoni, rajju, nadi, tara) are
+translated. The sentences of the chart and timing rows, the notes and the
+rules are in English in every language.
+
+| Sheet | One row per | Holds |
+|---|---|---|
+| `AI_MatchReadMe` | line | What the sheets are, how to read a result, what is not included, where each table was checked |
+| `AI_MatchPersons` | fact | Name, star, pada, rasi, lords and, with birth details, date, time and place of birth and lagna, for the boy and the girl |
+| `AI_MatchSummary` | key | Counts of results per group and for the ten poruthams, the Ashtakoota points, the settings; no verdict |
+| `AI_Match` | check | The row of every check: values, result, points, exception named, note, rule |
+| `AI_MatchWindows` | span | Every span in which a Marriage window of each horoscope overlaps, UTC |
+| `AI_MatchRules` | rule | The rule and the variant behind every check |
+
+The `AI_Match` sheets keep the rules of the other AI sheets (one table from
+A1, values only, no merged cells, always in English). Their schema is
+`horoscopegen-match/1`.
+
 In Python: `match_engine.match(boy, girl)`, each argument a result of
-`compute()` or a star-only record.
+`compute()` or a star-only record; `match_engine.tables(result)` for the flat
+tables; `generate_match_excel(result, people, lang)` and
+`generate_match_pdf(result, people, lang)` for the files, `people` being
+`{'boy': res, 'girl': res}` or `None` for star-only records.
 
 ## Run locally
 

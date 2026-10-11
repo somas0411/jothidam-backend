@@ -405,3 +405,240 @@ def bundle(lang='en'):
         'rasis_short': [rasi(i, lang, short=True) for i in range(12)],
         'retro': retro_mark(lang),
     }
+
+
+# ── MARRIAGE MATCHING ─────────────────────────────────────────────────────────
+# Kept apart from LABELS on purpose: bundle() sends every key of LABELS to the
+# web page with each horoscope, and that answer must stay as it is.
+# English, Tamil and Hindi (Marathi reuses Hindi); other languages fall back
+# to English, as the report labels do. Values of the chart and timing rows
+# (groups D and E) are sentences and stay in English in every language.
+
+MATCH_LABELS = {
+    'en': {
+        'marriage': 'Marriage', 'marriage_title': 'Marriage Matching', 'boy': 'Boy', 'girl': 'Girl',
+        'check': 'Check', 'result': 'Result', 'points': 'Points', 'note': 'Exception / Note',
+        'exception': 'Exception', 'group': 'Group',
+        'summary_of_results': 'Summary of Results', 'ten_poruthams': 'Ten poruthams',
+        'ashtakoota_points': 'Ashtakoota points',
+        'key_not_matched': 'Not matched among Rajju, Dinam, Ganam, Yoni, Rasi',
+        'none': 'None', 'rule_based': 'Rule-based, not a prediction',
+        'no_verdict': 'Counts of rule-based checks; no overall verdict is given.',
+        'windows': 'Marriage Windows of Both (UTC)', 'from': 'From', 'to': 'To', 'days': 'Days',
+        'boy_layers': "Boy's layers", 'girl_layers': "Girl's layers",
+        'windows_shown': 'The first {n} of {total} spans are shown.',
+        'windows_all_ai': 'All are on the sheet AI_MatchWindows.',
+        'rules': 'Rules and Variants', 'sources': 'Where the Tables Were Checked',
+        'not_included': 'Not Included', 'source': 'Details given', 'birth details': 'Birth details',
+        'star only': 'Star only', 'rasi_lord': 'Rasi Lord', 'of': 'of',
+        'matched': 'Matched', 'medium': 'Medium', 'not matched': 'Not matched',
+        'not applicable': 'Not applicable', 'information': 'Information',
+        'group_A': 'Ten Poruthams, with Nadi and Vriksha', 'group_B': 'Star Rules',
+        'group_C': 'Ashtakoota (36 Points)', 'group_D': 'Chart Checks', 'group_E': 'Timing and KP',
+        'settings': 'Settings', 'kuja_places': 'Places of Mars that count',
+        'sandhi_months': 'Dasa sandhi: months', 'pada_unknown': 'pada not given',
+        'milk tree': 'milk tree', 'not a milk tree': 'not a milk tree',
+        'needs_birth_details': 'The birth details of both are needed',
+    },
+    'ta': {
+        'marriage': 'திருமணப் பொருத்தம்', 'marriage_title': 'திருமணப் பொருத்தம்', 'boy': 'ஆண்', 'girl': 'பெண்',
+        'check': 'பொருத்தம் / விதி', 'result': 'முடிவு', 'points': 'புள்ளி', 'note': 'விலக்கு / குறிப்பு',
+        'exception': 'விலக்கு', 'group': 'பிரிவு',
+        'summary_of_results': 'முடிவுகளின் சுருக்கம்', 'ten_poruthams': 'பத்துப் பொருத்தங்கள்',
+        'ashtakoota_points': 'அஷ்டகூட புள்ளிகள்',
+        'key_not_matched': 'ரஜ்ஜு, தினம், கணம், யோனி, ராசியில் இல்லாதவை',
+        'none': 'இல்லை', 'rule_based': 'விதி அடிப்படையிலானது; பலன் கூறுவது அல்ல',
+        'no_verdict': 'விதி அடிப்படையிலான ஆய்வுகளின் எண்ணிக்கை மட்டுமே; ஒட்டுமொத்த முடிவு கூறப்படவில்லை.',
+        'windows': 'இருவரின் திருமண காலங்கள் (UTC)', 'from': 'தொடக்கம்', 'to': 'முடிவு', 'days': 'நாட்கள்',
+        'boy_layers': 'ஆணின் அடுக்குகள்', 'girl_layers': 'பெண்ணின் அடுக்குகள்',
+        'windows_shown': 'மொத்தம் {total} காலங்களில் முதல் {n} காட்டப்பட்டுள்ளன.',
+        'windows_all_ai': 'அனைத்தும் AI_MatchWindows தாளில் உள்ளன.',
+        'rules': 'விதிகளும் மாறுபாடுகளும்', 'sources': 'அட்டவணைகள் சரிபார்க்கப்பட்ட இடங்கள்',
+        'not_included': 'சேர்க்கப்படாதவை', 'source': 'கொடுக்கப்பட்ட விவரம்', 'birth details': 'பிறப்பு விவரங்கள்',
+        'star only': 'நட்சத்திரம் மட்டும்', 'rasi_lord': 'ராசி அதிபதி', 'of': '/',
+        'matched': 'பொருத்தம் உண்டு', 'medium': 'மத்திமம்', 'not matched': 'பொருத்தம் இல்லை',
+        'not applicable': 'இவ்விதி இல்லை', 'information': 'தகவல்',
+        'group_A': 'பத்துப் பொருத்தங்கள் (நாடி, விருட்சம் உடன்)', 'group_B': 'நட்சத்திர விதிகள்',
+        'group_C': 'அஷ்டகூடம் (36 புள்ளிகள்)', 'group_D': 'ஜாதக ஆய்வுகள்', 'group_E': 'கால ஆய்வு மற்றும் கே.பி.',
+        'settings': 'அமைப்புகள்', 'kuja_places': 'செவ்வாய் தோஷத்திற்கான இடங்கள்',
+        'sandhi_months': 'தசா சந்தி: மாதங்கள்', 'pada_unknown': 'பாதம் தரப்படவில்லை',
+        'milk tree': 'பால் மரம்', 'not a milk tree': 'பால் இல்லா மரம்',
+        'needs_birth_details': 'இருவரின் பிறப்பு விவரங்களும் தேவை',
+    },
+    'hi': {
+        'marriage': 'विवाह मिलान', 'marriage_title': 'विवाह मिलान', 'boy': 'वर', 'girl': 'कन्या',
+        'check': 'जाँच', 'result': 'परिणाम', 'points': 'अंक', 'note': 'अपवाद / टिप्पणी',
+        'exception': 'अपवाद', 'group': 'समूह',
+        'summary_of_results': 'परिणामों का सारांश', 'ten_poruthams': 'दस पोरुत्तम',
+        'ashtakoota_points': 'अष्टकूट अंक',
+        'key_not_matched': 'रज्जु, दिनम्, गणम्, योनि, राशि में जो नहीं मिले',
+        'none': 'कोई नहीं', 'rule_based': 'नियम आधारित; भविष्यवाणी नहीं',
+        'no_verdict': 'नियम आधारित जाँचों की गिनती मात्र; कोई समग्र निर्णय नहीं दिया गया है।',
+        'windows': 'दोनों की विवाह अवधियाँ (UTC)', 'from': 'से', 'to': 'तक', 'days': 'दिन',
+        'boy_layers': 'वर की परतें', 'girl_layers': 'कन्या की परतें',
+        'windows_shown': 'कुल {total} अवधियों में से पहली {n} दिखाई गई हैं।',
+        'windows_all_ai': 'सभी AI_MatchWindows शीट पर हैं।',
+        'rules': 'नियम और भेद', 'sources': 'तालिकाएँ कहाँ जाँची गईं',
+        'not_included': 'जो शामिल नहीं है', 'source': 'दिया गया विवरण', 'birth details': 'जन्म विवरण',
+        'star only': 'केवल नक्षत्र', 'rasi_lord': 'राशि स्वामी', 'of': '/',
+        'matched': 'मिलान है', 'medium': 'मध्यम', 'not matched': 'मिलान नहीं',
+        'not applicable': 'लागू नहीं', 'information': 'जानकारी',
+        'group_A': 'दस पोरुत्तम (नाड़ी और वृक्ष सहित)', 'group_B': 'नक्षत्र नियम',
+        'group_C': 'अष्टकूट (36 अंक)', 'group_D': 'कुंडली जाँच', 'group_E': 'समय और केपी',
+        'settings': 'सेटिंग', 'kuja_places': 'मंगल दोष के भाव',
+        'sandhi_months': 'दशा संधि: माह', 'pada_unknown': 'पाद नहीं दिया गया',
+        'milk tree': 'क्षीर वृक्ष', 'not a milk tree': 'क्षीर वृक्ष नहीं',
+        'needs_birth_details': 'दोनों के जन्म विवरण चाहिए',
+    },
+}
+MATCH_LABELS['mr'] = MATCH_LABELS['hi']
+
+# Names of the checks, by the key of the row (match_engine.CHECKS).
+MATCH_CHECKS = {
+    'ta': {
+        'dinam': 'தினப் பொருத்தம்', 'ganam': 'கணப் பொருத்தம்', 'mahendram': 'மகேந்திரப் பொருத்தம்',
+        'stree_deergham': 'ஸ்திரீ தீர்க்கப் பொருத்தம்', 'yoni': 'யோனிப் பொருத்தம்', 'rasi': 'ராசிப் பொருத்தம்',
+        'rasi_adhipathi': 'ராசி அதிபதிப் பொருத்தம்', 'vasiyam': 'வசியப் பொருத்தம்', 'rajju': 'ரஜ்ஜுப் பொருத்தம்',
+        'vedhai': 'வேதைப் பொருத்தம்', 'nadi': 'நாடிப் பொருத்தம்', 'vriksha': 'விருட்சப் பொருத்தம் (மரம்)',
+        'tara_boy': 'ஆண் நட்சத்திரத்தின் தாரை', 'tara_girl': 'பெண் நட்சத்திரத்தின் தாரை',
+        'vadha': 'வதை (7-வது நட்சத்திரம்)', 'vainasika': 'வைநாசிகம் (22-வது நட்சத்திரம்)',
+        'vainasika_pada': 'வைநாசிக பாதம் (88-வது பாதம்)', 'star_27': '27-வது நட்சத்திரம்',
+        'eka_nakshatra': 'ஏக நட்சத்திரம்', 'eka_rasi': 'ஏக ராசி',
+        'ak_varna': 'வர்ணம் (1)', 'ak_vashya': 'வசியம் (2)', 'ak_tara': 'தாரை (3)', 'ak_yoni': 'யோனி (4)',
+        'ak_graha_maitri': 'கிரக மைத்ரி (5)', 'ak_gana': 'கணம் (6)', 'ak_bhakoot': 'பகூடம் (7)', 'ak_nadi': 'நாடி (8)',
+        'kuja_lagna': 'லக்னத்திலிருந்து செவ்வாய் தோஷம்', 'kuja_moon': 'சந்திரனிலிருந்து செவ்வாய் தோஷம்',
+        'kuja_venus': 'சுக்கிரனிலிருந்து செவ்வாய் தோஷம்',
+        'kuja_x_2nd': 'செவ்வாய் தோஷ விலக்கு: 2-ல் செவ்வாய், மிதுனம் அல்லது கன்னியில்',
+        'kuja_x_12th': 'செவ்வாய் தோஷ விலக்கு: 12-ல் செவ்வாய், ரிஷபம் அல்லது துலாத்தில்',
+        'kuja_x_4th': 'செவ்வாய் தோஷ விலக்கு: 4-ல் செவ்வாய், மேஷம் அல்லது விருச்சிகத்தில்',
+        'kuja_x_7th': 'செவ்வாய் தோஷ விலக்கு: 7-ல் செவ்வாய், மகரம் அல்லது கடகத்தில்',
+        'kuja_x_8th': 'செவ்வாய் தோஷ விலக்கு: 8-ல் செவ்வாய், தனுசு அல்லது மீனத்தில்',
+        'kuja_x_sign': 'செவ்வாய் தோஷ விலக்கு: செவ்வாய் சிம்மம் அல்லது கும்பத்தில்',
+        'kuja_x_joined': 'செவ்வாய் தோஷ விலக்கு: செவ்வாய் குரு அல்லது சந்திரனுடன் ஒரே ராசியில்',
+        'kuja_balance': 'இருவருக்கும் செவ்வாய் தோஷம்',
+        'kuja_balance_after': 'இருவருக்கும் செவ்வாய் தோஷம் (விலக்குகளுக்குப் பின்)',
+        'sarpa': 'ராகு - கேது', 'kalathra_seventh': 'களத்திரம்: 7-ல் உள்ள கிரகங்கள்',
+        'kalathra_lord': 'களத்திரம்: 7-ம் அதிபதி', 'kalathra_venus': 'களத்திரம்: சுக்கிரன்',
+        'papa_count': 'பாப சாம்யம் (எண்ணிக்கை)', 'papa_weighted': 'பாப சாம்யம் (எடையிட்டது)',
+        'punarpoo': 'புனர்பூ (சனி - சந்திரன்)', 'kala_sarpa': 'கால சர்ப்பம்',
+        'lagna_position': 'இருவரின் லக்னம்', 'seventh_lords': '7-ம் அதிபதிகள்', 'navamsa': 'நவாம்சம் (D9)',
+        'venus_mars': 'சுக்கிரன் - செவ்வாய் (இரு ஜாதகங்களிடையே)', 'fifth_house': '5-ம் வீடு மற்றும் குரு',
+        'dasa_sandhi': 'தசா சந்தி', 'eka_dasa': 'இருவருக்கும் நடக்கும் தசைகள்',
+        'kp_seventh': 'கே.பி.: 7-ம் பாவ முனையின் உப அதிபதி', 'marriage_windows': 'இருவரின் திருமண காலங்கள்',
+    },
+    'hi': {
+        'dinam': 'दिनम्', 'ganam': 'गणम्', 'mahendram': 'माहेन्द्रम्', 'stree_deergham': 'स्त्री दीर्घम्',
+        'yoni': 'योनि', 'rasi': 'राशि', 'rasi_adhipathi': 'राशि अधिपति', 'vasiyam': 'वश्यम्', 'rajju': 'रज्जु',
+        'vedhai': 'वेध', 'nadi': 'नाड़ी', 'vriksha': 'वृक्ष',
+        'tara_boy': 'वर के नक्षत्र की तारा', 'tara_girl': 'कन्या के नक्षत्र की तारा',
+        'vadha': 'वध (7वाँ नक्षत्र)', 'vainasika': 'वैनाशिक (22वाँ नक्षत्र)',
+        'vainasika_pada': 'वैनाशिक पाद (88वाँ पाद)', 'star_27': '27वाँ नक्षत्र',
+        'eka_nakshatra': 'एक नक्षत्र', 'eka_rasi': 'एक राशि',
+        'ak_varna': 'वर्ण (1)', 'ak_vashya': 'वश्य (2)', 'ak_tara': 'तारा (3)', 'ak_yoni': 'योनि (4)',
+        'ak_graha_maitri': 'ग्रह मैत्री (5)', 'ak_gana': 'गण (6)', 'ak_bhakoot': 'भकूट (7)', 'ak_nadi': 'नाड़ी (8)',
+        'kuja_lagna': 'लग्न से मंगल दोष', 'kuja_moon': 'चंद्र से मंगल दोष', 'kuja_venus': 'शुक्र से मंगल दोष',
+        'kuja_x_2nd': 'मंगल दोष अपवाद: दूसरे भाव में मंगल, मिथुन या कन्या में',
+        'kuja_x_12th': 'मंगल दोष अपवाद: बारहवें भाव में मंगल, वृष या तुला में',
+        'kuja_x_4th': 'मंगल दोष अपवाद: चौथे भाव में मंगल, मेष या वृश्चिक में',
+        'kuja_x_7th': 'मंगल दोष अपवाद: सातवें भाव में मंगल, मकर या कर्क में',
+        'kuja_x_8th': 'मंगल दोष अपवाद: आठवें भाव में मंगल, धनु या मीन में',
+        'kuja_x_sign': 'मंगल दोष अपवाद: मंगल सिंह या कुंभ में',
+        'kuja_x_joined': 'मंगल दोष अपवाद: मंगल गुरु या चंद्र के साथ एक राशि में',
+        'kuja_balance': 'दोनों कुंडलियों में मंगल दोष',
+        'kuja_balance_after': 'दोनों कुंडलियों में मंगल दोष (अपवादों के बाद)',
+        'sarpa': 'राहु - केतु', 'kalathra_seventh': 'कलत्र: सप्तम भाव के ग्रह',
+        'kalathra_lord': 'कलत्र: सप्तमेश', 'kalathra_venus': 'कलत्र: शुक्र',
+        'papa_count': 'पाप साम्य (गणना)', 'papa_weighted': 'पाप साम्य (भारित)',
+        'punarpoo': 'पुनर्फू (शनि - चंद्र)', 'kala_sarpa': 'काल सर्प',
+        'lagna_position': 'दोनों के लग्न', 'seventh_lords': 'सप्तमेश', 'navamsa': 'नवांश (D9)',
+        'venus_mars': 'शुक्र - मंगल (दोनों कुंडलियों के बीच)', 'fifth_house': 'पंचम भाव और गुरु',
+        'dasa_sandhi': 'दशा संधि', 'eka_dasa': 'साथ चलने वाली दशाएँ',
+        'kp_seventh': 'केपी: सप्तम भाव संधि का उप स्वामी', 'marriage_windows': 'दोनों की विवाह अवधियाँ',
+    },
+}
+MATCH_CHECKS['mr'] = MATCH_CHECKS['hi']
+
+# Single-word values of the star rows (groups A to C).
+MATCH_WORDS = {
+    'ta': {
+        'Deva': 'தேவ கணம்', 'Manushya': 'மனுஷ கணம்', 'Rakshasa': 'ராட்சஸ கணம்',
+        'Horse': 'குதிரை', 'Elephant': 'யானை', 'Sheep': 'ஆடு', 'Serpent': 'பாம்பு', 'Dog': 'நாய்', 'Cat': 'பூனை',
+        'Rat': 'எலி', 'Cow': 'பசு', 'Buffalo': 'எருமை', 'Tiger': 'புலி', 'Deer': 'மான்', 'Monkey': 'குரங்கு',
+        'Mongoose': 'கீரி', 'Lion': 'சிங்கம்',
+        'Pada': 'பாத ரஜ்ஜு', 'Kati': 'தொடை ரஜ்ஜு', 'Nabhi': 'உதர ரஜ்ஜு', 'Kantha': 'கண்ட ரஜ்ஜு', 'Siro': 'சிரசு ரஜ்ஜு',
+        'Aadi': 'ஆதி நாடி', 'Madhya': 'மத்திய நாடி', 'Antya': 'அந்திய நாடி',
+        'Janma': 'ஜென்ம தாரை', 'Sampat': 'சம்பத்து', 'Vipat': 'விபத்து', 'Kshema': 'க்ஷேமம்', 'Pratyari': 'பிரத்யரி',
+        'Sadhaka': 'சாதகம்', 'Vadha': 'வதை', 'Mitra': 'மைத்ரம்', 'Parama Mitra': 'பரம மைத்ரம்',
+        'Brahmin': 'பிராமண வர்ணம்', 'Kshatriya': 'க்ஷத்திரிய வர்ணம்', 'Vaishya': 'வைசிய வர்ணம்',
+        'Shudra': 'சூத்திர வர்ணம்',
+        'Chatushpada': 'சதுஷ்பாதம்', 'Manava': 'மானவம்', 'Jalachara': 'ஜலசரம்', 'Vanachara': 'வனசரம்', 'Keeta': 'கீடம்',
+    },
+    'hi': {
+        'Deva': 'देव गण', 'Manushya': 'मनुष्य गण', 'Rakshasa': 'राक्षस गण',
+        'Horse': 'अश्व', 'Elephant': 'गज', 'Sheep': 'मेष (भेड़)', 'Serpent': 'सर्प', 'Dog': 'श्वान', 'Cat': 'मार्जार',
+        'Rat': 'मूषक', 'Cow': 'गौ', 'Buffalo': 'महिष', 'Tiger': 'व्याघ्र', 'Deer': 'मृग', 'Monkey': 'वानर',
+        'Mongoose': 'नकुल', 'Lion': 'सिंह',
+        'Pada': 'पाद रज्जु', 'Kati': 'कटि रज्जु', 'Nabhi': 'नाभि रज्जु', 'Kantha': 'कंठ रज्जु', 'Siro': 'शिरो रज्जु',
+        'Aadi': 'आदि नाड़ी', 'Madhya': 'मध्य नाड़ी', 'Antya': 'अंत्य नाड़ी',
+        'Janma': 'जन्म तारा', 'Sampat': 'संपत', 'Vipat': 'विपत', 'Kshema': 'क्षेम', 'Pratyari': 'प्रत्यरि',
+        'Sadhaka': 'साधक', 'Vadha': 'वध', 'Mitra': 'मित्र', 'Parama Mitra': 'परम मित्र',
+        'Brahmin': 'ब्राह्मण वर्ण', 'Kshatriya': 'क्षत्रिय वर्ण', 'Vaishya': 'वैश्य वर्ण', 'Shudra': 'शूद्र वर्ण',
+        'Chatushpada': 'चतुष्पद', 'Manava': 'मानव', 'Jalachara': 'जलचर', 'Vanachara': 'वनचर', 'Keeta': 'कीट',
+    },
+}
+MATCH_WORDS['mr'] = MATCH_WORDS['hi']
+
+# The tree of each star in Tamil, by the name match_engine.TREE uses.
+MATCH_TREES_TA = {
+    'Etti': 'எட்டி', 'Nelli': 'நெல்லி', 'Athi': 'அத்தி', 'Naval': 'நாவல்', 'Karungali': 'கருங்காலி',
+    'Sengarungali': 'செங்கருங்காலி', 'Moongil': 'மூங்கில்', 'Arasu': 'அரசு', 'Punnai': 'புன்னை', 'Aal': 'ஆல்',
+    'Pala': 'பலா', 'Alari': 'அலரி', 'Velam': 'வேலம்', 'Vilvam': 'வில்வம்', 'Marutham': 'மருதம்', 'Vila': 'விளா',
+    'Magizh': 'மகிழ்', 'Pirai': 'பிராய்', 'Maa': 'மா', 'Vanji': 'வஞ்சி', 'Erukku': 'எருக்கு', 'Vanni': 'வன்னி',
+    'Kadambu': 'கடம்பு', 'Thema': 'தேமா', 'Vembu': 'வேம்பு', 'Iluppai': 'இலுப்பை',
+}
+
+
+def ML(key, lang='en'):
+    """Label of the marriage pages. Bilingual shows 'English / தமிழ்'."""
+    en = MATCH_LABELS['en'].get(key, key)
+    if lang == 'bi':
+        return _pair(en, MATCH_LABELS['ta'].get(key))
+    return MATCH_LABELS.get(lang, MATCH_LABELS['en']).get(key, en)
+
+
+def match_check(key, name, lang='en'):
+    """Name of a check: name is the English one from match_engine."""
+    if lang == 'bi':
+        return _pair(name, MATCH_CHECKS['ta'].get(key))
+    return MATCH_CHECKS.get(lang, {}).get(key, name)
+
+
+def match_value(text, lang='en'):
+    """
+    A value of a matching row in the report language. Star, rasi and planet
+    names and the single-word values of the star rows are translated; any
+    other text (the sentences of the chart and timing rows) is returned as it
+    is. Bilingual reports keep the English value, as the charts do.
+    """
+    if text is None or text == '':
+        return '—'
+    text = str(text)
+    if lang in ('en', 'bi'):
+        return text
+    words = MATCH_WORDS.get(lang, {})
+    if text in words:
+        return words[text]
+    if text in NAKS['en']:
+        return nak(NAKS['en'].index(text), lang)
+    star, sep, pada = text.rpartition(' pada ')
+    if sep and star in NAKS['en'] and pada in ('1', '2', '3', '4'):
+        return f"{nak(NAKS['en'].index(star), lang)} - {Lv('pada', lang)} {pada}"
+    if text in RASIS['en']:
+        return rasi(RASIS['en'].index(text), lang)
+    if text in PLANETS['en']:
+        return planet(text, lang)
+    tree, sep, kind = text.partition(' (')
+    if sep and kind.rstrip(')') in ('milk tree', 'not a milk tree') and tree in MATCH_TREES_TA:
+        name = MATCH_TREES_TA[tree] if lang == 'ta' else tree
+        return f"{name} ({ML(kind.rstrip(')'), lang)})"
+    return text

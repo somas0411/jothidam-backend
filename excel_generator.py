@@ -5,6 +5,11 @@ Sheets: Summary, Vedic, Divisional Charts, KP, ALP, Dasa, Notes. When the
 AI block from enrich.py is passed in, the flat "AI_" sheets follow Notes:
 plain tables for AI readers (values only, no merged cells), in landscape.
 
+When a marriage match (match_engine.match) is passed in, a Marriage sheet
+follows Notes, so the seven report sheets stay where they were, and the flat
+AI_Match sheets close the workbook. generate_match_excel() builds a workbook
+with the Marriage sheet and the AI_Match sheets alone.
+
 Charts are drawn with real cells (merged cells, borders and diagonal
 borders), never pasted images, on a grid of narrow columns: every chart is
 12 x 12 small cells, two charts side by side. Tables on the chart sheets use
@@ -13,6 +18,7 @@ sorted and filtered. Dates are real Excel dates. Every sheet is set up for
 A4 portrait, one page wide.
 """
 import io
+import math
 from datetime import date, datetime, time
 from functools import lru_cache
 
@@ -24,6 +30,7 @@ from openpyxl.worksheet.properties import PageSetupProperties
 
 import charts
 import i18n
+import match_engine
 from astro_engine import fmt_dms, fmt_sign_dms
 
 # ── PALETTE (print-friendly: white paper, dark ink, one accent) ───────────────
@@ -834,6 +841,211 @@ def _notes(wb, res, lang, ai=None):
     _page_setup(ws, m['name'], 3)
 
 
+# ── MARRIAGE SHEET ────────────────────────────────────────────────────────────
+# One sheet for everything about the match: the two people, their rasi charts,
+# the summary of counts, the rows of each group, the overlapping marriage
+# windows, and the rules. Laid out on the narrow grid like the chart sheets.
+
+MATCH_FONT = 8
+MATCH_LINE_H = 11.5
+MATCH_CHARS_PER_COLUMN = 5.6      # characters of 8-point text one grid column holds, with room to wrap
+MATCH_WINDOWS_SHOWN = 12
+# (heading key, span, align); the spans add up to the 25 columns of the grid
+MATCH_COLS = [('check', 5, 'left'), ('boy', 4, 'left'), ('girl', 4, 'left'), ('result', 3, 'center'),
+              ('points', 2, 'center'), ('note', 7, 'left')]
+MATCH_COLS_WIDE = [('check', 5, 'left'), ('boy', 6, 'left'), ('girl', 6, 'left'), ('result', 3, 'center'),
+                   ('note', 5, 'left')]
+
+
+def _match_lines(text, span, lang):
+    """
+    Lines a text needs in a merged span of the grid. An estimate: Excel does
+    not grow a row to fit a merged cell, so the height has to be set here.
+    """
+    per_line = span * MATCH_CHARS_PER_COLUMN
+    text = '' if text is None else str(text)
+    if lang != 'en' and any(ord(ch) > 0x0590 for ch in text):
+        per_line *= 0.8                      # the Indian scripts set wider
+    return sum(max(1, math.ceil(len(part) / per_line)) for part in text.split('\n'))
+
+
+def _match_note(row, lang):
+    parts = []
+    if row['exception_applied']:
+        parts.append(f"{i18n.ML('exception', lang)}: {row['exception_applied']}")
+    if row['note']:
+        parts.append(row['note'])
+    return '\n'.join(parts) if parts else '—'
+
+
+def _match_points(row):
+    if row['max_points'] is None:
+        return '—'
+    return f"{'—' if row['points'] is None else row['points']} / {row['max_points']}"
+
+
+def _match_person(p, lang):
+    """Label / value pairs of one person for the Marriage sheet and the PDF."""
+    L, ML = (lambda k: i18n.L(k, lang)), (lambda k: i18n.ML(k, lang))
+    pada = f" - {i18n.Lv('pada', lang)} {p['pada']}" if p['pada'] else f" ({ML('pada_unknown')})"
+    items = [(L('name'), p['name'])]
+    if p['source'] == 'birth details':
+        items += [(L('dob'), '-'.join(reversed(p['dob'].split('-')))), (L('tob'), p['tob']), (L('pob'), p['pob']),
+                  (L('lagna'), i18n.rasi(p['lagna_number'] - 1, lang))]
+    else:
+        items.append((ML('source'), ML('star only')))
+    items += [(L('nakshatra'), i18n.nak(p['nakshatra_number'] - 1, lang) + pada),
+              (L('janma_rasi'), i18n.rasi(p['rasi_number'] - 1, lang)),
+              (ML('rasi_lord'), i18n.planet(p['rasi_lord'], lang))]
+    return items
+
+
+def _match_summary(match, lang):
+    """Label / value pairs of the summary of counts."""
+    ML = lambda k: i18n.ML(k, lang)
+    s = match['summary']
+    ten, ak = s['ten_poruthams'], s['ashtakoota']
+    by_name = {r['name']: r['key'] for r in match['rows']}
+    missed = [i18n.match_check(by_name[n], n, i18n._base(lang)) for n in s['key_poruthams_not_matched']]
+    counts = ' · '.join(f"{ten[k.replace(' ', '_')]} {i18n.ML(k, i18n._base(lang))}"
+                        for k in ('matched', 'medium', 'not matched'))
+    scored = '' if ak['rows_scored'] == ak['rows'] else f"  ({ak['rows_scored']} {ML('of')} {ak['rows']})"
+    return [(ML('ten_poruthams'), f"{counts}  ({ML('of')} {ten['of']})"),
+            (ML('ashtakoota_points'), f"{ak['points']} / {ak['max_points']}{scored}"),
+            (ML('key_not_matched'), ', '.join(missed) if missed else ML('none'))]
+
+
+def _match_group_counts(match, lang):
+    """Heading and rows of the table of results per group."""
+    ML = lambda k: i18n.ML(k, lang)
+    results = ('matched', 'medium', 'not matched', 'not applicable', 'information')
+    heads = [ML('group')] + [ML(r) for r in results]
+    rows = [[f"{g}. {ML('group_' + g)}"] + [counts[r.replace(' ', '_')] for r in results]
+            for g, counts in match['summary']['groups'].items()]
+    return heads, rows
+
+
+def _marriage(wb, match, people, lang, first=False):
+    """
+    match: the result of match_engine.match(). people: {'boy': res, 'girl': res}
+    with the compute() results, or None for a match of star-only records.
+    """
+    g = Grid(wb, _sheet_name_text(i18n.MATCH_LABELS['en']['marriage'] if lang == 'bi' else i18n.ML('marriage', lang)),
+             lang, first=first)
+    ML = lambda k: i18n.ML(k, lang)
+    V = lambda text: i18n.match_value(text, lang)
+    boy, girl = match['persons']['boy'], match['persons']['girl']
+    names = f"{boy['name']}  ·  {girl['name']}"
+
+    r = g.title(1, f"{i18n.L('brand', lang)}  ·  {ML('marriage_title')}", f"{names}  ·  {ML('rule_based')}")
+
+    # The two people
+    g.section(r, f"{ML('boy')}: {boy['name']}", c=COL0, span=12)
+    g.section(r, f"{ML('girl')}: {girl['name']}", c=RIGHT0, span=12, keep_height=True)
+    r += 1
+    r = max(g.pairs(r, COL0, _match_person(boy, lang)), g.pairs(r, RIGHT0, _match_person(girl, lang))) + 1
+    if people:
+        style = people['boy']['meta']['chart_style']
+        g.chart(r, COL0, charts.build_specs(people['boy'], lang)['d1'], style)
+        r = g.chart(r, RIGHT0, charts.build_specs(people['girl'], lang)['d1'], style)
+
+    # Summary of counts
+    r = g.section(r, ML('summary_of_results'))
+    r = g.pairs(r, COL0, _match_summary(match, lang), label_span=12, value_span=13)
+    heads, rows = _match_group_counts(match, lang)
+    r = g.table(r + 1, [(heads[0], 10, 'left')] + [(h, 3, 'center') for h in heads[1:]], rows)
+    g.height(r, 15)
+    g.put(r, COL0, ML('no_verdict'), span=GRID_N, size=8, color=MUTED, italic=True, border=False, wrap=False)
+    r += 2
+
+    # The rows of each group
+    def tall_row(r, cols, values, fill):
+        lines = max(_match_lines(v, span, lang) for v, (_, span, _) in zip(values, cols))
+        g.height(r, max(ROW_H, lines * MATCH_LINE_H + 5))
+        c = COL0
+        for v, (_, span, align) in zip(values, cols):
+            g.put(r, c, v, span=span, size=MATCH_FONT, fill=fill, h=align, v='top', wrap=True)
+            c += span
+        return r + 1
+
+    def heading_row(r, cols):
+        g.height(r, 26 if lang == 'en' else 38)
+        c = COL0
+        for key, span, _ in cols:
+            g.put(r, c, ML(key), span=span, size=8.5, bold=True, color=WHITE, fill=HEAD, h='center', wrap=True)
+            c += span
+        return r + 1
+
+    for group in match['groups']:
+        group_rows = [x for x in match['rows'] if x['group'] == group]
+        if group == 'D':
+            g.page_break(r)
+        r = g.section(r, f"{group}. {ML('group_' + group)}")
+        if all(x['result'] == match_engine.NOT_APPLICABLE and x['boy_value'] is None for x in group_rows):
+            g.height(r, ROW_H)
+            g.put(r, COL0, ML('needs_birth_details'), span=GRID_N, size=MATCH_FONT, color=MUTED, italic=True)
+            r += 2
+            continue
+        wide = group in ('D', 'E')
+        cols = MATCH_COLS_WIDE if wide else MATCH_COLS
+        r = heading_row(r, cols)
+        for i, x in enumerate(group_rows):
+            values = [i18n.match_check(x['key'], x['name'], lang), V(x['boy_value']), V(x['girl_value']),
+                      ML(x['result'])]
+            if not wide:
+                values.append(_match_points(x))
+            values.append(_match_note(x, lang))
+            r = tall_row(r, cols, values, ALT if i % 2 else WHITE)
+        r += 1
+
+    # Overlapping marriage windows
+    windows = match['windows']
+    if windows:
+        r = g.section(r, ML('windows'))
+        cols = [(ML('from'), 4, 'center'), (ML('to'), 4, 'center'), (ML('days'), 3, 'center'),
+                (ML('boy_layers'), 7, 'left'), (ML('girl_layers'), 7, 'left')]
+        shown = windows[:MATCH_WINDOWS_SHOWN]
+        r = g.table(r, cols, [[(_d(w['start_utc']), DATE_FMT), (_d(w['end_utc']), DATE_FMT), (w['days'], '0.0'),
+                               w['boy_layers'], w['girl_layers']] for w in shown])
+        if len(windows) > len(shown):
+            g.height(r, 15)
+            g.put(r, COL0, ML('windows_shown').format(n=len(shown), total=len(windows)) + ' ' + ML('windows_all_ai'),
+                  span=GRID_N, size=8, color=MUTED, italic=True, border=False, wrap=False)
+            r += 1
+        r += 1
+
+    # Settings, rules, sources
+    settings = match['settings']
+    r = g.section(r, ML('settings'))
+    r = g.pairs(r, COL0, [(ML('kuja_places'), ', '.join(str(h) for h in settings['kuja_places_that_count'])),
+                          (ML('sandhi_months'), settings['sandhi_months'])], label_span=10, value_span=15) + 1
+
+    def text_rows(r, title, items, new_page=False):
+        if new_page:
+            g.page_break(r)
+        r = g.section(r, title)
+        for i, (label, text) in enumerate(items):
+            lines = max(_match_lines(label, 7, 'en'), _match_lines(text, 18, 'en'))
+            g.height(r, max(ROW_H, lines * MATCH_LINE_H + 5))
+            g.put(r, COL0, label, span=7, size=MATCH_FONT, bold=True, color=MUTED, fill=SOFT, v='top', wrap=True)
+            g.put(r, COL0 + 7, text, span=18, size=MATCH_FONT, v='top', wrap=True)
+            r += 1
+        return r + 1
+    r = text_rows(r, ML('rules'), [(x['name'], x['rule']) for x in match['rules']], new_page=True)
+    r = text_rows(r, ML('sources'), [(x['status'], x['tables']) for x in match['table_sources']])
+    r = text_rows(r, ML('not_included'), [(str(i), text) for i, text in enumerate(match['not_included'], start=1)])
+    g.put(r, COL0, i18n.L('disclaimer', lang), span=GRID_N, size=8, color=MUTED, h='center', italic=True,
+          border=False, wrap=False)
+    g.ws.freeze_panes = 'A3'
+    _page_setup(g.ws, names, COL0 + GRID_N - 1)
+
+
+def _sheet_name_text(name):
+    for ch in '[]:*?/\\':
+        name = name.replace(ch, ' ')
+    return name[:31]
+
+
 # ── AI SHEETS ─────────────────────────────────────────────────────────────────
 # Flat tables for AI readers: header in row 1, one table per sheet from A1,
 # values only, no merged cells, no formulas, no colour that carries meaning.
@@ -842,7 +1054,10 @@ AI_DATETIME_FMT = 'yyyy-mm-dd hh:mm:ss'
 AI_DATE_FMT = 'yyyy-mm-dd'
 AI_DEG_FMT = '0.000000'
 AI_WRAP = {('AI_ReadMe', 'text'): 120, ('AI_Facts', 'note'): 70, ('AI_Yogas', 'rule'): 75,
-           ('AI_Yogas', 'note'): 70, ('AI_Brief', 'value'): 120, ('AI_LifeFacts', 'note'): 70}
+           ('AI_Yogas', 'note'): 70, ('AI_Brief', 'value'): 120, ('AI_LifeFacts', 'note'): 70,
+           ('AI_MatchReadMe', 'text'): 120, ('AI_MatchSummary', 'note'): 70, ('AI_Match', 'boy_value'): 45,
+           ('AI_Match', 'girl_value'): 45, ('AI_Match', 'note'): 60, ('AI_Match', 'rule_applied'): 75,
+           ('AI_Match', 'exception_applied'): 40, ('AI_MatchRules', 'rule'): 120}
 AI_DEG_COLUMNS = ('deg_in_sign', 'deg_in_chart', 'lagna_deg_in_chart', 'speed_deg_per_day')
 AI_MAX_WIDTH = 60
 
@@ -913,11 +1128,14 @@ def _ai_sheets(wb, ai):
 
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────
 
-def generate_excel(res, lang=None, ai=None):
+def generate_excel(res, lang=None, ai=None, match=None, people=None):
     """
     Build the workbook from compute() output. Returns bytes.
     ai: the block returned by enrich.enrich(res); when given, the AI_ sheets
     are added after Notes and the Notes sheet gains a section on their rules.
+    match, people: the result of match_engine.match() for this person and a
+    partner, and {'boy': res, 'girl': res}; when given, a Marriage sheet
+    follows Notes and the AI_Match sheets close the workbook.
     """
     lang = lang or res['meta'].get('lang', 'en')
     if lang not in i18n.LANGS:
@@ -931,9 +1149,33 @@ def generate_excel(res, lang=None, ai=None):
     _alp(wb, res, specs, lang)
     _dasa(wb, res, lang)
     _notes(wb, res, lang, ai)
+    if match:
+        _marriage(wb, match, people, lang)
     if ai:
         _ai_sheets(wb, ai)
+    if match:
+        _ai_sheets(wb, match_engine.tables(match))
     wb.properties.title = f"HoroscopeGen - {res['meta']['name']}"
+    wb.properties.creator = 'horoscopegen.in'
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def generate_match_excel(match, people=None, lang='en'):
+    """
+    The marriage match alone: the Marriage sheet, then the AI_Match sheets.
+    match: the result of match_engine.match(); people: {'boy': res, 'girl':
+    res} with the compute() results (their rasi charts are drawn), or None
+    for a match of star-only records. Returns bytes.
+    """
+    if lang not in i18n.LANGS:
+        lang = 'en'
+    wb = openpyxl.Workbook()
+    _marriage(wb, match, people, lang, first=True)
+    _ai_sheets(wb, match_engine.tables(match))
+    boy, girl = match['persons']['boy'], match['persons']['girl']
+    wb.properties.title = f"HoroscopeGen - {boy['name']} and {girl['name']}"
     wb.properties.creator = 'horoscopegen.in'
     buf = io.BytesIO()
     wb.save(buf)

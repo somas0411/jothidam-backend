@@ -9,6 +9,11 @@ Endpoints
   POST /api/download/pdf       PDF report
   POST /api/download/json      the horoscope plus the AI block, as a JSON file
   POST /api/match              marriage matching (porutham) of two people as JSON
+  POST /api/download/match/excel, /pdf   the same match as a workbook or a PDF
+
+The two single-horoscope downloads also take "partner" (birth details of a
+partner): the workbook then gains a Marriage sheet and the PDF a Marriage
+section.
 
 All horoscope endpoints take the same JSON body and call the same
 compute() function, so the page, the Excel, the PDF and the JSON file always
@@ -41,9 +46,9 @@ import charts
 import i18n
 from astro_engine import AYANAMSHAS, InputError, compute, geocode, to_jsonable
 from enrich import enrich
-from excel_generator import generate_excel
-from match_engine import match
-from pdf_generator import generate_pdf
+from excel_generator import generate_excel, generate_match_excel
+from match_engine import match, tables as match_tables
+from pdf_generator import generate_match_pdf, generate_pdf
 
 app = Flask(__name__)
 app.json.ensure_ascii = False
@@ -78,7 +83,7 @@ app.config['MAX_CONTENT_LENGTH'] = MAX_BODY_BYTES
 LIMIT_DEFAULT = '120 per minute'
 LIMIT_HOROSCOPE = '30 per minute; 300 per hour'
 LIMIT_MATCH = '15 per minute; 150 per hour'         # one match computes two horoscopes
-LIMIT_DOWNLOAD = '10 per minute; 100 per hour'      # the three downloads together
+LIMIT_DOWNLOAD = '10 per minute; 100 per hour'      # all the downloads together
 LIMIT_GEOCODE = '20 per minute; 200 per hour'
 # Place look-ups go to OpenStreetMap Nominatim, which allows one request a
 # second from this server in total, whoever asked.
@@ -236,6 +241,10 @@ def _compute_from_request():
     return _compute(body, body), _lang(body)
 
 
+def _match_options(body):
+    return {'kuja_houses': body.get('kujaHouses'), 'sandhi_months': body.get('sandhiMonths')}
+
+
 def _match_from_request():
     """
     Read a matching request and run the two people through the engine.
@@ -258,9 +267,29 @@ def _match_from_request():
         if not isinstance(details, dict) or not details:
             raise InputError(f'The details of the {role} are required.')
         people[role] = details if mode == 'star' else _compute(details, body, role)
-    result = match(people['boy'], people['girl'],
-                   {'kuja_houses': body.get('kujaHouses'), 'sandhi_months': body.get('sandhiMonths')})
+    result = match(people['boy'], people['girl'], _match_options(body))
     return result, (people if mode == 'full' else None), _lang(body)
+
+
+def _partner_match(res):
+    """
+    For the single-horoscope downloads: when the body holds "partner" (the
+    birth details of a partner), the match of the two and both compute()
+    results; otherwise (None, None). The person's own "gender" decides who is
+    the boy and who is the girl, so it must then be male or female.
+    """
+    body = _body()
+    partner = body.get('partner')
+    if partner in (None, '', {}):
+        return None, None
+    if not isinstance(partner, dict):
+        raise InputError('"partner" must hold the birth details of the partner.')
+    gender = str(body.get('gender', '')).strip().lower()
+    if gender not in ('male', 'female'):
+        raise InputError('Set "gender" to male or female to add a marriage match with a partner.')
+    own, other = ('boy', 'girl') if gender == 'male' else ('girl', 'boy')
+    people = {own: res, other: _compute(partner, body, other)}
+    return match(people['boy'], people['girl'], _match_options(body)), people
 
 
 def _ai_mode():
@@ -421,7 +450,36 @@ def match_route():
             # The two rasi and navamsa charts, for the page to draw side by side.
             out['charts'] = {role: {k: v for k, v in charts.build_specs(res, lang).items() if k in ('d1', 'd9')}
                              for role, res in people.items()}
+        if _wants_ai():
+            out['ai'] = to_jsonable(match_tables(result))
         return jsonify(out)
+    return _guard(run)
+
+
+def _match_filename(result, ext):
+    people = result['persons']
+    return _filename(f"Match_{people['boy']['name']}_{people['girl']['name']}", ext)
+
+
+@app.route('/api/download/match/excel', methods=['POST'])
+@download_limit
+def download_match_excel():
+    """The match as a workbook: the Marriage sheet, then the AI_Match sheets."""
+    def run():
+        result, people, lang = _match_from_request()
+        return _file_response(generate_match_excel(result, people, lang), _match_filename(result, 'xlsx'),
+                              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    return _guard(run)
+
+
+@app.route('/api/download/match/pdf', methods=['POST'])
+@download_limit
+def download_match_pdf():
+    """The match as a PDF: the Marriage section alone."""
+    def run():
+        result, people, lang = _match_from_request()
+        return _file_response(generate_match_pdf(result, people, lang), _match_filename(result, 'pdf'),
+                              'application/pdf')
     return _guard(run)
 
 
@@ -430,7 +488,9 @@ def match_route():
 def download_excel():
     def run():
         res, lang = _compute_from_request()
-        return _file_response(generate_excel(res, lang, ai=enrich(res, extras=_extras())),
+        result, people = _partner_match(res)
+        return _file_response(generate_excel(res, lang, ai=enrich(res, extras=_extras()), match=result,
+                                             people=people),
                               _filename(res['meta']['name'], 'xlsx'),
                               'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     return _guard(run)
@@ -441,8 +501,9 @@ def download_excel():
 def download_pdf():
     def run():
         res, lang = _compute_from_request()
-        return _file_response(generate_pdf(res, lang), _filename(res['meta']['name'], 'pdf'),
-                              'application/pdf')
+        result, people = _partner_match(res)
+        return _file_response(generate_pdf(res, lang, match=result, people=people),
+                              _filename(res['meta']['name'], 'pdf'), 'application/pdf')
     return _guard(run)
 
 

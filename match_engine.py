@@ -40,7 +40,7 @@ Nothing here changes compute(): the module only reads its result.
 """
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 import astro_engine as A
 import enrich as E
@@ -289,7 +289,10 @@ TABLE_SOURCES = [
     ('Checked against one or more published pages, which agree',
      'Dinam counts; Mahendram counts; Stree Deergham limits; the stars of each gana, yoni, rajju and nadi; '
      'the vedhai pairs; the same-star lists; the 27th-star rule; the 4th pada of the 22nd star; varna of the '
-     'rasis; tara; Graha Maitri points; Bhakoot; the Nadi, Bhakoot and Gana exceptions.'),
+     'rasis; tara; Graha Maitri points; Bhakoot; the Nadi, Bhakoot and Gana exceptions; the places of Mars for '
+     'Kuja dosha (2, 4, 7, 8, 12); the planets and places of Papa samyam and the rule that the boy\'s figure '
+     'is not to be the smaller; dasa sandhi taken at the level of the mahadasa, with 12 months as the usual '
+     'distance (one page gives 6).'),
     ('Published sources disagree; the variant used is named in the rule',
      'Gana points (two pages print the table with bride and groom exchanged); Vashya points (three cells '
      'differ between pages); Yoni points (two different 14 x 14 tables are in circulation); Vriksha (two '
@@ -1276,13 +1279,15 @@ def summarise(rows):
 
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────
 
-def match(boy, girl, options=None):
+def match(boy, girl, options=None, now=None):
     """
     Compare two people.
 
     boy, girl: each a result of astro_engine.compute(), or a star-only record
     {nakshatra, pada, rasi, name}. options: see clean_options(). Raises
-    InputError for a record or an option that cannot be read.
+    InputError for a record or an option that cannot be read. now: the report
+    moment in UTC for a match of star-only records (with birth details it is
+    the report moment of the boy's horoscope); defaults to the present.
 
     Groups A to C need only the Moon's star and rasi. Groups D and E need the
     birth details of both: with a star-only record their rows are "not
@@ -1298,8 +1303,14 @@ def match(boy, girl, options=None):
     _group_d(pair, options)
     windows = _group_e(pair, options)
     full = bool(boy['res'] and girl['res'])
+    if boy['res']:
+        now = _report_utc(boy['res'])
+    elif girl['res']:
+        now = _report_utc(girl['res'])
+    elif now is None:
+        now = datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0)
     return {
-        'schema': SCHEMA, 'label': LABEL, 'mode': 'full' if full else 'star',
+        'schema': SCHEMA, 'label': LABEL, 'mode': 'full' if full else 'star', 'generated_utc': now,
         'persons': {'boy': person_facts(boy), 'girl': person_facts(girl)},
         'settings': {'kuja_houses': options['kuja_houses'],
                      'kuja_places_that_count': list(KUJA_HOUSE_SETS[options['kuja_houses']]),
@@ -1313,4 +1324,143 @@ def match(boy, girl, options=None):
         'rules': [{'name': name, 'rule': rule} for name, rule in MATCH_RULES],
         'table_sources': [{'status': status, 'tables': tables} for status, tables in TABLE_SOURCES],
         'not_included': list(NOT_INCLUDED),
+    }
+
+
+# ── FLAT TABLES FOR AI READERS ────────────────────────────────────────────────
+# The same shape as the block of enrich.enrich(): sheets, columns, tables.
+# One table per sheet, header in row 1, one fact per cell, always in English.
+
+MATCH_SHEETS = ['AI_MatchReadMe', 'AI_MatchPersons', 'AI_MatchSummary', 'AI_Match', 'AI_MatchWindows',
+                'AI_MatchRules']
+MATCH_COLUMNS = {
+    'AI_MatchReadMe': [
+        ('line', 'Line number'),
+        ('text', 'What the AI_Match sheets are and how to read them'),
+    ],
+    'AI_MatchPersons': [
+        ('fact', 'A fact about a person: name, source (birth details or star only), nakshatra, pada, rasi, '
+                 'their lords, and with birth details the date, time and place of birth and the lagna'),
+        ('boy', 'The fact for the boy; empty when it was not given'),
+        ('girl', 'The fact for the girl; empty when it was not given'),
+    ],
+    'AI_MatchSummary': [
+        ('key', 'A count, a figure or a setting of this match'),
+        ('value', 'Its value. Counts of results only: no overall verdict is given'),
+        ('note', 'What the key means'),
+    ],
+    'AI_Match': [
+        ('group', 'A ten poruthams, B star rules, C Ashtakoota, D chart checks, E timing and KP'),
+        ('group_title', 'Name of the group'),
+        ('key', 'Fixed key of the check'),
+        ('name', 'Name of the check'),
+        ('boy_value', 'What the rule reads from the boy; empty when the birth details of both are needed'),
+        ('girl_value', 'What the rule reads from the girl'),
+        ('result', 'matched, medium, not matched, not applicable (the rule does not arise for this pair, or a '
+                   'fact it needs was not given) or information (a fact with no rule of comparison)'),
+        ('points', 'Ashtakoota points of the row; empty for the other groups and when not scored'),
+        ('max_points', 'Most points the row can give'),
+        ('exception_applied', 'An exception that holds for this pair. It is named only: it never changes the '
+                              'result or the points'),
+        ('note', 'The counting behind the result, in words'),
+        ('rule_applied', 'The rule of the check; the variant used is on AI_MatchRules'),
+    ],
+    'AI_MatchWindows': [
+        ('start_utc', 'Start of the span, UTC'),
+        ('end_utc', 'End of the span, UTC'),
+        ('days', 'Length in days'),
+        ('boy_layers_agreeing', 'How many of bhukti, antaram, Jupiter and Saturn hold in the boy\'s window, 2 to 4'),
+        ('girl_layers_agreeing', 'The same for the girl\'s window'),
+        ('boy_layers', 'Which layers hold for the boy'),
+        ('boy_dasa_lord', 'Mahadasa lord of the boy in his window'),
+        ('boy_bhukti_lord', 'Bhukti lord of the boy in his window'),
+        ('girl_layers', 'Which layers hold for the girl'),
+        ('girl_dasa_lord', 'Mahadasa lord of the girl in her window'),
+        ('girl_bhukti_lord', 'Bhukti lord of the girl in her window'),
+        ('label', 'Always "rule-based overlap, not a prediction"'),
+    ],
+    'AI_MatchRules': [
+        ('name', 'Group and name of the check, or a general rule'),
+        ('rule', 'The rule as applied and the variant used; what is not applied is said'),
+    ],
+}
+SUMMARY_NOTES = {
+    'schema': 'Version of these tables', 'mode': 'full: birth details of both; star: a star-only record was used',
+    'label': 'How every result is to be read', 'report_utc': 'The report moment, UTC',
+    'boy_star_from_girl_star': 'Stars from the girl\'s star to the boy\'s, the girl\'s counted as 1',
+    'girl_star_from_boy_star': 'Stars from the boy\'s star to the girl\'s, the boy\'s counted as 1',
+    'boy_rasi_from_girl_rasi': 'Rasis from the girl\'s rasi to the boy\'s, the girl\'s counted as 1',
+    'ashtakoota_points': 'Points of the rows of group C that were scored',
+    'ashtakoota_max_points': 'Most points group C can give',
+    'ashtakoota_rows_scored': 'Rows of group C that were scored, of 8',
+    'key_poruthams_not_matched': 'Which of Rajju, Dinam, Ganam, Yoni and Rasi are not matched, or none',
+    'kuja_places_that_count': 'Places of Mars counted as Kuja dosha',
+    'sandhi_months': 'Months within which two changes of mahadasa count as dasa sandhi',
+    'sandhi_years_ahead': 'Years ahead for which changes of mahadasa are compared',
+    'windows': 'Rows of AI_MatchWindows',
+}
+
+
+def tables(result):
+    """The result of match() as flat tables: {'schema', 'sheets', 'columns', 'tables'}."""
+    boy, girl = result['persons']['boy'], result['persons']['girl']
+    facts = list(boy) + [k for k in girl if k not in boy]
+    persons = [{'fact': k, 'boy': boy.get(k), 'girl': girl.get(k)} for k in facts if k != 'role']
+
+    summary = result['summary']
+    flat = [('schema', result['schema']), ('mode', result['mode']), ('label', result['label']),
+            ('report_utc', result['generated_utc'])]
+    flat += list(result['counts'].items())
+    results = [r.replace(' ', '_') for r in RESULTS]
+    flat += [(f'ten_poruthams_{r}', summary['ten_poruthams'][r]) for r in results]
+    flat += [(f'ashtakoota_{k}', v) for k, v in summary['ashtakoota'].items() if k != 'rows']
+    flat.append(('key_poruthams_not_matched', ', '.join(summary['key_poruthams_not_matched']) or 'none'))
+    for group, counts in summary['groups'].items():
+        flat += [(f'group_{group}_{r}', counts[r]) for r in results]
+    settings = result['settings']
+    flat += [('kuja_places_that_count', ', '.join(str(h) for h in settings['kuja_places_that_count'])),
+             ('sandhi_months', settings['sandhi_months']), ('sandhi_years_ahead', settings['sandhi_years_ahead']),
+             ('windows', len(result['windows']))]
+
+    def note(key):
+        if key in SUMMARY_NOTES:
+            return SUMMARY_NOTES[key]
+        if key.startswith('ten_poruthams_'):
+            return 'Rows of the ten poruthams (Dinam to Vedhai) with this result'
+        return f'Rows of group {key.split("_")[1]} with this result'
+
+    readme = [
+        'Marriage matching of two people from horoscopegen.in, as flat tables for AI readers.',
+        f'Schema {result["schema"]}. Every result is {result["label"]}.',
+        'AI_Match holds one row per check; AI_MatchRules holds the rule and the variant behind every check.',
+        'Counts run from the girl\'s star or rasi to the boy\'s, the starting one counted as 1, unless the '
+        'rule names the other direction.',
+        'Results: matched, medium, not matched as the rule says; not applicable when the rule does not arise '
+        'for this pair or a fact it needs was not given; information for a fact with no rule of comparison.',
+        'An exception is named in exception_applied and never changes a result or the points.',
+        'AI_MatchSummary holds counts only. No overall verdict on the marriage is given, and none should be '
+        'read into the counts.',
+        'Groups A to C need only the Moon\'s star and rasi. Groups D and E need the birth details of both; '
+        'in star mode their rows are not applicable and AI_MatchWindows is empty.',
+        'AI_MatchWindows lists the spans of the next 10 years in which a Marriage window of the boy\'s '
+        'horoscope and one of the girl\'s overlap (AI_TopicWindows of each horoscope), in UTC.',
+        'An empty cell means "does not apply" or "was not given".',
+        'Always in English, whatever language the report is in.',
+    ]
+    readme += [f'Not included: {item}.' for item in result['not_included']]
+    readme += [f'Tables - {s["status"]}: {s["tables"]}' for s in result['table_sources']]
+
+    data = {
+        'AI_MatchReadMe': [{'line': i, 'text': text} for i, text in enumerate(readme, start=1)],
+        'AI_MatchPersons': persons,
+        'AI_MatchSummary': [{'key': k, 'value': v, 'note': note(k)} for k, v in flat],
+        'AI_Match': [dict(r, group_title=result['groups'][r['group']]) for r in result['rows']],
+        'AI_MatchWindows': list(result['windows']),
+        'AI_MatchRules': list(result['rules']),
+    }
+    return {
+        'schema': result['schema'], 'sheets': list(MATCH_SHEETS),
+        'columns': {sheet: [{'name': n, 'meaning': m} for n, m in cols] for sheet, cols in MATCH_COLUMNS.items()},
+        'tables': {sheet: [{c: row.get(c) for c, _ in MATCH_COLUMNS[sheet]} for row in data[sheet]]
+                   for sheet in MATCH_SHEETS},
     }

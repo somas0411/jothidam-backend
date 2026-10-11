@@ -2,7 +2,9 @@
 pdf_generator.py — HoroscopeGen PDF report.
 
 Same content and order as the Excel workbook: summary, Vedic, divisional
-charts, KP, ALP, dasa tables, notes. White pages for printing. Text is laid out with fpdf2
+charts, KP, ALP, dasa tables, notes, and a Marriage section when a marriage
+match is passed in. generate_match_pdf() builds the Marriage section alone.
+White pages for printing. Text is laid out with fpdf2
 and shaped by HarfBuzz, with Noto fonts embedded, so Tamil and the other
 Indian scripts are joined correctly instead of printing as boxes.
 """
@@ -12,6 +14,9 @@ from fpdf import FPDF
 
 import charts
 import i18n
+import match_engine
+from excel_generator import (MATCH_WINDOWS_SHOWN, _match_group_counts, _match_note, _match_person,
+                             _match_points, _match_summary)
 
 FONT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fonts')
 SCRIPT_FONTS = {'tamil': 'NotoSansTamil', 'devanagari': 'NotoSansDevanagari', 'telugu': 'NotoSansTelugu',
@@ -40,6 +45,7 @@ class Report(FPDF):
     def __init__(self, res, lang):
         super().__init__(orientation='P', unit='mm', format='A4')
         self.res, self.lang = res, lang
+        self.heading = None                  # page heading; the report title when not set
         self.set_margins(MARGIN, 16, MARGIN)
         self.set_auto_page_break(True, margin=16)
         self.add_font('main', '', os.path.join(FONT_DIR, 'NotoSans-Regular.ttf'))
@@ -91,6 +97,13 @@ class Report(FPDF):
         if kwargs.get('dry_run'):
             return self._unshaped(text, super().multi_cell, *args, **kwargs)
         with self.local_context():
+            if not self._plain(text) and self.page:
+                # Shaped text: fpdf2 names the font inside the first line only, and each
+                # line is its own graphics state when the text colour differs from the
+                # fill colour. A later line that starts with Latin text, a digit or a
+                # bracket would then be drawn with no font at all and vanish. Naming the
+                # font once for the whole cell gives every line a font to start from.
+                self._out(f'BT /F{self.current_font.i} {self.font_size_pt:.2f} Tf ET')
             return self._unshaped(text, super().multi_cell, *args, **kwargs)
 
     def get_string_width(self, s, *args, **kwargs):
@@ -101,7 +114,7 @@ class Report(FPDF):
         self.set_font('main', 'B', 8)
         self.set_text_color(*BAND)
         self.set_xy(MARGIN, 7)
-        self.cell(BODY_W / 2, 5, f"HoroscopeGen  ·  {i18n.L('report_title', self.lang)}")
+        self.cell(BODY_W / 2, 5, f"HoroscopeGen  ·  {self.heading or i18n.L('report_title', self.lang)}")
         self.set_font('main', '', 8)
         self.set_text_color(*MUTED)
         self.cell(BODY_W / 2, 5, self.res['meta']['name'], align='R')
@@ -825,10 +838,125 @@ def _notes(pdf):
     pdf.set_auto_page_break(True, margin=16)
 
 
-# ── ENTRY POINT ───────────────────────────────────────────────────────────────
+# ── MARRIAGE SECTION ──────────────────────────────────────────────────────────
 
-def generate_pdf(res, lang=None):
-    """Build the PDF from compute() output. Returns bytes."""
+MATCH_COLS = [('check', 20, 'LEFT'), ('boy', 16, 'LEFT'), ('girl', 16, 'LEFT'), ('result', 12, 'CENTER'),
+              ('points', 8, 'CENTER'), ('note', 28, 'LEFT')]
+MATCH_COLS_WIDE = [('check', 19, 'LEFT'), ('boy', 25, 'LEFT'), ('girl', 25, 'LEFT'), ('result', 11, 'CENTER'),
+                   ('note', 20, 'LEFT')]
+MATCH_CHART_MM = 74.0
+
+
+def _marriage(pdf, match, people):
+    """
+    The Marriage section: the two people and their rasi charts, the summary
+    of counts, the rows of each group, the overlapping marriage windows and
+    the rules. match: the result of match_engine.match(); people: {'boy':
+    res, 'girl': res}, or None for a match of star-only records.
+    """
+    lang = pdf.lang
+    ML = lambda k: i18n.ML(k, lang)
+    V = lambda text: i18n.match_value(text, lang)
+    boy, girl = match['persons']['boy'], match['persons']['girl']
+    half = (BODY_W - 4) / 2
+    rx = MARGIN + half + 4
+    size = {'en': 7.2, 'bi': 6.2}.get(lang, 6.8)
+
+    pdf.add_page()
+    pdf.band(f"HoroscopeGen  ·  {ML('marriage_title')}", f"{boy['name']}  ·  {girl['name']}  ·  {ML('rule_based')}")
+
+    y = pdf.get_y()
+    pdf.section(f"{ML('boy')}: {boy['name']}", x=MARGIN, w=half)
+    pdf.set_y(y)
+    pdf.section(f"{ML('girl')}: {girl['name']}", x=rx, w=half)
+    y = pdf.get_y()
+    y = max(pdf.pairs(MARGIN, y, half, _match_person(boy, lang)),
+            pdf.pairs(rx, y, half, _match_person(girl, lang))) + 3
+    if people:
+        style = people['boy']['meta']['chart_style']
+        off = (half - MATCH_CHART_MM) / 2
+        pdf.chart(MARGIN + off, y, MATCH_CHART_MM, charts.build_specs(people['boy'], lang)['d1'], style)
+        y = pdf.chart(rx + off, y, MATCH_CHART_MM, charts.build_specs(people['girl'], lang)['d1'], style)
+
+    pdf.set_y(y)
+    pdf.section(ML('summary_of_results'), need=55)
+    y = pdf.pairs(MARGIN, pdf.get_y(), BODY_W, _match_summary(match, lang)) + 2
+    pdf.set_y(y)
+    heads, rows = _match_group_counts(match, lang)
+    pdf.table([(heads[0], 40, 'LEFT')] + [(h, 12, 'CENTER') for h in heads[1:]], rows)
+    pdf.set_y(pdf.get_y() - 2)
+    pdf.set_font('main', '', 7.2)
+    pdf.set_text_color(*MUTED)
+    pdf.cell(BODY_W, 4.5, ML('no_verdict'), new_x='LMARGIN', new_y='NEXT')
+    pdf.ln(3)
+
+    for group in match['groups']:
+        group_rows = [x for x in match['rows'] if x['group'] == group]
+        pdf.section(f"{group}. {ML('group_' + group)}", need=40)
+        if all(x['result'] == match_engine.NOT_APPLICABLE and x['boy_value'] is None for x in group_rows):
+            pdf.set_font('main', '', 7.6)
+            pdf.set_text_color(*MUTED)
+            pdf.cell(BODY_W, 6, '  ' + ML('needs_birth_details'), new_x='LMARGIN', new_y='NEXT')
+            pdf.ln(3)
+            continue
+        wide = group in ('D', 'E')
+        cols = MATCH_COLS_WIDE if wide else MATCH_COLS
+        table_rows = []
+        for x in group_rows:
+            row = [i18n.match_check(x['key'], x['name'], lang), V(x['boy_value']), V(x['girl_value']),
+                   ML(x['result'])]
+            if not wide:
+                row.append(_match_points(x))
+            row.append(_match_note(x, lang))
+            table_rows.append(row)
+        pdf.table([(ML(key), w, align) for key, w, align in cols], table_rows, font_size=size, line_h=4.0,
+                  wrap=True)
+
+    windows = match['windows']
+    if windows:
+        shown = windows[:MATCH_WINDOWS_SHOWN]
+        pdf.section(ML('windows'), need=40)
+        pdf.table([(ML('from'), 14, 'CENTER'), (ML('to'), 14, 'CENTER'), (ML('days'), 10, 'CENTER'),
+                   (ML('boy_layers'), 31, 'LEFT'), (ML('girl_layers'), 31, 'LEFT')],
+                  [[w['start_utc'].strftime(DATE), w['end_utc'].strftime(DATE), f"{w['days']:.1f}",
+                    w['boy_layers'], w['girl_layers']] for w in shown])
+        if len(windows) > len(shown):
+            pdf.set_y(pdf.get_y() - 2)
+            pdf.set_font('main', '', 7.2)
+            pdf.set_text_color(*MUTED)
+            pdf.cell(BODY_W, 4.5, ML('windows_shown').format(n=len(shown), total=len(windows)),
+                     new_x='LMARGIN', new_y='NEXT')
+            pdf.ln(3)
+
+    settings = match['settings']
+    pdf.section(ML('settings'), need=25)
+    y = pdf.pairs(MARGIN, pdf.get_y(), BODY_W,
+                  [(ML('kuja_places'), ', '.join(str(h) for h in settings['kuja_places_that_count'])),
+                   (ML('sandhi_months'), settings['sandhi_months'])])
+    pdf.set_y(y + 3)
+
+    two = [('', 27, 'LEFT'), ('', 73, 'LEFT')]
+    pdf.add_page()
+    pdf.section(ML('rules'))
+    pdf.table(two, [(x['name'], x['rule']) for x in match['rules']], font_size=7.4, line_h=4.3, wrap=True)
+    pdf.section(ML('sources'), need=45)
+    pdf.table(two, [(x['status'], x['tables']) for x in match['table_sources']], font_size=7.4, line_h=4.3,
+              wrap=True)
+    pdf.section(ML('not_included'), need=30)
+    pdf.table([('', 6, 'CENTER'), ('', 94, 'LEFT')],
+              [(str(i), text) for i, text in enumerate(match['not_included'], start=1)],
+              font_size=7.4, line_h=4.3, wrap=True)
+
+
+# ── ENTRY POINTS ──────────────────────────────────────────────────────────────
+
+def generate_pdf(res, lang=None, match=None, people=None):
+    """
+    Build the PDF from compute() output. Returns bytes.
+    match, people: the result of match_engine.match() for this person and a
+    partner, and {'boy': res, 'girl': res}; when given, a Marriage section
+    follows the notes.
+    """
     lang = lang or res['meta'].get('lang', 'en')
     if lang not in i18n.LANGS:
         lang = 'en'
@@ -841,4 +969,22 @@ def generate_pdf(res, lang=None):
     _alp(pdf, specs)
     _dasa(pdf)
     _notes(pdf)
+    if match:
+        _marriage(pdf, match, people)
+    return bytes(pdf.output())
+
+
+def generate_match_pdf(match, people=None, lang='en'):
+    """
+    The Marriage section alone. match: the result of match_engine.match();
+    people: {'boy': res, 'girl': res} with the compute() results (their rasi
+    charts are drawn), or None for a match of star-only records. Returns bytes.
+    """
+    if lang not in i18n.LANGS:
+        lang = 'en'
+    boy, girl = match['persons']['boy'], match['persons']['girl']
+    moment = people['boy']['meta']['generated_at'] if people else match['generated_utc']
+    pdf = Report({'meta': {'name': f"{boy['name']}  ·  {girl['name']}", 'generated_at': moment}}, lang)
+    pdf.heading = i18n.ML('marriage_title', lang)
+    _marriage(pdf, match, people)
     return bytes(pdf.output())

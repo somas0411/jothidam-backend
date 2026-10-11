@@ -25,8 +25,17 @@ Reference values that do not come from match_engine.py:
     months between two changes worked out here; and for the marriage windows
     a day-by-day count of the days that lie in a window of each horoscope.
 
+  * The reports: the Marriage sheet and the AI_Match sheets are read back
+    with openpyxl; the PDF is read back with pdftotext where it is installed
+    (as test_engine.py does). The first seven sheets of a workbook with a
+    Marriage sheet are compared, cell by cell, with the same workbook
+    without one (tests/make_golden.py).
+
 No test here reaches the network.
 """
+import io
+import shutil
+import subprocess
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -1301,3 +1310,370 @@ def test_the_single_horoscope_route_still_needs_a_name(client):
     rv = client.post('/api/horoscope', json={k: v for k, v in BOY.items() if k != 'name'})
     assert rv.status_code == 400
     assert rv.get_json() == {'error': 'Name, date, time and place of birth are required.'}
+
+
+# ── the reports ───────────────────────────────────────────────────────────────
+
+@pytest.fixture(scope='module')
+def matched(charts):
+    boy, girl = charts
+    return M.match(boy, girl), {'boy': boy, 'girl': girl}
+
+
+@pytest.fixture(scope='module')
+def star_match():
+    return M.match(star('Rohini', 2), star('Chitra', 1), now=NOW)
+
+
+def cell_texts(ws):
+    return [c.value for row in ws.iter_rows() for c in row if isinstance(c.value, str)]
+
+
+def load(data):
+    import openpyxl
+    return openpyxl.load_workbook(io.BytesIO(data))
+
+
+def pdf_text(data, tmp_path):
+    f = tmp_path / 'r.pdf'
+    f.write_bytes(data)
+    done = subprocess.run(['pdftotext', '-layout', str(f), '-'], capture_output=True, text=True)
+    return done.stdout, done.stderr
+
+
+def test_flat_tables_have_the_shape_of_the_ai_block(matched, star_match):
+    result, _ = matched
+    t = M.tables(result)
+    assert t['schema'] == 'horoscopegen-match/1'
+    assert t['sheets'] == ['AI_MatchReadMe', 'AI_MatchPersons', 'AI_MatchSummary', 'AI_Match', 'AI_MatchWindows',
+                           'AI_MatchRules'] == list(t['tables']) == list(t['columns'])
+    for sheet in t['sheets']:
+        names = [c['name'] for c in t['columns'][sheet]]
+        assert all(c['meaning'] for c in t['columns'][sheet]) and len(names) == len(set(names))
+        for row in t['tables'][sheet]:
+            assert list(row) == names, sheet
+    rows = t['tables']['AI_Match']
+    assert [(r['key'], r['result'], r['points']) for r in rows] == \
+        [(r['key'], r['result'], r['points']) for r in result['rows']]
+    assert {r['group']: r['group_title'] for r in rows} == result['groups']
+    assert len(t['tables']['AI_MatchWindows']) == len(result['windows']) > 0
+    assert isinstance(t['tables']['AI_MatchWindows'][0]['start_utc'], datetime)
+    assert t['tables']['AI_MatchRules'] == result['rules']
+    persons = {r['fact']: (r['boy'], r['girl']) for r in t['tables']['AI_MatchPersons']}
+    assert persons['name'] == ('Sample Native', 'Sample Bride') and persons['dob'] == ('1998-03-06', '2000-07-15')
+    assert persons['nakshatra'][0] == 'Mrigashira' and 'role' not in persons
+    summary = {r['key']: r['value'] for r in t['tables']['AI_MatchSummary']}
+    assert all(r['note'] for r in t['tables']['AI_MatchSummary'])
+    assert summary['mode'] == 'full' and summary['label'] == 'rule-based, not a prediction'
+    assert summary['ashtakoota_points'] == result['summary']['ashtakoota']['points']
+    assert summary['ashtakoota_max_points'] == 36 and summary['windows'] == len(result['windows'])
+    assert summary['ten_poruthams_matched'] + summary['ten_poruthams_medium'] + summary['ten_poruthams_not_matched'] == 10
+    assert summary['group_D_information'] == 20 and summary['kuja_places_that_count'] == '2, 4, 7, 8, 12'
+    assert summary['report_utc'] == NOW - timedelta(hours=5.5)
+    # Always in English: no letter of an Indian script anywhere.
+    for sheet in t['sheets']:
+        for row in t['tables'][sheet]:
+            for v in row.values():
+                assert not (isinstance(v, str) and any(ord(ch) >= 0x0590 and not 0x2000 <= ord(ch) < 0x2400 for ch in v)), v
+    # Star only: the same sheets, the chart and timing rows empty, no windows.
+    s = M.tables(star_match)
+    assert s['sheets'] == t['sheets'] and s['tables']['AI_MatchWindows'] == []
+    facts = {r['fact']: (r['boy'], r['girl']) for r in s['tables']['AI_MatchPersons']}
+    assert facts['source'] == ('star only', 'star only') and 'dob' not in facts
+    assert {r['key']: r['value'] for r in s['tables']['AI_MatchSummary']}['report_utc'] == NOW
+
+
+def test_match_workbook(matched):
+    from excel_generator import generate_match_excel
+    result, people = matched
+    wb = load(generate_match_excel(result, people, 'en'))
+    assert wb.sheetnames == ['Marriage'] + M.MATCH_SHEETS
+    ws = wb['Marriage']
+    texts = cell_texts(ws)
+    assert texts[0] == 'HoroscopeGen  ·  Marriage Matching'
+    assert 'Sample Native  ·  Sample Bride  ·  Rule-based, not a prediction' in texts
+    assert 'Boy: Sample Native' in texts and 'Girl: Sample Bride' in texts
+    assert texts.count('Rasi Chart (D1)') == 2                           # the two charts, side by side
+    for row in result['rows']:
+        assert row['name'] in texts, row['name']
+    for title in ('A. Ten Poruthams, with Nadi and Vriksha', 'B. Star Rules', 'C. Ashtakoota (36 Points)',
+                  'D. Chart Checks', 'E. Timing and KP', 'Summary of Results', 'Marriage Windows of Both (UTC)',
+                  'Rules and Variants', 'Where the Tables Were Checked', 'Not Included', 'Settings'):
+        assert texts.count(title) >= 1, title
+    ak = result['summary']['ashtakoota']
+    assert f"{ak['points']} / 36" in texts
+    assert 'Counts of rule-based checks; no overall verdict is given.' in texts
+    assert 'The first 12 of 72 spans are shown. All are on the sheet AI_MatchWindows.' in texts
+    for rule in result['rules']:
+        assert rule['rule'] in texts
+    assert ws.page_setup.orientation == 'portrait' and ws.print_area
+    # The window rows hold real dates.
+    dates = [c.value for row in ws.iter_rows() for c in row if isinstance(c.value, datetime)]
+    assert len(dates) == 24 and dates[0].date() == result['windows'][0]['start_utc'].date()
+
+
+def test_the_ai_match_sheets_are_plain_tables(matched):
+    from excel_generator import generate_match_excel
+    result, people = matched
+    wb = load(generate_match_excel(result, people, 'ta'))               # the report language does not reach them
+    t = M.tables(result)
+    for sheet in M.MATCH_SHEETS:
+        ws = wb[sheet]
+        assert not ws.merged_cells.ranges and ws.freeze_panes == 'A2'
+        assert [c.value for c in ws[1]] == [c['name'] for c in t['columns'][sheet]]
+        assert ws.max_row == len(t['tables'][sheet]) + 1
+        got = [[c.value for c in row] for row in ws.iter_rows(min_row=2)]
+        want = [list(row.values()) for row in t['tables'][sheet]]
+        assert got == want, sheet
+        for row in ws.iter_rows():
+            for c in row:
+                assert c.data_type != 'f' and c.fill.fill_type is None
+
+
+def test_match_workbook_in_tamil_and_bilingual(matched):
+    from excel_generator import generate_match_excel
+    result, people = matched
+    wb = load(generate_match_excel(result, people, 'ta'))
+    assert wb.sheetnames[0] == 'திருமணப் பொருத்தம்'
+    texts = cell_texts(wb.worksheets[0])
+    for word in ('தினப் பொருத்தம்', 'ரஜ்ஜுப் பொருத்தம்', 'வைநாசிகம் (22-வது நட்சத்திரம்)', 'பொருத்தம் உண்டு', 'பொருத்தம் இல்லை',
+                 'மிருகசீரிடம் - பாதம் 2', 'இருவருக்கும் செவ்வாய் தோஷம்', 'தசா சந்தி', 'ஆண்: Sample Native'):
+        assert word in texts, word
+    # The sentences of the chart rows stay in English.
+    assert 'Mars in the 5th from the lagna: absent' in texts
+    wb = load(generate_match_excel(result, people, 'bi'))
+    assert wb.sheetnames[0] == 'Marriage'
+    texts = cell_texts(wb.worksheets[0])
+    assert 'Dinam / தினப் பொருத்தம்' in texts and 'Matched / பொருத்தம் உண்டு' in texts
+    # Telugu has no labels of its own: English labels, as on the other sheets.
+    wb = load(generate_match_excel(result, people, 'te'))
+    assert wb.sheetnames[0] == 'Marriage' and 'Dinam' in cell_texts(wb.worksheets[0])
+
+
+def test_match_workbook_for_stars_only(star_match):
+    from excel_generator import generate_match_excel
+    wb = load(generate_match_excel(star_match, None, 'en'))
+    texts = cell_texts(wb['Marriage'])
+    assert 'Rasi Chart (D1)' not in texts and 'Marriage Windows of Both (UTC)' not in texts
+    assert texts.count('The birth details of both are needed') == 2            # groups D and E
+    assert 'Kuja dosha from the lagna' not in texts and 'Dinam' in texts
+    assert texts.count('Star only') == 2 and 'Rohini - Pada 2' in texts and '20 / 36' in texts
+    # Gana and Bhakoot score 0 for this pair, and the exception is named beside each.
+    exception = 'Exception: The rasi lords are friends to each other (Venus, Mercury)'
+    assert exception in texts and exception + '\nThe rasis are 5/9 from each other' in texts
+    assert wb['AI_MatchWindows'].max_row == 1
+    assert [r[6].value for r in wb['AI_Match'].iter_rows(min_row=2)].count('not applicable') == 3 + 25 + 4
+
+
+def test_a_marriage_sheet_leaves_the_seven_report_sheets_as_they_were(matched):
+    import enrich as E
+    import make_golden as G
+    from excel_generator import generate_excel
+    result, people = matched
+    boy = people['boy']
+    plain = generate_excel(boy, 'en')
+    with_match = generate_excel(boy, 'en', match=result, people=people)
+    assert G.workbook_print(with_match) == G.workbook_print(plain)
+    assert load(with_match).sheetnames == load(plain).sheetnames + ['Marriage'] + M.MATCH_SHEETS
+    ai = E.enrich(boy)
+    names = load(generate_excel(boy, 'en', ai=ai, match=result, people=people)).sheetnames
+    assert names[:8] == load(plain).sheetnames + ['Marriage']
+    assert names[8:] == ai['sheets'] + M.MATCH_SHEETS
+
+
+def test_nothing_about_length_of_life_in_the_reports(matched):
+    from excel_generator import generate_match_excel
+    result, people = matched
+    banned = ('marak', 'ayur', 'longevity', 'lifespan', 'life span', 'death', 'mrityu', 'alpayu', 'alive', 'died',
+              'widow', 'kill', 'fatal', 'surviv', 'length of life', 'remed')
+    allowed = ('Ayul porutham, and anything about length of life: left out on purpose',
+               'Ayul porutham and the rules about particular stars and the in-laws.',
+               'Not included: Ayul porutham, and anything about length of life: left out on purpose.',
+               'Remedies; a verdict on whether to marry', 'Not included: Remedies; a verdict on whether to marry.',
+               'Tables - Left out on purpose: Ayul porutham and the rules about particular stars and the in-laws.')
+    wb = load(generate_match_excel(result, people, 'en'))
+    seen = 0
+    for ws in wb.worksheets:
+        for text in cell_texts(ws):
+            seen += 1
+            if text not in allowed:
+                assert not any(word in text.lower() for word in banned), (ws.title, text)
+    assert seen > 800
+
+
+@pytest.mark.parametrize('lang', ['en', 'ta', 'hi', 'bi', 'te'])
+def test_match_pdf(matched, star_match, lang, tmp_path):
+    from pdf_generator import generate_match_pdf
+    result, people = matched
+    data = generate_match_pdf(result, people, lang)
+    assert data[:5] == b'%PDF-' and len(data) > 30000
+    star_data = generate_match_pdf(star_match, None, lang)
+    assert star_data[:5] == b'%PDF-'
+    if not shutil.which('pdftotext'):
+        pytest.skip('pdftotext not installed')
+    text, errors = pdf_text(data, tmp_path)
+    assert errors == ''
+    # Sentences of the chart rows, the points and the dates are the same in every language.
+    assert 'Sample Native' in text and 'Sample Bride' in text
+    assert 'Mars in the 5th from the lagna:' in text and '12 / 36' in text and '03-10-2026' in text
+    assert 'Jupiter to Saturn on 2037-03-03' in text
+    assert 'No overall verdict is given.' in text                               # the last rule: nothing was cut off
+    if lang in ('en', 'te'):
+        for words in ('Marriage Matching', 'Stree Deergham', 'Vainasika (22nd star)', 'Kuja dosha in both charts',
+                      'Papa samyam (count)', 'Dasa sandhi', 'Rules and Variants', 'Not matched', 'Information'):
+            assert words in text, words
+    star_text, errors = pdf_text(star_data, tmp_path)
+    assert errors == '' and '20 / 36' in star_text and 'Kuja dosha from the lagna' not in star_text
+
+
+def test_a_wrapped_cell_that_mixes_scripts_keeps_every_line(tmp_path):
+    """
+    A cell that starts in Tamil and wraps into a line of Latin text used to
+    lose that line (the PDF named no font for it). pdftotext reports the
+    fault as "No font in show".
+    """
+    if not shutil.which('pdftotext'):
+        pytest.skip('pdftotext not installed')
+    import pdf_generator as P
+    pdf = P.Report({'meta': {'name': 'x', 'generated_at': NOW}}, 'ta')
+    pdf.add_page()
+    cols = [('a', 20, 'LEFT'), ('b', 16, 'LEFT'), ('c', 12, 'CENTER'), ('d', 28, 'LEFT')]
+    pdf.table(cols, [['கணம் (6)', 'மனுஷ கணம்', '0 / 6',
+                      'விலக்கு: The rasi lords are friends to each other (Venus, Mercury) lastword'],
+                     ['வைநாசிகம் நட்சத்திரம் (22-வது நட்சத்திரம்) (88-வது பாதம்) 123 456 789 endword', 'x', 'y', 'z']],
+              font_size=6.8, line_h=4.0, wrap=True)
+    text, errors = pdf_text(bytes(pdf.output()), tmp_path)
+    assert errors == '' and 'lastword' in text and 'endword' in text and 'Mercury)' in text
+
+
+def test_a_marriage_section_in_the_horoscope_pdf(matched, tmp_path):
+    from pdf_generator import generate_pdf
+    result, people = matched
+    plain = generate_pdf(people['boy'], 'en')
+    with_match = generate_pdf(people['boy'], 'en', match=result, people=people)
+    assert with_match[:5] == b'%PDF-' and len(with_match) > len(plain) + 20000
+    if not shutil.which('pdftotext'):
+        pytest.skip('pdftotext not installed')
+    text, errors = pdf_text(with_match, tmp_path)
+    before, errors_before = pdf_text(plain, tmp_path)
+    assert errors == errors_before == ''
+    assert 'Marriage Matching' in text and 'Marriage Matching' not in before
+    assert text.index('How This Report Was Calculated') < text.index('Marriage Matching')     # after the notes
+    assert 'Kuja dosha in both charts' in text and 'Sample Bride' in text
+
+
+def test_labels_cover_every_check_and_the_page_bundle_is_untouched():
+    import i18n
+    assert set(i18n.MATCH_CHECKS['ta']) == set(i18n.MATCH_CHECKS['hi']) == set(M.CHECKS)
+    assert set(i18n.MATCH_LABELS['ta']) == set(i18n.MATCH_LABELS['hi']) == set(i18n.MATCH_LABELS['en'])
+    for result in M.RESULTS:
+        assert result in i18n.MATCH_LABELS['en']
+    for group in M.GROUPS:
+        assert 'group_' + group in i18n.MATCH_LABELS['en']
+    words = set(M.GANA) | set(M.YONI) | set(M.RAJJU) | set(M.NADI) | set(M.E.TARA_NAMES) | set(M.VARNA.values()) \
+        | set(M.VASHYA_POINTS)
+    assert set(i18n.MATCH_WORDS['ta']) == set(i18n.MATCH_WORDS['hi']) == words
+    assert set(M.TREE) == set(i18n.MATCH_TREES_TA)
+    # The labels sent to the web page with every horoscope do not gain the marriage labels.
+    assert 'marriage_title' not in i18n.bundle('ta')['labels'] and 'group_A' not in i18n.LABELS['en']
+    assert i18n.match_value('Rohini pada 2', 'ta') == 'ரோகிணி - பாதம் 2'
+    assert i18n.match_value('Deva', 'hi') == 'देव गण' and i18n.match_value('Deva', 'bi') == 'Deva'
+    assert i18n.match_value('Naval (milk tree)', 'ta') == 'நாவல் (பால் மரம்)'
+    assert i18n.match_value('Naval (milk tree)', 'en') == 'Naval (milk tree)'
+    assert i18n.match_value('Mars in the 5th from the lagna: absent', 'ta') == 'Mars in the 5th from the lagna: absent'
+    assert i18n.match_value(None, 'en') == '—' and i18n.match_value('Kanya', 'ta') == 'கன்னி'
+    assert i18n.match_check('dinam', 'Dinam', 'bi') == 'Dinam / தினப் பொருத்தம்'
+    assert i18n.match_check('dinam', 'Dinam', 'kn') == 'Dinam' and i18n.ML('marriage', 'mr') == 'विवाह मिलान'
+
+
+# ── the download routes ───────────────────────────────────────────────────────
+
+XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+
+def test_download_the_match_as_a_workbook_and_as_a_pdf(client):
+    body = {'boy': BOY, 'girl': GIRL, 'lang': 'en'}
+    rv = client.post('/api/download/match/excel', json=body)
+    assert rv.status_code == 200 and rv.headers['Content-Type'] == XLSX
+    assert 'filename="HoroscopeGen_Match_Sample_Native_Sample_Bride.xlsx"' in rv.headers['Content-Disposition']
+    assert rv.headers['Cache-Control'] == 'no-store'
+    assert load(rv.data).sheetnames == ['Marriage'] + M.MATCH_SHEETS
+    rv = client.post('/api/download/match/pdf', json=dict(body, lang='ta'))
+    assert rv.status_code == 200 and rv.data[:5] == b'%PDF-'
+    assert 'filename="HoroscopeGen_Match_Sample_Native_Sample_Bride.pdf"' in rv.headers['Content-Disposition']
+    stars = {'mode': 'star', 'boy': {'nakshatra': 4, 'pada': 2}, 'girl': {'nakshatra': 14, 'pada': 1}}
+    rv = client.post('/api/download/match/excel', json=stars)
+    assert rv.status_code == 200 and 'HoroscopeGen_Match_Boy_Girl.xlsx' in rv.headers['Content-Disposition']
+    assert client.post('/api/download/match/pdf', json=stars).data[:5] == b'%PDF-'
+    for route in ('/api/download/match/excel', '/api/download/match/pdf'):
+        rv = client.post(route, json={'boy': BOY})
+        assert rv.status_code == 400 and rv.get_json() == {'error': 'The details of the girl are required.'}
+        assert client.get(route).status_code == 405
+
+
+def test_a_partner_adds_the_marriage_sheet_and_section_to_a_horoscope(client):
+    plain = client.post('/api/download/excel', json=dict(BOY, gender='male'))
+    rv = client.post('/api/download/excel', json=dict(BOY, gender='male', partner=GIRL))
+    assert rv.status_code == 200 and 'HoroscopeGen_Sample_Native.xlsx' in rv.headers['Content-Disposition']
+    names, plain_names = load(rv.data).sheetnames, load(plain.data).sheetnames
+    assert 'Marriage' not in plain_names and names[:7] == plain_names[:7] and names[7] == 'Marriage'
+    assert names == plain_names[:7] + ['Marriage'] + plain_names[7:] + M.MATCH_SHEETS
+    texts = cell_texts(load(rv.data)['Marriage'])
+    assert 'Boy: Sample Native' in texts and 'Girl: Sample Bride' in texts
+    # A woman's horoscope with a partner: she is the girl, the partner the boy.
+    rv = client.post('/api/download/excel', json=dict(GIRL, gender='female', partner=BOY))
+    texts = cell_texts(load(rv.data)['Marriage'])
+    assert 'Boy: Sample Native' in texts and 'Girl: Sample Bride' in texts
+    pdf = client.post('/api/download/pdf', json=dict(BOY, gender='male', partner=GIRL))
+    plain_pdf = client.post('/api/download/pdf', json=dict(BOY, gender='male'))
+    assert pdf.status_code == 200 and pdf.data[:5] == b'%PDF-' and len(pdf.data) > len(plain_pdf.data) + 20000
+
+
+@pytest.mark.parametrize('body,message', [
+    (dict(BOY, partner=GIRL), 'Set "gender" to male or female to add a marriage match with a partner.'),
+    (dict(BOY, gender='other', partner=GIRL), 'Set "gender" to male or female to add a marriage match with a partner.'),
+    (dict(BOY, gender='male', partner='Sample Bride'), '"partner" must hold the birth details of the partner.'),
+    (dict(BOY, gender='male', partner={'name': 'x'}), 'Date, time and place of birth are required for the girl.'),
+    (dict(BOY, gender='male', partner=GIRL, kujaHouses='east'), None),
+])
+@pytest.mark.parametrize('route', ['/api/download/excel', '/api/download/pdf'])
+def test_a_partner_that_cannot_be_read_is_a_400(client, route, body, message):
+    rv = client.post(route, json=body)
+    assert rv.status_code == 400
+    if message:
+        assert rv.get_json() == {'error': message}
+
+
+def test_without_a_partner_the_downloads_are_as_before(client):
+    for empty in (None, '', {}):
+        rv = client.post('/api/download/excel', json=dict(BOY, partner=empty))
+        assert rv.status_code == 200 and 'Marriage' not in load(rv.data).sheetnames
+
+
+def test_the_match_downloads_share_the_10_a_minute_of_all_downloads(client):
+    import app as app_module
+    app_module.limiter.enabled = True
+    app_module.limiter.reset()
+    try:
+        stars = {'mode': 'star', 'boy': {'nakshatra': 1}, 'girl': {'nakshatra': 2}}
+        headers = {'CF-Connecting-IP': '203.0.113.21'}
+        routes = ['/api/download/match/excel', '/api/download/match/pdf'] * 4 + ['/api/download/json',
+                                                                              '/api/download/match/excel']
+        got = [client.post(route, json=BOY if route.endswith('json') else stars, headers=headers).status_code
+               for route in routes]
+        assert got == [200] * 10
+        for route in ('/api/download/match/pdf', '/api/download/excel', '/api/download/match/excel'):
+            assert client.post(route, json=stars, headers=headers).status_code == 429
+        # The match itself is counted apart from the downloads.
+        assert client.post('/api/match', json=stars, headers=headers).status_code == 200
+    finally:
+        app_module.limiter.reset()
+
+
+def test_route_adds_the_flat_tables_when_asked(client):
+    stars = {'mode': 'star', 'boy': {'nakshatra': 4, 'pada': 2}, 'girl': {'nakshatra': 14, 'pada': 1}}
+    assert 'ai' not in client.post('/api/match', json=stars).get_json()
+    out = client.post('/api/match', json=dict(stars, ai=True)).get_json()
+    assert out['ai']['sheets'] == M.MATCH_SHEETS and out['ai']['schema'] == 'horoscopegen-match/1'
+    assert len(out['ai']['tables']['AI_Match']) == len(out['rows'])
+    assert len(out['generated_utc']) == 19

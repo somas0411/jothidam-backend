@@ -16,6 +16,10 @@ Reference values that do not come from match_engine.py:
     scores 28 of 36 (every Ashtakoota row in full except Nadi).
   * The request limit of the route is written here as a plain figure:
     15 matches a minute for one visitor.
+  * Group D (chart checks): the functions are given charts written out sign
+    by sign, with the places counted by hand; the sample horoscopes are first
+    pinned to the signs their planets are in, and every expected value is
+    then counted from those signs by hand.
 
 No test here reaches the network.
 """
@@ -162,7 +166,7 @@ def test_points_tables():
 
 def test_every_check_has_a_rule_and_every_rule_is_listed():
     out = M.match(person(13), person(52))
-    assert {r['key'] for r in out['rows']} == set(M.CHECKS)
+    assert [r['key'] for r in out['rows']] == list(M.CHECKS)
     names = [r['name'] for r in out['rules']]
     assert len(names) == len(set(names))
     for group, name, rule, variant in M.CHECKS.values():
@@ -627,9 +631,286 @@ def test_two_horoscopes_give_the_rows_of_their_moon_stars(charts):
                         {'nakshatra': people['girl']['nakshatra'], 'pada': people['girl']['pada']})
     assert star_only['mode'] == 'star'
     scored = {r['key']: (r['result'], r['points']) for r in out['rows'] if r['group'] in 'ABC'}
-    again = {r['key']: (r['result'], r['points']) for r in star_only['rows']}
+    again = {r['key']: (r['result'], r['points']) for r in star_only['rows'] if r['group'] in 'ABC'}
     again['ak_vashya'] = scored['ak_vashya']          # the girl's Moon is in Dhanu: its degree decides
     assert scored == again
+
+
+# ── group D: chart checks ─────────────────────────────────────────────────────
+
+class Chart:
+    """A chart written out sign by sign, with what the chart checks read from a chart."""
+
+    def __init__(self, **signs):
+        self.sign = {name: SIGNS.index(sign) for name, sign in signs.items()}
+        self.lagna_sign, self.moon_sign = self.sign['Lagna'], self.sign['Moon']
+
+    def exchange(self, a, b):
+        return SIGN_LORD[self.sign[a]] == b and SIGN_LORD[self.sign[b]] == a
+
+
+SOUTH, NORTH, ALL = (2, 4, 7, 8, 12), (1, 4, 7, 8, 12), (1, 2, 4, 7, 8, 12)
+
+
+def test_kuja_places_that_count():
+    assert M.KUJA_HOUSE_SETS == {'south': SOUTH, 'north': NORTH, 'all': ALL} and M.KUJA_DEFAULT == 'south'
+    # Lagna Mesha, Moon Kataka, Venus Thula; Mars in Rishabha: 2nd, 11th and 8th.
+    c = Chart(Lagna='Mesha', Moon='Kataka', Venus='Thula', Mars='Rishabha', Jupiter='Dhanu')
+    k = M.kuja_state(c, SOUTH)
+    assert k['places'] == {'the lagna': 2, 'the Moon': 11, 'Venus': 8}
+    assert k['present'] == k['after'] == ['the lagna', 'Venus'] and k['mars'] == 'Rishabha'
+    assert M.kuja_state(c, NORTH)['present'] == ['Venus']
+    # Mars in the lagna counts only when the 1st is on the list.
+    c = Chart(Lagna='Mesha', Moon='Mithuna', Venus='Makara', Mars='Mesha', Jupiter='Dhanu')
+    assert M.kuja_state(c, SOUTH)['places'] == {'the lagna': 1, 'the Moon': 11, 'Venus': 4}
+    assert M.kuja_state(c, SOUTH)['present'] == ['Venus']
+    assert M.kuja_state(c, ALL)['present'] == ['the lagna', 'Venus']
+    # Mars in the 3rd, 5th and 9th: none.
+    c = Chart(Lagna='Mesha', Moon='Kumbha', Venus='Thula', Mars='Mithuna', Jupiter='Dhanu')
+    assert M.kuja_state(c, ALL)['present'] == []
+
+
+@pytest.mark.parametrize('key,lagna,mars,place', [
+    ('kuja_x_2nd', 'Rishabha', 'Mithuna', 2), ('kuja_x_2nd', 'Simha', 'Kanya', 2),
+    ('kuja_x_12th', 'Mithuna', 'Rishabha', 12), ('kuja_x_12th', 'Vrischika', 'Thula', 12),
+    ('kuja_x_4th', 'Makara', 'Mesha', 4), ('kuja_x_4th', 'Simha', 'Vrischika', 4),
+    ('kuja_x_7th', 'Kataka', 'Makara', 7), ('kuja_x_7th', 'Makara', 'Kataka', 7),
+    ('kuja_x_8th', 'Rishabha', 'Dhanu', 8), ('kuja_x_8th', 'Simha', 'Meena', 8),
+])
+def test_each_exception_by_place_covers_only_the_reference_it_is_true_for(key, lagna, mars, place):
+    # The Moon and Venus are put in the sign after Mars, so from them Mars is in the 12th. Jupiter is
+    # put in the sign before Mars: away from Mars.
+    after = SIGNS[(SIGNS.index(mars) + 1) % 12]
+    before = SIGNS[(SIGNS.index(mars) - 1) % 12]
+    c = Chart(Lagna=lagna, Moon=after, Venus=after, Mars=mars, Jupiter=before)
+    k = M.kuja_state(c, SOUTH)
+    assert k['places'] == {'the lagna': place, 'the Moon': 12, 'Venus': 12}
+    assert k['present'] == ['the lagna', 'the Moon', 'Venus']
+    twelfth_too = mars in ('Rishabha', 'Thula')          # then the 12th-house exception covers the other two
+    for other, _, _, _ in M.KUJA_EXCEPTIONS:
+        if other == key:
+            want = ['the lagna'] if key != 'kuja_x_12th' else ['the lagna', 'the Moon', 'Venus']
+        else:
+            want = ['the Moon', 'Venus'] if other == 'kuja_x_12th' and twelfth_too else []
+        assert k['exceptions'][other] == want, other
+    covered = ['the lagna'] + (['the Moon', 'Venus'] if twelfth_too else [])
+    assert k['after'] == [r for r in ('the lagna', 'the Moon', 'Venus') if r not in covered]
+
+
+def test_the_exception_by_place_needs_both_the_place_and_the_sign():
+    # Mars in Mithuna in the 8th (lagna Vrischika): not the 2nd, so no exception.
+    c = Chart(Lagna='Vrischika', Moon='Dhanu', Venus='Kataka', Mars='Mithuna', Jupiter='Rishabha')
+    k = M.kuja_state(c, SOUTH)
+    assert k['present'] == ['the lagna', 'the Moon', 'Venus'] == k['after']
+    assert not any(k['exceptions'].values())
+    # Mars in the 2nd in Kataka (lagna Mithuna): the place without the sign.
+    c = Chart(Lagna='Mithuna', Moon='Meena', Venus='Meena', Mars='Kataka', Jupiter='Rishabha')
+    assert M.kuja_state(c, SOUTH)['exceptions']['kuja_x_2nd'] == []
+
+
+def test_the_two_exceptions_that_cover_every_reference():
+    # Mars in Simha: 4th from the lagna (Rishabha), 2nd from the Moon (Kataka), 12th from Venus (Kanya).
+    c = Chart(Lagna='Rishabha', Moon='Kataka', Venus='Kanya', Mars='Simha', Jupiter='Dhanu')
+    k = M.kuja_state(c, SOUTH)
+    assert k['present'] == ['the lagna', 'the Moon', 'Venus'] and k['after'] == []
+    assert k['exceptions']['kuja_x_sign'] == ['the lagna', 'the Moon', 'Venus']
+    assert [key for key, refs in k['exceptions'].items() if refs] == ['kuja_x_sign']
+    assert M.kuja_state(Chart(Lagna='Makara', Moon='Makara', Venus='Makara', Mars='Kumbha', Jupiter='Dhanu'),
+                        SOUTH)['after'] == []
+    # Mars with Jupiter in Dhanu, 8th from the lagna (Rishabha): the 8th-in-Dhanu exception as well.
+    c = Chart(Lagna='Rishabha', Moon='Mithuna', Venus='Mithuna', Mars='Dhanu', Jupiter='Dhanu')
+    k = M.kuja_state(c, SOUTH)
+    assert k['present'] == ['the lagna', 'the Moon', 'Venus'] and k['joined'] == ['Jupiter']
+    assert k['exceptions']['kuja_x_joined'] == ['the lagna', 'the Moon', 'Venus'] and k['after'] == []
+    assert k['exceptions']['kuja_x_8th'] == ['the lagna']
+    # Mars with the Moon: from the Moon Mars is in the 1st, which the Tamil list does not count.
+    c = Chart(Lagna='Rishabha', Moon='Mithuna', Venus='Mesha', Mars='Mithuna', Jupiter='Dhanu')
+    k = M.kuja_state(c, SOUTH)
+    assert k['places'] == {'the lagna': 2, 'the Moon': 1, 'Venus': 3} and k['present'] == ['the lagna']
+    assert k['joined'] == ['Moon'] and k['after'] == []
+    # No dosha: an exception covers nothing.
+    c = Chart(Lagna='Mesha', Moon='Kumbha', Venus='Thula', Mars='Mithuna', Jupiter='Mithuna')
+    assert not any(M.kuja_state(c, SOUTH)['exceptions'].values())
+
+
+def test_papa_points_by_hand():
+    """
+    Lagna Mesha, Moon Kataka, Venus Thula. Sun Mesha, Mars Kanya, Saturn Makara, Rahu Vrischika.
+      from the lagna (Mesha): Sun 1st, Mars 6th, Saturn 10th, Rahu 8th           -> Sun, Rahu
+      from the Moon (Kataka): Sun 10th, Mars 3rd, Saturn 7th, Rahu 5th           -> Saturn
+      from Venus (Thula):     Sun 7th, Mars 12th, Saturn 4th, Rahu 2nd           -> all four
+    """
+    c = Chart(Lagna='Mesha', Moon='Kataka', Venus='Thula', Sun='Mesha', Mars='Kanya', Saturn='Makara',
+              Rahu='Vrischika', Ketu='Rishabha')
+    assert M.papa_points(c) == {'the lagna': [('Sun', 1), ('Rahu', 8)], 'the Moon': [('Saturn', 7)],
+                                'Venus': [('Sun', 7), ('Mars', 12), ('Saturn', 4), ('Rahu', 2)]}
+    assert M.PAPA_PLANETS == ('Sun', 'Mars', 'Saturn', 'Rahu') and M.PAPA_HOUSES == ALL
+    assert M.PAPA_WEIGHTS == (('the lagna', 1.0), ('the Moon', 0.5), ('Venus', 0.25))
+
+
+@pytest.mark.parametrize('saturn,moon,want', [
+    ('Makara', 'Makara', ['Saturn and the Moon in one sign']),
+    ('Makara', 'Meena', ['Saturn aspects the Moon (3rd aspect)']),
+    ('Makara', 'Thula', ['Saturn aspects the Moon (10th aspect)']),
+    ('Makara', 'Kataka', ['Saturn aspects the Moon (7th aspect)']),              # each in its own sign
+    # Saturn in the Moon's sign and the Moon in one of Saturn's: Makara is the 7th from Kataka, Kumbha the 8th.
+    ('Kataka', 'Makara', ['Saturn aspects the Moon (7th aspect)', "Saturn and the Moon in each other's signs"]),
+    ('Kataka', 'Kumbha', ["Saturn and the Moon in each other's signs"]),
+    ('Makara', 'Rishabha', []), ('Simha', 'Kataka', []),
+])
+def test_punarpoo(saturn, moon, want):
+    assert M.punarpoo(Chart(Lagna='Mesha', Moon=moon, Saturn=saturn)) == want
+
+
+def signs_of(res):
+    return {p['name']: SIGNS[p['sign']] for p in res['vedic']['planets']}
+
+
+def test_chart_checks_of_the_two_sample_horoscopes(charts):
+    boy, girl = charts
+    # The facts every value below is counted from.
+    assert signs_of(boy) == {'Lagna': 'Vrischika', 'Sun': 'Kumbha', 'Moon': 'Rishabha', 'Mars': 'Meena',
+                             'Mercury': 'Meena', 'Jupiter': 'Kumbha', 'Venus': 'Makara', 'Saturn': 'Meena',
+                             'Rahu': 'Simha', 'Ketu': 'Kumbha'}
+    assert signs_of(girl) == {'Lagna': 'Vrischika', 'Sun': 'Mithuna', 'Moon': 'Dhanu', 'Mars': 'Mithuna',
+                              'Mercury': 'Mithuna', 'Jupiter': 'Rishabha', 'Venus': 'Kataka',
+                              'Saturn': 'Rishabha', 'Rahu': 'Kataka', 'Ketu': 'Makara'}
+    got = {r['key']: r for r in M.match(boy, girl)['rows'] if r['group'] == 'D'}
+    assert list(got) == [k for k, v in M.CHECKS.items() if v[0] == 'D'] and len(got) == 25
+
+    def row(key):
+        r = got[key]
+        return r['boy_value'], r['girl_value'], r['result']
+
+    # Boy: Mars in Meena is the 5th from Vrischika, the 11th from Rishabha, the 3rd from Makara.
+    # Girl: Mars in Mithuna is the 8th from Vrischika, the 7th from Dhanu, the 12th from Kataka.
+    assert row('kuja_lagna') == ('Mars in the 5th from the lagna: absent',
+                                 'Mars in the 8th from the lagna: present', 'information')
+    assert row('kuja_moon') == ('Mars in the 11th from the Moon: absent',
+                                'Mars in the 7th from the Moon: present', 'information')
+    assert row('kuja_venus') == ('Mars in the 3rd from Venus: absent',
+                                 'Mars in the 12th from Venus: present', 'information')
+    assert got['kuja_lagna']['note'] == 'Places that count: 2, 4, 7, 8, 12'
+    for key, _, _, _ in M.KUJA_EXCEPTIONS:          # Mithuna in the 8th, 7th and 12th: no exception
+        assert row(key) == ('does not arise: no Kuja dosha', 'does not apply', 'information')
+    assert row('kuja_balance') == ('absent', 'present from the lagna, the Moon, Venus', 'not matched')
+    assert row('kuja_balance_after') == ('absent', 'present from the lagna, the Moon, Venus', 'not matched')
+    assert got['kuja_balance_after']['exception_applied'] is None
+    # Boy: Rahu in Simha the 10th, Ketu in Kumbha the 4th. Girl: Rahu in Kataka the 9th, Ketu the 3rd.
+    assert row('sarpa') == ('Rahu in the 10th, Ketu in the 4th from the lagna: absent',
+                            'Rahu in the 9th, Ketu in the 3rd from the lagna: absent', 'matched')
+    # 7th from Vrischika is Rishabha: the girl's Saturn. 7th from the girl's Moon (Dhanu) is Mithuna:
+    # Sun and Mars. 7th from the boy's Moon (Rishabha) is Vrischika: empty.
+    assert row('kalathra_seventh') == ('From the lagna: none; from the Moon: none',
+                                       'From the lagna: Saturn; from the Moon: Sun, Mars', 'information')
+    # Papa samyam. Boy, from Vrischika: Sun 4th. From Rishabha: Rahu (Simha) 4th. From Makara: Sun 2nd,
+    # Rahu 8th. Girl, from Vrischika: Sun 8th, Mars 8th, Saturn 7th. From Dhanu: Sun 7th, Mars 7th,
+    # Rahu (Kataka) 8th. From Kataka: Sun 12th, Mars 12th, Rahu 1st.
+    assert row('papa_count') == (
+        '4: from the lagna 1 (Sun 4th); from the Moon 1 (Rahu 4th); from Venus 2 (Sun 2nd, Rahu 8th)',
+        '9: from the lagna 3 (Sun 8th, Mars 8th, Saturn 7th); from the Moon 3 (Sun 7th, Mars 7th, Rahu 8th); '
+        'from Venus 3 (Sun 12th, Mars 12th, Rahu 1st)', 'not matched')
+    # 1 + 1/2 + 2/4 = 2;  3 + 3/2 + 3/4 = 5.25
+    assert got['papa_weighted']['note'] == "The boy's total is 2, the girl's 5.25"
+    assert got['papa_weighted']['result'] == 'not matched'
+    # Boy: Saturn in Meena, the Moon in Rishabha is the 3rd from it. Girl: Saturn Rishabha, Moon Dhanu, the 8th.
+    assert row('punarpoo') == ('present: Saturn aspects the Moon (3rd aspect)', 'absent', 'information')
+    assert row('lagna_position')[:2] == ('Vrischika, lord Mars', 'Vrischika, lord Mars')
+    assert got['lagna_position']['note'] == ("The boy's lagna is the 1st from the girl's; the girl's is the 1st "
+                                             "from the boy's. One planet rules both lagnas")
+    # 7th from Vrischika is Rishabha, lord Venus; Venus regards Mars as neutral.
+    assert row('seventh_lords') == ("Venus: regards the other's lagna lord Mars as neutral",) * 2 + ('information',)
+    # The girl's Mars (Mithuna) from the boy's Venus (Makara): the 6th. The boy's Mars (Meena) from the
+    # girl's Venus (Kataka): the 9th.
+    assert row('venus_mars')[:2] == ('Venus in Makara, Mars in Meena', 'Venus in Kataka, Mars in Mithuna')
+    assert got['venus_mars']['note'] == ("The girl's Mars is the 6th from the boy's Venus; the boy's Mars is "
+                                         "the 9th from the girl's Venus")
+    # 5th from Vrischika is Meena, lord Jupiter: the boy's in Kumbha (4th), the girl's in Rishabha (7th).
+    assert got['fifth_house']['boy_value'].startswith('Meena; lord Jupiter in the 4th house, ')
+    assert '; planets in the 5th: Mars, Mercury, Saturn; Jupiter in the 4th house, ' in got['fifth_house']['boy_value']
+    assert got['fifth_house']['girl_value'].startswith('Meena; lord Jupiter in the 7th house, ')
+    assert '; planets in the 5th: none; ' in got['fifth_house']['girl_value']
+    # The navamsa signs are the engine's own.
+    for res, value in ((boy, got['navamsa']['boy_value']), (girl, got['navamsa']['girl_value'])):
+        d9 = next(v for v in res['vedic']['vargas'] if v['key'] == 'D9')['signs']
+        assert value == f"D9 lagna {SIGNS[d9['Lagna']]}, D9 Moon {SIGNS[d9['Moon']]}"
+    assert {r['result'] for r in got.values()} == {'information', 'matched', 'not matched'}
+    for key in ('kalathra_lord', 'kalathra_venus', 'kala_sarpa', 'navamsa', 'fifth_house'):
+        assert got[key]['result'] == 'information'
+
+
+def chennai(dob, tob, gender):
+    return A.compute('Sample', dob, tob, 'Chennai', lat=13.0827, lon=80.2707, utc_offset=5.5, gender=gender, now=NOW)
+
+
+def test_the_balance_rows_before_and_after_the_exceptions(charts):
+    boy, girl = charts
+
+    def balance(b, g, **options):
+        got = {r['key']: r for r in M.match(b, g, options)['rows']}
+        return ([got[k]['result'] for k in ('kuja_balance', 'kuja_balance_after', 'sarpa')],
+                got['kuja_balance_after']['exception_applied'])
+
+    assert balance(girl, girl) == (['matched', 'matched', 'matched'], None)
+    # Born 18 January 1995, 11:00, Chennai: Mars in Simha, the 2nd from the Moon in Kataka (6th from the
+    # lagna in Meena, 10th from Venus in Vrischika); Rahu in Thula the 8th, Ketu in Mesha the 2nd.
+    simha = chennai('1995-01-18', '11:00', 'male')
+    assert {k: v for k, v in signs_of(simha).items() if k in ('Lagna', 'Moon', 'Venus', 'Mars', 'Rahu', 'Ketu')} == \
+        {'Lagna': 'Meena', 'Moon': 'Kataka', 'Venus': 'Vrischika', 'Mars': 'Simha', 'Rahu': 'Thula', 'Ketu': 'Mesha'}
+    got = {r['key']: r for r in M.match(simha, girl)['rows']}
+    assert got['kuja_balance']['boy_value'] == 'present from the Moon'
+    assert got['kuja_balance_after']['boy_value'] == 'absent'
+    assert got['kuja_x_sign']['boy_value'] == 'applies from the Moon'
+    assert got['kuja_x_2nd']['boy_value'] == 'does not apply'                    # the 2nd, but in Simha
+    assert got['sarpa']['boy_value'] == 'Rahu in the 8th, Ketu in the 2nd from the lagna: present'
+    # Both have it before the exceptions; after them only the girl: the two rows differ.
+    assert balance(simha, girl) == (['matched', 'not matched', 'not matched'], 'Mars in Simha or Kumbha')
+    # Against the sample boy, who has none: the other way round.
+    assert balance(boy, dict(simha, meta=dict(simha['meta'], name='Girl'))) == \
+        (['not matched', 'matched', 'not matched'], 'Mars in Simha or Kumbha')
+    # Born 11 March 1995, 02:00: Mars in Kataka, 8th from the lagna (Dhanu), 2nd from the Moon (Mithuna),
+    # 7th from Venus (Makara). The 7th-in-Kataka exception covers Venus only.
+    partial = chennai('1995-03-11', '02:00', 'male')
+    got = {r['key']: r for r in M.match(partial, girl)['rows']}
+    assert got['kuja_balance']['boy_value'] == 'present from the lagna, the Moon, Venus'
+    assert got['kuja_balance_after']['boy_value'] == 'present from the lagna, the Moon'
+    assert got['kuja_x_7th']['boy_value'] == 'applies from Venus'
+    assert got['kuja_balance_after']['exception_applied'] == 'Mars in the 7th in Makara or Kataka'
+    # Born 20 October 1995, 19:00: Mars with Jupiter in Vrischika.
+    joined = chennai('1995-10-20', '19:00', 'male')
+    got = {r['key']: r for r in M.match(joined, girl)['rows']}
+    assert got['kuja_x_joined']['boy_value'] == 'applies from the lagna, the Moon, Venus'
+    assert got['kuja_x_4th']['boy_value'] == 'applies from the Moon'             # 4th from the Moon in Simha
+    assert got['kuja_balance_after']['exception_applied'] == \
+        'Mars in the 4th in Mesha or Vrischika; Mars in one sign with Jupiter or the Moon'
+
+
+def test_the_places_that_count_can_be_chosen(charts):
+    boy, girl = charts
+    assert M.match(boy, girl)['settings'] == {'kuja_houses': 'south', 'kuja_places_that_count': [2, 4, 7, 8, 12]}
+    out = M.match(boy, girl, {'kuja_houses': 'ALL'})
+    assert out['settings']['kuja_places_that_count'] == [1, 2, 4, 7, 8, 12]
+    assert next(r for r in out['rows'] if r['key'] == 'kuja_lagna')['note'] == 'Places that count: 1, 2, 4, 7, 8, 12'
+    # The girl's Mars is in the 8th, 7th and 12th: all three are on the north list too.
+    north = {r['key']: r for r in M.match(boy, girl, {'kuja_houses': 'north'})['rows']}
+    assert north['kuja_balance']['girl_value'] == 'present from the lagna, the Moon, Venus'
+    for bad in ('east', 5, ['south']):
+        with pytest.raises(A.InputError):
+            M.match(boy, girl, {'kuja_houses': bad})
+    with pytest.raises(A.InputError):
+        M.match(boy, girl, 'south')
+
+
+def test_with_stars_only_the_chart_checks_are_not_applicable(charts):
+    boy, _ = charts
+    for b, g in ((person(3), person(50)), (boy, person(50)), (person(3), boy)):
+        out = M.match(b, g)
+        rows_d = [r for r in out['rows'] if r['group'] == 'D']
+        assert out['mode'] == 'star' and len(rows_d) == 25
+        for r in rows_d:
+            assert (r['result'], r['boy_value'], r['girl_value'], r['points']) == ('not applicable', None, None, None)
+            assert r['note'] == 'The birth details of both are needed'
+        assert out['summary']['groups']['D']['not_applicable'] == 25
 
 
 def test_match_leaves_the_horoscopes_alone(charts):
@@ -733,6 +1014,15 @@ def test_the_name_may_be_left_out(client):
 def test_bad_input_is_a_400_with_a_message(client, body, message):
     rv = client.post('/api/match', json=body)
     assert rv.status_code == 400 and rv.get_json() == {'error': message}
+
+
+def test_route_takes_the_places_of_mars_that_count(client):
+    out = client.post('/api/match', json={'boy': BOY, 'girl': GIRL, 'kujaHouses': 'all'}).get_json()
+    assert out['settings']['kuja_places_that_count'] == [1, 2, 4, 7, 8, 12]
+    rv = client.post('/api/match', json={'boy': BOY, 'girl': GIRL, 'kujaHouses': 'east'})
+    assert rv.status_code == 400 and rv.get_json()['error'].startswith('"kujaHouses" must be "south"')
+    star = client.post('/api/match', json={'mode': 'star', 'boy': {'nakshatra': 1}, 'girl': {'nakshatra': 2}})
+    assert {r['result'] for r in star.get_json()['rows'] if r['group'] == 'D'} == {'not applicable'}
 
 
 def test_the_settings_of_the_request_apply_to_both_people(client):

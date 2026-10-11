@@ -1085,6 +1085,23 @@ def _ashtakavarga(c):
 
 # ── YOGAS ─────────────────────────────────────────────────────────────────────
 
+KUJA_HOUSES = (1, 2, 4, 7, 8, 12)       # the set used in AI_Yogas
+
+
+def kuja_places(c):
+    """Place of Mars counted from the lagna, from the Moon and from Venus: [(reference, place)]."""
+    return [(ref, house_from(c.sign['Mars'], ref_sign))
+            for ref, ref_sign in (('the lagna', c.lagna_sign), ('the Moon', c.moon_sign), ('Venus', c.sign['Venus']))]
+
+
+def kala_sarpa(c):
+    """(all seven planets on one side of the Rahu-Ketu axis by longitude, which side in words)."""
+    rahu = c.points['Rahu']['lon']
+    arcs = [norm(c.points[p]['lon'] - rahu) for p in SEVEN]
+    one_side = all(a < 180 for a in arcs) or all(a > 180 for a in arcs)
+    return one_side, 'between Rahu and Ketu' if all(a < 180 for a in arcs) else 'between Ketu and Rahu'
+
+
 def _yogas(c):
     rows = []
     sign, house = c.sign, c.house
@@ -1265,17 +1282,13 @@ def _yogas(c):
         f'10th from the lagna: {_join(am_l)}; 10th from the Moon: {_join(am_m)}')
 
     # Kuja dosha
-    for ref, ref_sign in (('the lagna', c.lagna_sign), ('the Moon', moon), ('Venus', sign['Venus'])):
-        place = house_from(sign['Mars'], ref_sign)
-        add(f'Kuja dosha from {ref}', 'found' if place in (1, 2, 4, 7, 8, 12) else 'not found',
+    for ref, place in kuja_places(c):
+        add(f'Kuja dosha from {ref}', 'found' if place in KUJA_HOUSES else 'not found',
             f'Mars in the 1st, 2nd, 4th, 7th, 8th or 12th from {ref}', ['Mars'], [house['Mars']],
             f'Mars is in place {place} from {ref}')
 
     # Kala Sarpa
-    rahu = c.points['Rahu']['lon']
-    arcs = [norm(c.points[p]['lon'] - rahu) for p in SEVEN]
-    one_side = all(a < 180 for a in arcs) or all(a > 180 for a in arcs)
-    side = 'between Rahu and Ketu' if all(a < 180 for a in arcs) else 'between Ketu and Rahu'
+    one_side, side = kala_sarpa(c)
     add('Kala Sarpa yoga (popular, not in BPHS)', 'found' if one_side else 'not found',
         'All seven planets on one side of the Rahu-Ketu axis, by longitude', SEVEN if one_side else [], [],
         f'All seven planets lie {side} (going forward through the zodiac)' if one_side

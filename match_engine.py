@@ -11,6 +11,10 @@ Groups of checks
   B  Star rules: tara both ways, the 7th star (Vadha), the 22nd star and its
      4th pada (Vainasika), the 27th star, the same star, the same rasi.
   C  Ashtakoota, 36 points.
+  D  Chart checks, which need the birth details of both: Kuja dosha from
+     the lagna, the Moon and Venus with its exceptions; Rahu and Ketu;
+     Kalathra facts; Papa samyam; Punarpoo; Kala Sarpa; the lagnas, the 7th
+     lords, the navamsa, Venus and Mars, the 5th house.
 
 What every row is
   key, group, name, boy_value, girl_value,
@@ -48,6 +52,7 @@ GROUPS = {
     'A': 'Ten poruthams (Tamil tradition), with Nadi and Vriksha',
     'B': 'Star rules',
     'C': 'Ashtakoota (36 points)',
+    'D': 'Chart checks (birth details of both)',
 }
 TAMIL_TEN = ('dinam', 'ganam', 'mahendram', 'stree_deergham', 'yoni', 'rasi', 'rasi_adhipathi',
              'vasiyam', 'rajju', 'vedhai')
@@ -232,6 +237,36 @@ MAITRI_POINTS = {frozenset(('Friend',)): 5, frozenset(('Friend', 'Neutral')): 4,
 TARA_BAD = (3, 5, 7)                    # Vipat, Pratyari, Vadha
 BHAKOOT_BAD = {2: '2/12', 12: '2/12', 5: '5/9', 9: '5/9', 6: '6/8', 8: '6/8'}
 
+# ── CHART CHECKS (GROUP D) ────────────────────────────────────────────────────
+
+# Kuja (Sevvai) dosha: the places of Mars that count. 'south' is the Tamil
+# practice (checked against astroved.com); 'all' is the set enrich.py uses in
+# AI_Yogas; 'north' leaves out the 2nd.
+KUJA_HOUSE_SETS = {'south': (2, 4, 7, 8, 12), 'north': (1, 4, 7, 8, 12), 'all': E.KUJA_HOUSES}
+KUJA_DEFAULT = 'south'
+# Exceptions, written from B.V. Raman's statement of them as remembered; the
+# first five and the sixth are also on the list printed at astroved.com. Not
+# checked against the printed book. (key, name, place of Mars or None for any
+# place, signs of Mars or None)
+KUJA_EXCEPTIONS = (
+    ('kuja_x_2nd', 'Mars in the 2nd in Mithuna or Kanya', 2, ('Mithuna', 'Kanya')),
+    ('kuja_x_12th', 'Mars in the 12th in Rishabha or Thula', 12, ('Rishabha', 'Thula')),
+    ('kuja_x_4th', 'Mars in the 4th in Mesha or Vrischika', 4, ('Mesha', 'Vrischika')),
+    ('kuja_x_7th', 'Mars in the 7th in Makara or Kataka', 7, ('Makara', 'Kataka')),
+    ('kuja_x_8th', 'Mars in the 8th in Dhanu or Meena', 8, ('Dhanu', 'Meena')),
+    ('kuja_x_sign', 'Mars in Simha or Kumbha', None, ('Simha', 'Kumbha')),
+    ('kuja_x_joined', 'Mars in one sign with Jupiter or the Moon', None, None),
+)
+SARPA_HOUSES = (1, 2, 7, 8)                              # Rahu or Ketu from the lagna
+# Papa samyam: the planets and places counted (astrologymag.com and
+# sreenivasdesabhatla.wordpress.com agree on these), and the weight of each
+# reference in the weighted figure (the second page).
+PAPA_PLANETS = ('Sun', 'Mars', 'Saturn', 'Rahu')
+PAPA_HOUSES = (1, 2, 4, 7, 8, 12)
+PAPA_WEIGHTS = (('the lagna', 1.0), ('the Moon', 0.5), ('Venus', 0.25))
+SATURN_ASPECTS = {3: '3rd', 7: '7th', 10: '10th'}
+
+
 TABLE_SOURCES = [
     ('Checked against one or more published pages, which agree',
      'Dinam counts; Mahendram counts; Stree Deergham limits; the stars of each gana, yoni, rajju and nadi; '
@@ -241,9 +276,14 @@ TABLE_SOURCES = [
      'Gana points (two pages print the table with bride and groom exchanged); Vashya points (three cells '
      'differ between pages); Yoni points (two different 14 x 14 tables are in circulation); Vriksha (two '
      'pages print the milk and non-milk groups the opposite way round); the Tamil Rasi porutham rule for '
-     'the counts 3, 4, 5, 9, 10 and 11.'),
+     'the counts 3, 4, 5, 9, 10 and 11; the exceptions to Kuja dosha (the lists differ widely); the weights '
+     'of Papa samyam (one page counts every placement as 1, another weighs the house, the planet and its '
+     'dignity; both figures given here use the plain count, the second weighted by the reference only).'),
     ('Written from memory of B.V. Raman, Muhurtha; not checked against the printed book',
-     'The Tamil Vasiyam list.'),
+     'The Tamil Vasiyam list; the seven exceptions to Kuja dosha.'),
+    ('No single published rule; the rows state facts and give no result',
+     'Kalathra dosha, Punarpoo, Kala Sarpa, the lagnas, the 7th lords, the navamsa, Venus and Mars, the 5th '
+     'house.'),
     ('Left out because no table could be checked', 'Pakshi and Bhutha porutham.'),
     ('Left out on purpose', 'Ayul porutham and the rules about particular stars and the in-laws.'),
 ]
@@ -357,6 +397,58 @@ CHECKS = {
     'ak_nadi': ('C', 'Nadi (8)', 'Different nadis 8 points; the same nadi 0.',
                 'The exceptions are named, and the points stay: the same rasi with different stars; the same '
                 'star with different rasis; the same star with different padas.'),
+    'kuja_lagna': ('D', 'Kuja dosha from the lagna', 'Mars in one of the places that count, from the lagna. '
+                   'The row states the place for each; no result.',
+                   'Places that count: 2, 4, 7, 8, 12 (Tamil practice) unless the request asks for 1, 4, 7, 8, '
+                   '12 or 1, 2, 4, 7, 8, 12. Whole signs.'),
+    'kuja_moon': ('D', 'Kuja dosha from the Moon', 'The same, counted from the Moon. No result.', 'As above.'),
+    'kuja_venus': ('D', 'Kuja dosha from Venus', 'The same, counted from Venus. No result.', 'As above.'),
+    **{key: ('D', f'Kuja exception: {name}', f'{name}. The row says for each chart whether the exception '
+             'applies, and from which reference. No result.',
+             'One of seven exceptions, as stated by B.V. Raman; other lists exist and are not applied.')
+       for key, name, _, _ in KUJA_EXCEPTIONS},
+    'kuja_balance': ('D', 'Kuja dosha in both charts', 'Present in both charts or in neither: matched. In one '
+                     'only: not matched. Present means from the lagna, the Moon or Venus, before any exception.',
+                     'How strong the dosha is, and from which reference, is not weighed.'),
+    'kuja_balance_after': ('D', 'Kuja dosha in both charts, after the exceptions', 'The same comparison after '
+                           'the seven exceptions: a place of Mars that an exception covers is not counted.',
+                           'The exceptions for the 2nd, 12th, 4th, 7th and 8th cover only the reference from '
+                           'which Mars is in that place; the other two cover every reference.'),
+    'sarpa': ('D', 'Rahu and Ketu', 'Rahu or Ketu in the 1st, 2nd, 7th or 8th from the lagna. In both charts or '
+              'in neither: matched. In one only: not matched.', 'Counted from the lagna only, by whole sign.'),
+    'kalathra_seventh': ('D', 'Kalathra: planets in the 7th', 'Natural malefics (Sun, Mars, Saturn, Rahu, Ketu) '
+                         'in the 7th from the lagna and from the Moon. No result.',
+                         'Authors define Kalathra dosha differently; the three Kalathra rows state the facts '
+                         'they use.'),
+    'kalathra_lord': ('D', 'Kalathra: the 7th lord', 'The lord of the 7th from the lagna: its house, its '
+                      'dignity, whether debilitated or combust. No result.', 'Whole-sign houses.'),
+    'kalathra_venus': ('D', 'Kalathra: Venus', 'Venus: its house, its dignity, whether debilitated or combust, '
+                       'and the natural malefics in its sign. No result.', 'Whole-sign houses.'),
+    'papa_count': ('D', 'Papa samyam (count)', 'Sun, Mars, Saturn and Rahu in the 1st, 2nd, 4th, 7th, 8th or '
+                   '12th from the lagna, from the Moon and from Venus, each placement counted as 1. The boy\'s '
+                   'total equal to or more than the girl\'s: matched. Less: not matched.',
+                   'Ketu is not counted. No reduction for dignity.'),
+    'papa_weighted': ('D', 'Papa samyam (weighted)', 'The same placements, those from the lagna counted in '
+                      'full, from the Moon as a half and from Venus as a quarter. The boy\'s total equal to or '
+                      'more than the girl\'s: matched. Less: not matched.',
+                      'The fuller scheme that also weighs the house, the planet and its dignity is not used.'),
+    'punarpoo': ('D', 'Punarpoo (Saturn and the Moon)', 'Saturn and the Moon in one sign, Saturn aspecting the '
+                 'Moon (3rd, 7th or 10th), or the two in each other\'s signs. No result.',
+                 'Whole-sign aspects. Links through the stars of the two are not used.'),
+    'kala_sarpa': ('D', 'Kala Sarpa', 'All seven planets on one side of the Rahu-Ketu axis, by longitude. No '
+                   'result.', 'Popular, not in BPHS; the test used for the horoscope itself.'),
+    'lagna_position': ('D', 'The two lagnas', 'The lagna and its lord in each chart; the note gives the place '
+                       'of each lagna from the other and how the lords regard each other. No result.',
+                       'Natural friendship as in BPHS.'),
+    'seventh_lords': ('D', 'The 7th lords', 'The 7th lord of each chart and how it regards the lagna lord of '
+                      'the other. No result.', 'Natural friendship as in BPHS.'),
+    'navamsa': ('D', 'Navamsa (D9)', 'The navamsa lagna and the navamsa sign of the Moon in each chart; the '
+                'note gives their places from each other. No result.', 'No variant.'),
+    'venus_mars': ('D', 'Venus and Mars across the charts', 'The signs of Venus and Mars in each chart; the note '
+                   'gives the place of each one\'s Mars from the other\'s Venus. No result.', 'No variant.'),
+    'fifth_house': ('D', 'The 5th house and Jupiter', 'The 5th house from the lagna: its sign, its lord and the '
+                    'lord\'s house and dignity, the planets in it; and Jupiter\'s house and dignity. No result.',
+                    'Whole-sign houses.'),
 }
 
 MATCH_RULES = [(f'{GROUPS[group].split(" (")[0]}: {name}', f'{rule} {variant}')
@@ -770,6 +862,201 @@ def _group_c(pair):
              exception=pair.nadi_exception() if points == 0 else '')
 
 
+# ── GROUP D: CHART CHECKS ─────────────────────────────────────────────────────
+
+def clean_options(raw=None):
+    """Settings of a match: {'kuja_houses': 'south' | 'north' | 'all'}. Raises InputError."""
+    raw = raw or {}
+    if not isinstance(raw, dict):
+        raise InputError('The matching options must be a JSON object.')
+    kuja = str(raw.get('kuja_houses') or KUJA_DEFAULT).strip().lower()
+    if kuja not in KUJA_HOUSE_SETS:
+        raise InputError('"kujaHouses" must be "south" (2, 4, 7, 8, 12), "north" (1, 4, 7, 8, 12) or "all" '
+                         '(1, 2, 4, 7, 8, 12).')
+    return {'kuja_houses': kuja}
+
+
+def _house_text(n):
+    return f'the {_ordinal(n)}'
+
+
+def _dignity_text(c, planet):
+    label, debilitated = c.dignity['D1'][planet]
+    out = label.lower()
+    if debilitated:
+        out += ', debilitated'
+    if c.combust(planet):
+        out += ', combust'
+    return out
+
+
+def kuja_state(c, houses):
+    """
+    Kuja dosha of one chart. present / after: the references from which Mars
+    is in a place that counts, before and after the exceptions; exceptions:
+    {key: references it covers}.
+    """
+    mars = RASIS[c.sign['Mars']]
+    joined = [p for p in ('Jupiter', 'Moon') if c.sign[p] == c.sign['Mars']]
+    places = dict(E.kuja_places(c))
+    present = [ref for ref, place in places.items() if place in houses]
+    exceptions = {}
+    for key, _, place, signs in KUJA_EXCEPTIONS:
+        if key == 'kuja_x_joined':
+            covered = present if joined else []
+        else:
+            covered = [ref for ref in present if mars in signs and place in (None, places[ref])]
+        exceptions[key] = covered
+    cancelled = {ref for refs in exceptions.values() for ref in refs}
+    return {'places': places, 'present': present, 'exceptions': exceptions, 'mars': mars, 'joined': joined,
+            'after': [ref for ref in present if ref not in cancelled]}
+
+
+def papa_points(c):
+    """Papa samyam of one chart: {reference: [(planet, place)]} for the placements that count."""
+    refs = (('the lagna', c.lagna_sign), ('the Moon', c.moon_sign), ('Venus', c.sign['Venus']))
+    return {ref: [(p, E.house_from(c.sign[p], ref_sign)) for p in PAPA_PLANETS
+                  if E.house_from(c.sign[p], ref_sign) in PAPA_HOUSES] for ref, ref_sign in refs}
+
+
+def punarpoo(c):
+    """The links between Saturn and the Moon in one chart, in words."""
+    links = []
+    place = E.house_from(c.sign['Moon'], c.sign['Saturn'])
+    if place == 1:
+        links.append('Saturn and the Moon in one sign')
+    elif place in SATURN_ASPECTS:
+        links.append(f'Saturn aspects the Moon ({SATURN_ASPECTS[place]} aspect)')
+    if c.exchange('Saturn', 'Moon'):
+        links.append('Saturn and the Moon in each other\'s signs')
+    return links
+
+
+def _group_d(pair, options):
+    boy, girl = pair.boy, pair.girl
+    keys = [k for k, v in CHECKS.items() if v[0] == 'D']
+    if not (boy['res'] and girl['res']):
+        for key in keys:
+            pair.add(key, None, None, NOT_APPLICABLE, note='The birth details of both are needed')
+        return
+    b, g = E.Ctx(boy['res']), E.Ctx(girl['res'])
+
+    def both(key, fn, result=INFORMATION, **kw):
+        pair.add(key, fn(b), fn(g), result, **kw)
+
+    # Kuja dosha
+    houses = KUJA_HOUSE_SETS[options['kuja_houses']]
+    kb, kg = kuja_state(b, houses), kuja_state(g, houses)
+    for key, ref in (('kuja_lagna', 'the lagna'), ('kuja_moon', 'the Moon'), ('kuja_venus', 'Venus')):
+        def placed(k, ref=ref):
+            return (f'Mars in {_house_text(k["places"][ref])} from {ref}: '
+                    f'{"present" if ref in k["present"] else "absent"}')
+        pair.add(key, placed(kb), placed(kg), INFORMATION,
+                 note='Places that count: ' + ', '.join(str(h) for h in houses))
+    for key, _, _, _ in KUJA_EXCEPTIONS:
+        def applies(k, key=key):
+            if not k['present']:
+                return 'does not arise: no Kuja dosha'
+            covered = k['exceptions'][key]
+            return 'applies from ' + ', '.join(covered) if covered else 'does not apply'
+        pair.add(key, applies(kb), applies(kg), INFORMATION)
+
+    def state(refs):
+        return 'present from ' + ', '.join(refs) if refs else 'absent'
+    pair.add('kuja_balance', state(kb['present']), state(kg['present']),
+             MATCHED if bool(kb['present']) == bool(kg['present']) else NOT_MATCHED,
+             note=f'Mars: the boy\'s in {kb["mars"]}, the girl\'s in {kg["mars"]}')
+    used = [name for key, name, _, _ in KUJA_EXCEPTIONS if kb['exceptions'][key] or kg['exceptions'][key]]
+    pair.add('kuja_balance_after', state(kb['after']), state(kg['after']),
+             MATCHED if bool(kb['after']) == bool(kg['after']) else NOT_MATCHED,
+             exception='; '.join(used))
+
+    # Rahu and Ketu
+    def nodes(c):
+        return [n for n in ('Rahu', 'Ketu') if c.house[n] in SARPA_HOUSES]
+
+    def nodes_text(c):
+        where = f'Rahu in {_house_text(c.house["Rahu"])}, Ketu in {_house_text(c.house["Ketu"])} from the lagna'
+        return f'{where}: {"present" if nodes(c) else "absent"}'
+    both('sarpa', nodes_text, MATCHED if bool(nodes(b)) == bool(nodes(g)) else NOT_MATCHED)
+
+    # Kalathra facts
+    def seventh(c):
+        lagna = [p for p in E.NATURAL_MALEFICS if c.house[p] == 7]
+        moon = [p for p in E.NATURAL_MALEFICS if E.house_from(c.sign[p], c.moon_sign) == 7]
+        return f'From the lagna: {", ".join(lagna) or "none"}; from the Moon: {", ".join(moon) or "none"}'
+    both('kalathra_seventh', seventh)
+
+    def seventh_lord(c):
+        lord = c.house_lord[7]
+        return f'{lord} in {_house_text(c.house[lord])} house, {_dignity_text(c, lord)}'
+    both('kalathra_lord', seventh_lord)
+
+    def venus(c):
+        mates = [p for p in E.NATURAL_MALEFICS if c.sign[p] == c.sign['Venus']]
+        return (f'In {_house_text(c.house["Venus"])} house, {_dignity_text(c, "Venus")}; '
+                f'malefics in its sign: {", ".join(mates) or "none"}')
+    both('kalathra_venus', venus)
+
+    # Papa samyam
+    pb, pg = papa_points(b), papa_points(g)
+
+    def tally(points):
+        return '; '.join(f'from {ref} {len(found)}' + (' (' + ', '.join(f'{p} {_ordinal(h)}' for p, h in found) + ')'
+                                                         if found else '') for ref, found in points.items())
+
+    def total(points, weighted):
+        return _whole(sum(len(points[ref]) * (w if weighted else 1) for ref, w in PAPA_WEIGHTS))
+    for key, weighted in (('papa_count', False), ('papa_weighted', True)):
+        tb, tg = total(pb, weighted), total(pg, weighted)
+        pair.add(key, f'{tb}: {tally(pb)}', f'{tg}: {tally(pg)}', MATCHED if tb >= tg else NOT_MATCHED,
+                 note=f'The boy\'s total is {tb}, the girl\'s {tg}')
+
+    both('punarpoo', lambda c: 'present: ' + '; '.join(punarpoo(c)) if punarpoo(c) else 'absent')
+    both('kala_sarpa', lambda c: 'found' if E.kala_sarpa(c)[0] else 'not found')
+
+    # The lagnas and their lords
+    bl, gl = b.house_lord[1], g.house_lord[1]
+    rel = lords_relation(bl, gl)
+    lords = ('One planet rules both lagnas' if bl == gl else
+             f'{bl} regards {gl} as {rel[0].lower()}; {gl} regards {bl} as {rel[1].lower()}')
+    pair.add('lagna_position', f'{RASIS[b.lagna_sign]}, lord {bl}', f'{RASIS[g.lagna_sign]}, lord {gl}',
+             INFORMATION,
+             note=f'The boy\'s lagna is {_house_text(count(g.lagna_sign, b.lagna_sign, 12))} from the girl\'s; '
+                  f'the girl\'s is {_house_text(count(b.lagna_sign, g.lagna_sign, 12))} from the boy\'s. {lords}')
+
+    def seventh_to(c, other):
+        lord, other_lord = c.house_lord[7], other.house_lord[1]
+        if lord == other_lord:
+            return f'{lord}: the lagna lord of the other chart'
+        return f'{lord}: regards the other\'s lagna lord {other_lord} as {E.natural_relation(lord, other_lord).lower()}'
+    pair.add('seventh_lords', seventh_to(b, g), seventh_to(g, b), INFORMATION)
+
+    def d9(c):
+        signs = c.vargas['D9']['signs']
+        return signs['Lagna'], signs['Moon']
+    (b_lagna, b_moon), (g_lagna, g_moon) = d9(b), d9(g)
+    pair.add('navamsa', f'D9 lagna {RASIS[b_lagna]}, D9 Moon {RASIS[b_moon]}',
+             f'D9 lagna {RASIS[g_lagna]}, D9 Moon {RASIS[g_moon]}', INFORMATION,
+             note=f'The boy\'s D9 lagna is {_house_text(count(g_lagna, b_lagna, 12))} from the girl\'s D9 lagna; '
+                  f'the boy\'s D9 Moon is {_house_text(count(g_moon, b_moon, 12))} from the girl\'s D9 Moon')
+
+    def venus_mars(c):
+        return f'Venus in {RASIS[c.sign["Venus"]]}, Mars in {RASIS[c.sign["Mars"]]}'
+    pair.add('venus_mars', venus_mars(b), venus_mars(g), INFORMATION,
+             note=f'The girl\'s Mars is {_house_text(count(b.sign["Venus"], g.sign["Mars"], 12))} from the '
+                  f'boy\'s Venus; the boy\'s Mars is {_house_text(count(g.sign["Venus"], b.sign["Mars"], 12))} '
+                  f'from the girl\'s Venus')
+
+    def fifth(c):
+        lord = c.house_lord[5]
+        inside = [p for p in E.PLANETS if c.house[p] == 5]
+        return (f'{RASIS[c.house_sign[5]]}; lord {lord} in {_house_text(c.house[lord])} house, '
+                f'{_dignity_text(c, lord)}; planets in the 5th: {", ".join(inside) or "none"}; '
+                f'Jupiter in {_house_text(c.house["Jupiter"])} house, {_dignity_text(c, "Jupiter")}')
+    both('fifth_house', fifth)
+
+
 # ── SUMMARY ───────────────────────────────────────────────────────────────────
 
 def summarise(rows):
@@ -796,23 +1083,30 @@ def summarise(rows):
 
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────
 
-def match(boy, girl):
+def match(boy, girl, options=None):
     """
     Compare two people.
 
     boy, girl: each a result of astro_engine.compute(), or a star-only record
-    {nakshatra, pada, rasi, name}. Raises InputError for a record that cannot
-    be read.
+    {nakshatra, pada, rasi, name}. options: see clean_options(). Raises
+    InputError for a record or an option that cannot be read.
+
+    Groups A to C need only the Moon's star and rasi. Group D needs the birth
+    details of both: with a star-only record its rows are "not applicable".
     """
+    options = clean_options(options)
     boy, girl = as_person(boy, 'boy'), as_person(girl, 'girl')
     pair = Pair(boy, girl)
     _group_a(pair)
     _group_b(pair)
     _group_c(pair)
+    _group_d(pair, options)
     full = bool(boy['res'] and girl['res'])
     return {
         'schema': SCHEMA, 'label': LABEL, 'mode': 'full' if full else 'star',
         'persons': {'boy': person_facts(boy), 'girl': person_facts(girl)},
+        'settings': {'kuja_houses': options['kuja_houses'],
+                     'kuja_places_that_count': list(KUJA_HOUSE_SETS[options['kuja_houses']])},
         'counts': {'boy_star_from_girl_star': pair.n, 'girl_star_from_boy_star': pair.m,
                    'boy_rasi_from_girl_rasi': pair.r},
         'groups': dict(GROUPS),

@@ -8,6 +8,7 @@ Endpoints
   POST /api/download/excel     Excel workbook
   POST /api/download/pdf       PDF report
   POST /api/download/json      the horoscope plus the AI block, as a JSON file
+  POST /api/match              marriage matching (porutham) of two people as JSON
 
 All horoscope endpoints take the same JSON body and call the same
 compute() function, so the page, the Excel, the PDF and the JSON file always
@@ -41,6 +42,7 @@ import i18n
 from astro_engine import AYANAMSHAS, InputError, compute, geocode, to_jsonable
 from enrich import enrich
 from excel_generator import generate_excel
+from match_engine import match
 from pdf_generator import generate_pdf
 
 app = Flask(__name__)
@@ -75,6 +77,7 @@ app.config['MAX_CONTENT_LENGTH'] = MAX_BODY_BYTES
 # office, a mobile network), so these are well above what one person needs.
 LIMIT_DEFAULT = '120 per minute'
 LIMIT_HOROSCOPE = '30 per minute; 300 per hour'
+LIMIT_MATCH = '15 per minute; 150 per hour'         # one match computes two horoscopes
 LIMIT_DOWNLOAD = '10 per minute; 100 per hour'      # the three downloads together
 LIMIT_GEOCODE = '20 per minute; 200 per hour'
 # Place look-ups go to OpenStreetMap Nominatim, which allows one request a
@@ -190,30 +193,71 @@ def _body():
     return body
 
 
+def _lang(body):
+    lang = body.get('lang', 'en')
+    return lang if lang in i18n.LANGS else 'en'
+
+
+def _compute(details, settings, who=None):
+    """
+    Run the engine for one person. details holds the birth details; settings
+    holds what is common to a request (ayanamsha, node, language, chart
+    style). For a single horoscope the two are the same JSON body. who names
+    the person in a matching request ('boy' or 'girl'), where the name may be
+    left out. Raises InputError on bad input.
+    """
+    name = str(details.get('name', '')).strip()
+    dob = str(details.get('dob', '')).strip()
+    tob = str(details.get('tob', '')).strip()
+    pob = str(details.get('pob', '')).strip()
+    if who:
+        if not all([dob, tob, pob]):
+            raise InputError(f'Date, time and place of birth are required for the {who}.')
+        name = name or who.capitalize()
+    elif not all([name, dob, tob, pob]):
+        raise InputError('Name, date, time and place of birth are required.')
+    lat, lon = _num(details.get('lat')), _num(details.get('lon'))
+    if lat is None or lon is None:
+        _spend_nominatim_budget()       # compute() will look the place up
+    gender = {'boy': 'male', 'girl': 'female'}.get(who) or str(details.get('gender', ''))[:20]
+    return compute(
+        name=name[:80], dob=dob, tob=tob, pob=pob[:120],
+        lat=lat, lon=lon,
+        tz=(details.get('tz') or None), utc_offset=_num(details.get('utcOffset')),
+        ayanamsha=str(settings.get('ayanamsha') or 'lahiri'), node=settings.get('node', 'mean'),
+        gender=gender, lang=_lang(settings),
+        chart_style=settings.get('chartStyle', 'south'),
+    )
+
+
 def _compute_from_request():
     """Read the JSON body and run the engine. Raises InputError on bad input."""
     body = _body()
-    name = str(body.get('name', '')).strip()
-    dob = str(body.get('dob', '')).strip()
-    tob = str(body.get('tob', '')).strip()
-    pob = str(body.get('pob', '')).strip()
-    if not all([name, dob, tob, pob]):
-        raise InputError('Name, date, time and place of birth are required.')
-    lang = body.get('lang', 'en')
-    if lang not in i18n.LANGS:
-        lang = 'en'
-    lat, lon = _num(body.get('lat')), _num(body.get('lon'))
-    if lat is None or lon is None:
-        _spend_nominatim_budget()       # compute() will look the place up
-    res = compute(
-        name=name[:80], dob=dob, tob=tob, pob=pob[:120],
-        lat=lat, lon=lon,
-        tz=(body.get('tz') or None), utc_offset=_num(body.get('utcOffset')),
-        ayanamsha=str(body.get('ayanamsha') or 'lahiri'), node=body.get('node', 'mean'),
-        gender=str(body.get('gender', ''))[:20], lang=lang,
-        chart_style=body.get('chartStyle', 'south'),
-    )
-    return res, lang
+    return _compute(body, body), _lang(body)
+
+
+def _match_from_request():
+    """
+    Read a matching request and run the two people through the engine.
+
+    Body: {"boy": {...}, "girl": {...}, "mode": "full" | "star"} plus the
+    settings of a horoscope request (ayanamsha, node, lang, chartStyle).
+    "full": each person holds birth details as for /api/horoscope (the name
+    may be left out). "star": each holds {"nakshatra", "pada", "rasi"}.
+    Returns (match result, the two compute() results or None, language).
+    """
+    body = _body()
+    mode = str(body.get('mode') or 'full').strip().lower()
+    if mode not in ('full', 'star'):
+        raise InputError('"mode" must be "full" or "star".')
+    people = {}
+    for role in ('boy', 'girl'):
+        details = body.get(role)
+        if not isinstance(details, dict) or not details:
+            raise InputError(f'The details of the {role} are required.')
+        people[role] = details if mode == 'star' else _compute(details, body, role)
+    result = match(people['boy'], people['girl'])
+    return result, (people if mode == 'full' else None), _lang(body)
 
 
 def _ai_mode():
@@ -359,6 +403,21 @@ def horoscope():
         out.update(_legacy_fields(res))
         if _wants_ai():
             out['ai'] = to_jsonable(enrich(res, extras=_extras()))
+        return jsonify(out)
+    return _guard(run)
+
+
+@app.route('/api/match', methods=['POST'])
+@limiter.limit(LIMIT_MATCH)
+def match_route():
+    """Marriage matching of two people. Nothing is stored."""
+    def run():
+        result, people, lang = _match_from_request()
+        out = to_jsonable(result)
+        if people:
+            # The two rasi and navamsa charts, for the page to draw side by side.
+            out['charts'] = {role: {k: v for k, v in charts.build_specs(res, lang).items() if k in ('d1', 'd9')}
+                             for role, res in people.items()}
         return jsonify(out)
     return _guard(run)
 

@@ -22,11 +22,12 @@ Nothing is stored: birth details are used for the calculation and discarded.
 | `enrich.py` | `enrich(res)`: derived facts as flat tables for AI readers. A separate step, so `compute()` and the web page are not slowed down |
 | `charts.py` | Chart contents and layout shared by web page, Excel and PDF |
 | `i18n.py` | Names and labels (en, ta, hi, te, kn, ml, mr, bn, and `bi` = English + Tamil) |
+| `match_engine.py` | `match(boy, girl)`: marriage matching (porutham) of two people, one row per check. Reads two `compute()` results or two star-only records; changes nothing in `compute()`. See [Marriage matching](#marriage-matching) |
 | `excel_generator.py` | Workbook: Summary, Vedic, Divisional Charts, KP, ALP, Dasa, Notes; charts drawn with cells. With the AI block, the `AI_` sheets (28, or 30 when past events were entered) follow Notes |
 | `pdf_generator.py` | PDF with the same content; Noto fonts embedded, text shaped by HarfBuzz |
 | `app.py` | Flask routes, request limits and CORS |
 | `fonts/` | Noto Sans fonts (SIL Open Font License, see `fonts/OFL.txt`) |
-| `tests/` | `pytest` suite: `test_engine.py` (engine and reports), `test_enrich.py` (AI tables, AI sheets, JSON routes), `test_protection.py` (request limits, body size cap, CORS, bad input), `test_reader.py` (what schema 2 added: dasa levels, faster transits, stations, period facts, topic promise and windows, optional inputs, the brief). `golden_main.json` holds fingerprints of the seven report sheets and of the `/api/horoscope` response, made by `make_golden.py`, so a change to the old output is caught |
+| `tests/` | `pytest` suite: `test_engine.py` (engine and reports), `test_enrich.py` (AI tables, AI sheets, JSON routes), `test_protection.py` (request limits, body size cap, CORS, bad input), `test_reader.py` (what schema 2 added: dasa levels, faster transits, stations, period facts, topic promise and windows, optional inputs, the brief), `test_match.py` (marriage matching: the star tables against the published lists, every pair of the 108 padas against a second statement of the rules, pairs worked by hand, the route). `golden_main.json` holds fingerprints of the seven report sheets and of the `/api/horoscope` response, made by `make_golden.py`, so a change to the old output is caught |
 
 ## API
 
@@ -40,6 +41,7 @@ POST /api/download/excel     -> .xlsx (the seven report sheets, then the AI_ she
 POST /api/download/pdf       -> .pdf
 POST /api/download/json      -> .json (meta, vedic, kp, alp and the "ai" block), named like the Excel file
                                 with "ai": "brief": meta and the short AI_Brief table only (under 45 KB)
+POST /api/match              -> JSON: marriage matching of two people (see Marriage matching)
 GET  /api/geocode?q=Chennai  -> place candidates with latitude, longitude, time zone
 GET  /health
 ```
@@ -106,6 +108,7 @@ service is that each visitor can only ask for so much:
 |---|---|---|
 | `POST /api/horoscope` | 30 a minute, 300 an hour | per visitor |
 | `POST /api/download/excel`, `pdf`, `json` | 10 a minute, 100 an hour, the three together | per visitor |
+| `POST /api/match` | 15 a minute, 150 an hour (one match computes two horoscopes) | per visitor |
 | `GET /api/geocode` | 20 a minute, 200 an hour | per visitor |
 | Any other route | 120 a minute | per visitor |
 | `/health`, `/api/ping` | none | |
@@ -200,6 +203,69 @@ printed on the Notes sheet). `generate_excel(res, lang, ai=ai)` adds the
 sheets; without `ai` the workbook is the seven report sheets only. `extras`
 carries the optional inputs (`tob_uncertainty_min`, `coordinates_source`,
 `life`); `enrich.clean_extras` checks them.
+
+## Marriage matching
+
+`POST /api/match` compares two people and returns one row per check. Nothing
+is stored.
+
+```json
+{
+  "mode": "full",
+  "boy":  {"name": "…", "dob": "1998-03-06", "tob": "01:37", "pob": "Delhi", "lat": 28.6139, "lon": 77.2090},
+  "girl": {"name": "…", "dob": "2000-07-15", "tob": "14:20", "pob": "Chennai", "lat": 13.0827, "lon": 80.2707},
+  "ayanamsha": "lahiri", "node": "mean", "lang": "en", "chartStyle": "south"
+}
+```
+
+- `mode` `"full"` (the default): each person holds birth details as for
+  `/api/horoscope`; the name may be left out. The settings (`ayanamsha`,
+  `node`, `lang`, `chartStyle`) are given once and apply to both.
+- `mode` `"star"`: for families who know only the star and the rasi. Each
+  person is `{"nakshatra": 1-27 or its name, "pada": 1-4, "rasi": 1-12 or its
+  name}`. The pada may be left out; the rasi is needed only for a star that
+  lies in two rasis when the pada is not given. A record that cannot be true
+  (Rohini in Mesha) is HTTP 400.
+- The answer: `persons`, `rows`, `summary`, `rules`, `table_sources`,
+  `not_included`, and in full mode `charts` (the rasi and navamsa chart of
+  each, for the page to draw side by side).
+
+Every row has `key`, `group`, `name`, `boy_value`, `girl_value`, `result`,
+`points`, `max_points`, `rule_applied`, `exception_applied`, `note`.
+`result` is `matched`, `medium`, `not matched`, `not applicable` (the rule
+does not arise for this pair, or a fact it needs was not given) or
+`information` (a fact with no rule of comparison).
+
+| Group | Rows |
+|---|---|
+| A. Ten poruthams (Tamil tradition) | Dinam, Ganam, Mahendram, Stree Deergham, Yoni, Rasi, Rasi Adhipathi, Vasiyam, Rajju, Vedhai; then Nadi and Vriksha |
+| B. Star rules | Tara of each star counted from the other, Vadha (7th star), Vainasika (22nd star), Vainasika pada (the 4th pada of the 22nd star, the 88th pada), the 27th star, the same star, the same rasi |
+| C. Ashtakoota, 36 points | Varna 1, Vashya 2, Tara 3, Yoni 4, Graha Maitri 5, Gana 6, Bhakoot 7, Nadi 8 |
+
+What the rows keep to:
+
+- Counts run from the girl's star or rasi to the boy's, the starting one
+  counted as 1, unless the rule names the other direction.
+- A row states the rule and the result. Nothing says what a result is
+  believed to bring, nothing is said about length of life, and there is no
+  remedy and no verdict on the marriage. The summary is counts only: the
+  results per group, the ten poruthams, the Ashtakoota points, and which of
+  Rajju, Dinam, Ganam, Yoni and Rasi are not matched.
+- An exception (for example "one lord for both rasis" for Bhakoot, or "the
+  same star with different padas" for Nadi) is named in `exception_applied`
+  and never changes a result or the points.
+- The rule and the variant behind every row are in `match_engine.MATCH_RULES`
+  and in `rules` of the answer.
+
+The tables differ between almanacs. `match_engine.TABLE_SOURCES` (and
+`table_sources` in the answer) says for each table whether it was checked
+against a published page, where published pages disagree and which variant
+is used, and what was written from memory. Left out: Pakshi and Bhutha
+porutham (no table could be checked), Ayul porutham and the rules about
+particular stars and the in-laws (on purpose).
+
+In Python: `match_engine.match(boy, girl)`, each argument a result of
+`compute()` or a star-only record.
 
 ## Run locally
 

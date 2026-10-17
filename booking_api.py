@@ -15,6 +15,7 @@ Admin (header X-Admin-Key: the ADMIN_API_KEY environment variable)
   GET  /api/admin/astrologers                 every astrologer, with weekly hours and blocked ranges
   POST /api/admin/astrologers                 add one
   PUT  /api/admin/astrologers/<id>            edit one (weekly hours are replaced when sent)
+  DELETE /api/admin/astrologers/<id>          delete one (refused while they have upcoming bookings)
   POST /api/admin/astrologers/<id>/blocks     block whole IST dates (leave)
   DELETE /api/admin/blocks/<id>               remove a blocked range
   GET  /api/admin/bookings?days=              bookings from today on
@@ -536,6 +537,35 @@ def admin_update(astrologer_id):
 
 @_admin
 @_db_guard
+def admin_delete(astrologer_id):
+    """
+    Delete an astrologer with their hours, days off and past or cancelled
+    bookings. Refused (409) while they have upcoming confirmed bookings:
+    cancel those first, so that every client is told.
+    """
+    now = D.utcnow()
+    with D.engine().begin() as conn:
+        if not conn.execute(select(D.astrologers.c.id).where(D.astrologers.c.id == astrologer_id)).first():
+            return _err(404, 'Astrologer not found.', 'not_found')
+        upcoming = conn.execute(select(D.bookings.c.id).where(and_(
+            D.bookings.c.astrologer_id == astrologer_id, D.bookings.c.status == 'confirmed',
+            D.bookings.c.slot_end_utc > now))).all()
+        if upcoming:
+            return _err(409, f'This astrologer has {len(upcoming)} upcoming booking(s). Cancel them first '
+                             '(both the client and the astrologer are e-mailed), then delete.', 'has_bookings')
+        ids = [r.id for r in conn.execute(select(D.bookings.c.id).where(D.bookings.c.astrologer_id == astrologer_id))]
+        if ids:
+            conn.execute(delete(D.outbox).where(D.outbox.c.booking_id.in_(ids)))
+            conn.execute(delete(D.bookings).where(D.bookings.c.id.in_(ids)))
+        conn.execute(delete(D.availability).where(D.availability.c.astrologer_id == astrologer_id))
+        conn.execute(delete(D.availability_blocks).where(D.availability_blocks.c.astrologer_id == astrologer_id))
+        conn.execute(delete(D.astrologers).where(D.astrologers.c.id == astrologer_id))
+    log.info('Admin deleted astrologer %s and %d past booking(s)', astrologer_id, len(ids))
+    return jsonify({'deleted': astrologer_id, 'bookings_removed': len(ids)})
+
+
+@_admin
+@_db_guard
 def admin_add_block(astrologer_id):
     body = _json_body() or {}
     first, last = C.parse_day(body.get('from')), C.parse_day(body.get('to') or body.get('from'))
@@ -613,6 +643,7 @@ def register(app, limiter, check_birth, render_pdf):
     add('/api/admin/astrologers', admin_list, LIMIT_ADMIN)
     add('/api/admin/astrologers', admin_create, LIMIT_ADMIN, ('POST',), 'booking_admin_create')
     add('/api/admin/astrologers/<int:astrologer_id>', admin_update, LIMIT_ADMIN, ('PUT',))
+    add('/api/admin/astrologers/<int:astrologer_id>', admin_delete, LIMIT_ADMIN, ('DELETE',))
     add('/api/admin/astrologers/<int:astrologer_id>/blocks', admin_add_block, LIMIT_ADMIN, ('POST',))
     add('/api/admin/blocks/<int:block_id>', admin_delete_block, LIMIT_ADMIN, ('DELETE',))
     add('/api/admin/bookings', admin_bookings, LIMIT_ADMIN)

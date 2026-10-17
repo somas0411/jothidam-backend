@@ -7,8 +7,12 @@ is kept, and its personal data is wiped RETENTION_DAYS after the appointment
 (see purge_personal_data()).
 
 Database: PostgreSQL, reached through the DATABASE_URL environment variable,
-e.g. a free Neon or Supabase database:
-    DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require
+e.g. a free Neon or Supabase database. The password may be kept apart in
+DATABASE_PASSWORD:
+    DATABASE_URL=postgresql://user@host/dbname?sslmode=require
+    DATABASE_PASSWORD=...
+Both are settings on the host (Render), or in a local .env file that git
+ignores. Never commit the password: the repository is public.
 The web host's disk is wiped on every deploy, so SQLite is used only by the
 tests. Every time is stored in UTC (timestamptz) and turned into IST only for
 display.
@@ -133,7 +137,18 @@ def as_utc(dt):
 
 
 def database_url():
+    """
+    DATABASE_URL, with DATABASE_PASSWORD put in when the URL has no password
+    of its own. Keeping the password in its own setting lets the rest of the
+    address be shared or logged without it.
+    """
     url = os.environ.get('DATABASE_URL', '').strip()
+    password = os.environ.get('DATABASE_PASSWORD', '').strip()
+    if url and password:
+        from sqlalchemy.engine import make_url
+        parsed = make_url(url)
+        if not parsed.password:
+            url = parsed.set(password=password).render_as_string(hide_password=False)
     # Heroku-style URLs and plain "postgresql://" both go through psycopg 3.
     if url.startswith('postgres://'):
         url = 'postgresql://' + url[len('postgres://'):]

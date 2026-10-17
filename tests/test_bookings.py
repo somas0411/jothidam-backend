@@ -236,6 +236,18 @@ def slots_of(client, astrologer_id=1, day=TUESDAY):
     return {s['start']: s['status'] for s in r.get_json()['slots']}
 
 
+def test_password_kept_in_its_own_setting(monkeypatch):
+    monkeypatch.setenv('DATABASE_URL', 'postgresql://owner@ep-x.aws.neon.tech/neondb?sslmode=require&channel_binding=require')
+    monkeypatch.setenv('DATABASE_PASSWORD', 'p@ss/word')
+    url = D.database_url()
+    from sqlalchemy.engine import make_url
+    u = make_url(url)
+    assert url.startswith('postgresql+psycopg://') and u.password == 'p@ss/word' and u.username == 'owner'
+    assert u.query == {'sslmode': 'require', 'channel_binding': 'require'}
+    monkeypatch.setenv('DATABASE_URL', 'postgresql://owner:inline@host/db')
+    assert make_url(D.database_url()).password == 'inline'          # a password in the URL wins
+
+
 def test_no_database_means_503(monkeypatch):
     monkeypatch.delenv('DATABASE_URL', raising=False)
     D.reset_engine()

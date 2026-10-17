@@ -115,7 +115,9 @@ Any SMTP server works instead of the Brevo API: set `SMTP_HOST`, `SMTP_PORT`, `S
 In the service's **Environment**, add (see `.env.example`):
 
 ```
-DATABASE_URL     = <Neon connection string>
+DATABASE_URL     = <Neon connection string without the password, e.g.
+                   postgresql://neondb_owner@ep-xxxx.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require>
+DATABASE_PASSWORD = <the neondb_owner password, on its own>
 BOOKING_SECRET   = <python -c "import secrets; print(secrets.token_hex(32))">
 ADMIN_API_KEY    = <another long random string; you type it on admin.html>
 BREVO_API_KEY    = <from Brevo>

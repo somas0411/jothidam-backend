@@ -29,8 +29,8 @@ seven 409.
 
 **E-mail from an outbox table, sent by a thread in the web process.** A
 booking and its two e-mails are written in one transaction. A daemon thread in
-the single gunicorn worker sends them within seconds, retries a failure after 1,
-4 and 16 minutes (3 attempts), and records each result in
+the single gunicorn worker sends them within seconds, retries a failure after 1 and
+then 4 minutes (3 attempts in all), and records each result in
 `bookings.notification_status`. This needs no Redis or Celery (not available on
 Render's free tier), loses nothing on a restart, and never makes the visitor
 wait for the e-mail provider. Rows are claimed with `FOR UPDATE SKIP LOCKED`,
@@ -80,32 +80,35 @@ repeated click return the same booking instead of a second one.
 
 ### 1. Database (Neon, free)
 
-1. Sign up at neon.tech and create a project in the **AWS Asia Pacific (Singapore)** region (closest to Render's Singapore region and to India).
-2. Copy the connection string (it ends with `?sslmode=require`).
-3. Optional: run `psql "<connection string>" -f schema.sql`. The app also creates the tables on its first start.
+1. Sign up at neon.tech (Google or GitHub login works) and create a project: name `horoscopegen`, Postgres version as offered, region **AWS Asia Pacific (Singapore)**, or the region nearest your Render service (shown on the service's page in Render).
+2. On the project dashboard press **Connect**. Leave **Connection pooling** switched **off** and copy the connection string. It looks like `postgresql://neondb_owner:…@ep-….ap-southeast-1.aws.neon.tech/neondb?sslmode=require`. Keep it secret: it holds the password.
+3. Optional: in Neon's **SQL Editor**, paste and run `schema.sql`. The app also creates the tables on its first start.
 4. Optional, to try it out: `DATABASE_URL="<connection string>" python manage.py seed` adds three sample astrologers named "Test Astrologer … (Sample)" with phone numbers `+91000000000x`. Deactivate them before going live (admin page, or `python manage.py deactivate ID`).
 
-Neon pauses an idle database after 5 minutes; the first request after that takes about a second longer. The app's connection pool checks connections before use, so this needs nothing else.
+The free plan allows 1 GB of storage and 100 compute-hours a month per project, and pauses the database after 5 idle minutes (the first request after a pause takes about a second longer). The app is built to let it pause: the e-mail worker touches the database only after a booking or cancellation, when a retry is due, and every 6 hours for the retention purge. Check **Usage** in Neon's dashboard after the first weeks.
 
-### 2. E-mail (Brevo, free 300 a day)
+### 2. E-mail (Brevo, free)
 
-1. Sign up at brevo.com. Under **Senders, Domains & Dedicated IPs → Domains**, add `horoscopegen.in`.
-2. Brevo shows DNS records to add where the domain's DNS is managed (your registrar, or Netlify DNS if the domain uses it). Copy the exact values Brevo shows; they look like:
+1. Sign up at brevo.com (free plan). Brevo may ask you to confirm your account details before sending is enabled.
+2. Go to **Settings → Senders, Domains, IPs → Domains** and press **Add a domain**. Enter `horoscopegen.in` (the domain, not an address) and press **Authenticate**.
+3. Choose **manual** setup. Brevo shows three records to add where the domain's DNS is managed:
 
-   | Type | Name | Value |
-   |---|---|---|
-   | TXT | `@` | `brevo-code:…` (ownership) |
-   | CNAME | `brevo1._domainkey` | `b1.horoscopegen-in.dkim.brevo.com` (DKIM) |
-   | CNAME | `brevo2._domainkey` | `b2.horoscopegen-in.dkim.brevo.com` (DKIM) |
-   | TXT | `@` | `v=spf1 include:spf.brevo.com ~all` (SPF) |
-   | TXT | `_dmarc` | `v=DMARC1; p=none; rua=mailto:<your address>` |
+   | Record | Type | Name (host) | Value |
+   |---|---|---|---|
+   | Brevo code (ownership) | TXT | as shown, often `@` | `brevo-code:…` |
+   | DKIM | two CNAME records (DKIM 1 and DKIM 2), or one TXT | as shown, e.g. `brevo1._domainkey` | as shown |
+   | DMARC | TXT | `_dmarc` | as shown, e.g. `v=DMARC1; p=none; rua=mailto:rua@dmarc.brevo.com` |
 
-   A domain may have only **one** SPF record. If `horoscopegen.in` already has one (for example for Google Workspace or Zoho mail), add `include:spf.brevo.com` to it instead of adding a second.
-3. Press **Authenticate** in Brevo once the records are live (minutes to a few hours).
-4. Add a sender `bookings@horoscopegen.in` (it need not be a real mailbox; replies go to the astrologer or the visitor through Reply-To).
-5. Create an API key under **SMTP & API → API keys**.
+   Copy names and values exactly from Brevo's screen. SPF and MX records are not needed. A domain may have only one DMARC record: if one exists, add `; rua=mailto:rua@dmarc.brevo.com` to it instead of adding a second.
+4. Add the records (see "Where to add DNS records" below), then return to Brevo and press **Authenticate this email domain**. It may take up to 48 hours to turn green; usually it is minutes.
+5. Under **Senders**, add the sender `bookings@horoscopegen.in` with name `HoroscopeGen`. It need not be a real mailbox: replies go to the astrologer or the visitor through Reply-To.
+6. Under **SMTP & API → API keys**, create a key named `jothidam-backend` and copy it (it is shown once).
 
-Any SMTP server works instead: set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` and leave `BREVO_API_KEY` empty.
+**Where to add DNS records.** The domain is registered at GoDaddy, but its records live wherever its nameservers point. In GoDaddy, open **My Products → horoscopegen.in → DNS → Nameservers**:
+- `ns…domaincontrol.com`: records are at GoDaddy. Open **DNS → DNS Records → Add New Record**. In GoDaddy's Name field enter only the part before `.horoscopegen.in` (for example `_dmarc`, `brevo1._domainkey`, or `@` for the domain itself).
+- `dns1.p0x.nsone.net` (Netlify): records are at Netlify. Open Netlify → **Domains → horoscopegen.in → DNS settings → Add new record**.
+
+Any SMTP server works instead of the Brevo API: set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` and leave `BREVO_API_KEY` empty.
 
 ### 3. Backend (Render)
 

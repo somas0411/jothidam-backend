@@ -468,6 +468,16 @@ def test_partial_failure_is_retried_then_recorded(client, sent):
     assert client.get(f'/api/bookings/{bid}?token={C.make_token(bid)}').get_json()['status'] == 'confirmed'
 
 
+def test_next_due_lets_the_worker_sleep(client, sent):
+    assert notify.next_due(NOW) is None                       # nothing queued: no polling needed
+    client.post('/api/bookings', json=body())
+    assert notify.next_due(NOW) == 0
+    notify.process_outbox_once(now=NOW, send=lambda m: (_ for _ in ()).throw(OSError('down')))
+    assert notify.next_due(NOW) == 60                          # first retry in a minute
+    notify.process_outbox_once(now=NOW + timedelta(minutes=1), send=lambda m: 'sent')
+    assert notify.next_due(NOW) is None
+
+
 def test_cancel_notifies_both(client, sent):
     out = client.post('/api/bookings', json=body()).get_json()
     notify.process_outbox_once(now=NOW, send=lambda m: 'sent')

@@ -5,8 +5,8 @@ Why an outbox: gunicorn runs one worker (gunicorn.conf.py). A booking writes
 its messages to the outbox table in the same transaction as the booking
 itself, so a message cannot be lost if the server restarts before sending,
 and the HTTP answer never waits for an e-mail provider. A daemon thread in
-the worker sends what is due, retries a failure up to 3 times (after 1, 4 and
-16 minutes) and records the outcome per recipient in
+the worker sends what is due, makes up to 3 attempts (retrying after 1 and then 4
+minutes) and records the outcome per recipient in
 bookings.notification_status. No Redis or Celery is needed. Rows are claimed
 with SELECT ... FOR UPDATE SKIP LOCKED, so it stays correct if more workers
 are ever added.
@@ -42,8 +42,11 @@ log = logging.getLogger('horoscopegen.notify')
 
 MAX_ATTEMPTS = 3
 BATCH = 10
-POLL_SECONDS = 20
-PURGE_EVERY_SECONDS = 3600
+# The worker does not poll: it touches the database only when woken by a
+# booking or cancellation, when a retry falls due, and once every few hours
+# for the retention purge. This lets a free Neon database pause when idle
+# (Neon counts compute-hours while it is awake).
+IDLE_SECONDS = 6 * 3600
 MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024
 
 _render_pdf = None
@@ -372,19 +375,35 @@ def forget_booking(booking_id, now=None):
     return bool(result.rowcount)
 
 
+def next_due(now=None):
+    """Seconds until the earliest pending message is due (0 if one is due now), or None if none is waiting."""
+    now = now or D.utcnow()
+    with D.engine().connect() as conn:
+        due = conn.execute(select(D.outbox.c.next_attempt_at).where(D.outbox.c.status == 'pending')
+                           .order_by(D.outbox.c.next_attempt_at).limit(1)).scalar()
+    if due is None:
+        return None
+    return max((D.as_utc(due) - now).total_seconds(), 0)
+
+
 def _loop():
     last_purge = None
     while True:
+        wait = IDLE_SECONDS
         try:
             while process_outbox_once():
                 pass
             now = D.utcnow()
-            if last_purge is None or (now - last_purge).total_seconds() >= PURGE_EVERY_SECONDS:
+            if last_purge is None or (now - last_purge).total_seconds() >= IDLE_SECONDS:
                 purge_personal_data(now)
                 last_purge = now
+            pending = next_due(now)
+            if pending is not None:
+                wait = min(wait, pending + 1)
         except Exception:
             log.exception('Notification worker error')
-        _wake.wait(POLL_SECONDS)
+            wait = 60
+        _wake.wait(wait)
         _wake.clear()
 
 

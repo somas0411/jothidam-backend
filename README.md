@@ -12,7 +12,13 @@ or a PDF. Three systems are produced from one birth moment:
 | **ALP** | Akshaya Lagna: birth lagna progressed 30° per 10 years, with rasi and nakshatra-pada period tables |
 | **AI tables** | The same horoscope as flat tables, plus derived data (lordships, aspects, dignity, Vimsopaka, Ashtakavarga, yogas, every dasa level to pratyantar, transits and stations, a row of facts per period, what supports and weakens each topic, and where dasa and transit overlap), so an AI assistant can read every fact without working it out. A short `AI_Brief` serves an assistant that cannot load them all. See [AI sheets](#ai-sheets-and-json) |
 
-Nothing is stored: birth details are used for the calculation and discarded.
+The horoscope and matching endpoints store nothing: birth details are used for the calculation and discarded.
+
+**Astrologer consultations** are the one exception. With the visitor's consent, a booking (contact details, questions,
+birth details, slot) is kept in PostgreSQL and e-mailed to the visitor and the astrologer with the horoscope PDF;
+personal data is wiped 90 days after the appointment. Without `DATABASE_URL` those routes answer 503 and the rest
+of the API is unchanged. Design, setup (Neon, Brevo, Render), API and test plan:
+[docs/ASTROLOGER_BOOKING.md](docs/ASTROLOGER_BOOKING.md). Settings: [.env.example](.env.example).
 
 ## Files
 
@@ -26,8 +32,14 @@ Nothing is stored: birth details are used for the calculation and discarded.
 | `excel_generator.py` | Workbook: Summary, Vedic, Divisional Charts, KP, ALP, Dasa, Notes; charts drawn with cells. With the AI block, the `AI_` sheets (28, or 30 when past events were entered) follow Notes. With a marriage match, a Marriage sheet follows Notes and the `AI_Match` sheets close the workbook; `generate_match_excel()` builds the Marriage sheet and the `AI_Match` sheets alone |
 | `pdf_generator.py` | PDF with the same content; Noto fonts embedded, text shaped by HarfBuzz. With a marriage match, a Marriage section follows the notes; `generate_match_pdf()` builds that section alone |
 | `app.py` | Flask routes, request limits and CORS |
+| `booking_db.py` | Booking tables (PostgreSQL via `DATABASE_URL`); the partial unique index that makes double bookings impossible |
+| `booking_core.py` | Consultation rules without web or database code: 22 slots a day 09:00–20:00 IST, validation, `.ics` and Google Calendar link, booking tokens, log masking |
+| `booking_api.py` | `/api/astrologers`, `/api/bookings` and `/api/admin` routes, registered by `app.py` |
+| `notify.py` | Booking e-mails (Brevo or SMTP) sent from an outbox table by a background thread, with retries; retention purge |
+| `manage.py` | Commands: `init-db`, `seed`, `list`, `add`, `deactivate`, `forget`, `purge`, `schema` |
+| `schema.sql` | The booking tables as SQL (`python manage.py schema`) |
 | `fonts/` | Noto Sans fonts (SIL Open Font License, see `fonts/OFL.txt`) |
-| `tests/` | `pytest` suite: `test_engine.py` (engine and reports), `test_enrich.py` (AI tables, AI sheets, JSON routes), `test_protection.py` (request limits, body size cap, CORS, bad input), `test_reader.py` (what schema 2 added: dasa levels, faster transits, stations, period facts, topic promise and windows, optional inputs, the brief), `test_match.py` (marriage matching: the star tables against the published lists, every pair of the 108 padas against a second statement of the rules, pairs worked by hand, the route). `golden_main.json` holds fingerprints of the seven report sheets and of the `/api/horoscope` response, made by `make_golden.py`, so a change to the old output is caught |
+| `tests/` | `pytest` suite: `test_engine.py` (engine and reports), `test_enrich.py` (AI tables, AI sheets, JSON routes), `test_protection.py` (request limits, body size cap, CORS, bad input), `test_reader.py` (what schema 2 added: dasa levels, faster transits, stations, period facts, topic promise and windows, optional inputs, the brief), `test_bookings.py` (consultations: slots, validation, double bookings, calendar, e-mails, admin, retention; set `TEST_DATABASE_URL` to run it on PostgreSQL), `test_match.py` (marriage matching: the star tables against the published lists, every pair of the 108 padas against a second statement of the rules, pairs worked by hand, the route). `golden_main.json` holds fingerprints of the seven report sheets and of the `/api/horoscope` response, made by `make_golden.py`, so a change to the old output is caught |
 
 ## API
 

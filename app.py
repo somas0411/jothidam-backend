@@ -69,9 +69,11 @@ ALLOWED_ORIGINS = [
 ]
 # CORS only tells browsers which websites may read the answers. It does not
 # stop a script from calling the API directly; the limits below do that.
+# Only the admin routes (booking_api.py) take PUT and DELETE.
 CORS(app, origins=ALLOWED_ORIGINS + [o for o in os.environ.get('EXTRA_ORIGINS', '').split(',') if o],
-     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], expose_headers=['Content-Disposition', 'Retry-After'],
-     max_age=600, always_send=False)
+     resources={r'/api/admin/*': {'methods': ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']},
+                r'/*': {'methods': ['GET', 'POST', 'OPTIONS']}},
+     expose_headers=['Content-Disposition', 'Retry-After'], max_age=600, always_send=False)
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger('horoscopegen')

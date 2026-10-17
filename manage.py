@@ -7,6 +7,7 @@ manage.py — maintenance commands for the booking database (reads DATABASE_URL)
   python manage.py add --name "..." --age 52 --phone +919876543210 --email a@b.in --fee 500
   python manage.py deactivate ID   stop taking bookings for an astrologer
   python manage.py purge           wipe personal data past the retention period now
+  python manage.py forget BOOKING_ID   wipe one booking's personal data now (a deletion request)
   python manage.py schema          print the PostgreSQL schema (what schema.sql holds)
 
 Astrologers are normally managed on the admin page (admin.html). Their phone
@@ -73,6 +74,8 @@ def main(argv=None):
     add.add_argument('--phone', required=True)
     add.add_argument('--email', required=True)
     add.add_argument('--fee', type=int, required=True)
+    fg = sub.add_parser('forget')
+    fg.add_argument('booking_id')
     off = sub.add_parser('deactivate')
     off.add_argument('id', type=int)
     args = p.parse_args(argv)
@@ -105,6 +108,9 @@ def main(argv=None):
             conn.execute(update(D.astrologers).where(D.astrologers.c.id == args.id)
                          .values(is_active=False, updated_at=D.utcnow()))
         print(f'Astrologer {args.id} no longer takes bookings.')
+    elif args.cmd == 'forget':
+        import notify
+        print('Wiped.' if notify.forget_booking(args.booking_id) else 'No such booking.')
     elif args.cmd == 'purge':
         import notify
         print(f'Wiped {notify.purge_personal_data()} booking(s).')

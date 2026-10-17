@@ -500,7 +500,28 @@ def test_purge_after_retention(client, monkeypatch):
     assert client.get(f"/api/bookings/{out['id']}/pdf?token={out['token']}").status_code == 410
 
 
+def test_forget_one_booking(client):
+    out = client.post('/api/bookings', json=body()).get_json()
+    assert notify.forget_booking(out['id']) is True
+    with D.engine().connect() as conn:
+        row = conn.execute(D.bookings.select()).first()
+    assert row.status == 'cancelled' and row.user_email == 'deleted@invalid' and row.purged_at
+    assert slots_of(client)['09:30'] == 'available'
+    assert notify.process_outbox_once(now=NOW, send=lambda m: 1 / 0) == 0      # queued e-mails dropped
+
+
 # ── ADMIN ─────────────────────────────────────────────────────────────────────
+
+def test_admin_preflight_allows_put_and_delete(client):
+    ask = {'Origin': 'https://www.horoscopegen.in', 'Access-Control-Request-Method': 'PUT',
+           'Access-Control-Request-Headers': 'content-type, x-admin-key'}
+    rv = client.options('/api/admin/astrologers/1', headers=ask)
+    assert rv.headers['Access-Control-Allow-Origin'] == 'https://www.horoscopegen.in'
+    assert {'PUT', 'DELETE'} <= {m.strip() for m in rv.headers['Access-Control-Allow-Methods'].split(',')}
+    assert 'x-admin-key' in rv.headers['Access-Control-Allow-Headers'].lower()
+    rv = client.options('/api/bookings', headers=dict(ask, **{'Access-Control-Request-Method': 'POST'}))
+    assert 'PUT' not in rv.headers['Access-Control-Allow-Methods']
+
 
 def test_admin_needs_the_key(client, monkeypatch):
     assert client.get('/api/admin/astrologers').status_code == 401

@@ -357,6 +357,21 @@ def purge_personal_data(now=None):
     return count
 
 
+def forget_booking(booking_id, now=None):
+    """Wipe one booking's personal data now (a deletion request). Cancels it first if still upcoming."""
+    now = now or D.utcnow()
+    with D.engine().begin() as conn:
+        result = conn.execute(update(D.bookings).where(D.bookings.c.id == booking_id).values(
+            user_name='[deleted]', user_email='deleted@invalid', user_whatsapp='+0', questions=[],
+            horoscope_input={}, idempotency_key=None, purged_at=now))
+        conn.execute(update(D.bookings).where(and_(D.bookings.c.id == booking_id, D.bookings.c.status == 'confirmed',
+                                                   D.bookings.c.slot_start_utc > now))
+                     .values(status='cancelled', cancelled_at=now, cancelled_by='admin'))
+        conn.execute(update(D.outbox).where(and_(D.outbox.c.booking_id == booking_id, D.outbox.c.status == 'pending'))
+                     .values(status='skipped'))
+    return bool(result.rowcount)
+
+
 def _loop():
     last_purge = None
     while True:

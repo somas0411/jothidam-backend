@@ -10,6 +10,7 @@ Endpoints
   POST /api/download/json      the horoscope plus the AI block, as a JSON file
   POST /api/match              marriage matching (porutham) of two people as JSON
   POST /api/download/match/excel, /pdf   the same match as a workbook or a PDF
+  /api/astrologers..., /api/bookings..., /api/admin...   astrologer consultations (booking_api.py)
 
 The two single-horoscope downloads also take "partner" (birth details of a
 partner): the workbook then gains a Marriage sheet and the PDF a Marriage
@@ -21,7 +22,11 @@ agree. The Excel and JSON downloads also call enrich(), which adds flat
 tables of derived facts for AI readers; /api/horoscope adds them only when
 the body has "ai": true.
 
-Nothing is stored: birth details are used for the calculation and discarded.
+The horoscope endpoints store nothing: birth details are used for the
+calculation and discarded. The one exception is an astrologer consultation
+the user books with their consent (booking_api.py): the booking, the user's
+contact details, questions and birth details are kept in the database until
+RETENTION_DAYS (default 90) after the appointment, then wiped (notify.py).
 
 The API is public (the website calls it from the visitor's browser), so it is
 protected by limits rather than by secrecy: a cap on the request body size and
@@ -42,6 +47,7 @@ from flask_limiter import Limiter
 from limits import parse as parse_limit
 from werkzeug.exceptions import HTTPException, TooManyRequests
 
+import booking_api
 import charts
 import i18n
 from astro_engine import AYANAMSHAS, InputError, compute, geocode, to_jsonable
@@ -64,7 +70,7 @@ ALLOWED_ORIGINS = [
 # CORS only tells browsers which websites may read the answers. It does not
 # stop a script from calling the API directly; the limits below do that.
 CORS(app, origins=ALLOWED_ORIGINS + [o for o in os.environ.get('EXTRA_ORIGINS', '').split(',') if o],
-     methods=['GET', 'POST', 'OPTIONS'], expose_headers=['Content-Disposition', 'Retry-After'],
+     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], expose_headers=['Content-Disposition', 'Retry-After'],
      max_age=600, always_send=False)
 
 logging.basicConfig(level=logging.INFO)
@@ -524,6 +530,21 @@ def download_json():
         data = json.dumps(out, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
         return _file_response(data, _filename(res['meta']['name'], 'json'), 'application/json; charset=utf-8')
     return _guard(run)
+
+
+# ── ASTROLOGER CONSULTATIONS ──────────────────────────────────────────────────
+
+def _booking_compute(birth, lang):
+    """compute() for the birth details stored with a booking (they always hold coordinates)."""
+    return _compute(birth, dict(birth, lang=lang))
+
+
+def _booking_pdf(birth, lang):
+    """The same PDF as /api/download/pdf, for a booking's stored birth details."""
+    return generate_pdf(_booking_compute(birth, lang), lang)
+
+
+booking_api.register(app, limiter, check_birth=_booking_compute, render_pdf=_booking_pdf)
 
 
 if __name__ == '__main__':

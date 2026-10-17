@@ -9,3 +9,5 @@ uharfbuzz>=0.39
 timezonefinder>=6.5
 tzdata
 requests==2.34.2
+sqlalchemy==2.0.*
+psycopg[binary]==3.2.*

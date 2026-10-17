@@ -605,3 +605,27 @@ def test_admin_blocks_a_day_and_sees_bookings(client):
     assert [b['id'] for b in listed] == [bid] and listed[0]['user_email'] == 'priya@example.com'
     assert client.post(f'/api/admin/bookings/{bid}/cancel', headers=admin()).get_json()['changed'] is True
     assert slots_of(client)['09:30'] == 'available'
+
+
+def test_admin_deletes_an_astrologer(client, monkeypatch):
+    bid = client.post('/api/bookings', json=body()).get_json()['id']
+    client.post('/api/admin/astrologers/1/blocks', json={'from': '2026-10-25'}, headers=admin())
+    assert client.delete('/api/admin/astrologers/1').status_code == 401              # needs the key
+    r = client.delete('/api/admin/astrologers/1', headers=admin())
+    assert r.status_code == 409 and r.get_json()['code'] == 'has_bookings'          # upcoming booking
+    client.post(f'/api/admin/bookings/{bid}/cancel', headers=admin())
+    r = client.delete('/api/admin/astrologers/1', headers=admin())
+    assert r.status_code == 200 and r.get_json() == {'deleted': 1, 'bookings_removed': 1}
+    assert 1 not in {a['id'] for a in client.get('/api/astrologers').get_json()['astrologers']}
+    assert client.get('/api/astrologers/1').status_code == 404
+    with D.engine().connect() as conn:
+        assert conn.execute(D.bookings.select()).first() is None
+        assert conn.execute(D.outbox.select()).first() is None
+    assert client.delete('/api/admin/astrologers/1', headers=admin()).status_code == 404
+
+
+def test_past_bookings_do_not_block_deleting(client, monkeypatch):
+    client.post('/api/bookings', json=body())
+    monkeypatch.setattr(D, 'utcnow', lambda: NOW + timedelta(days=3))              # the slot is over
+    r = client.delete('/api/admin/astrologers/1', headers=admin())
+    assert r.status_code == 200 and r.get_json()['bookings_removed'] == 1

@@ -69,7 +69,7 @@ device is in another time zone also sees their own time on every slot.
 | POST | `/api/bookings/<id>/cancel` | body `{"token"}`; frees the slot, e-mails both |
 | GET | `/api/bookings/<id>/ics?token=` | calendar file, reminders 1 day and 30 min before |
 | GET | `/api/bookings/<id>/pdf?token=` | the horoscope PDF |
-| | `/api/admin/...` | header `X-Admin-Key`; see the docstring of `booking_api.py` |
+| | `/api/admin/...` | header `X-Admin-Key`: add, edit, delete astrologers (delete is refused while they have upcoming bookings), hours, days off, bookings; see `booking_api.py` |
 
 Errors are `{"error", "code", "fields"}`. Limits per visitor: booking 5 an
 hour, cancel 10 an hour, slots and lists 60 a minute. A hidden honeypot field

@@ -11,7 +11,9 @@ bookings.notification_status. No Redis or Celery is needed. Rows are claimed
 with SELECT ... FOR UPDATE SKIP LOCKED, so it stays correct if more workers
 are ever added.
 
-E-mail providers (first one configured wins):
+E-mail providers (first one configured wins). All but SMTP send over HTTPS,
+which Render's free plan allows; it blocks the SMTP ports (25, 465, 587).
+  RESEND_API_KEY                         Resend (free tier: 3,000 e-mails a month, 100 a day)
   BREVO_API_KEY                          Brevo transactional API (free tier: 300 e-mails a day)
   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD    any SMTP server
   neither                                the message is logged (masked) and marked "logged": local development
@@ -255,6 +257,17 @@ def _sender():
 def send_email(msg):
     """Send one message. Returns 'sent' or 'logged'; raises on a provider error."""
     name, addr = _sender()
+    if os.environ.get('RESEND_API_KEY'):
+        body = {'from': formataddr((name, addr)), 'to': [msg['to']],
+                'reply_to': [msg['reply_to'][0]], 'subject': msg['subject'],
+                'html': msg['html'], 'text': msg['text'],
+                'attachments': [{'filename': f, 'content': base64.b64encode(b).decode(), 'content_type': mime}
+                                for f, b, mime in msg['attachments']]}
+        r = requests.post('https://api.resend.com/emails', json=body, timeout=30,
+                          headers={'Authorization': f"Bearer {os.environ['RESEND_API_KEY']}"})
+        if r.status_code >= 300:
+            raise RuntimeError(f'Resend answered {r.status_code}')
+        return 'sent'
     if os.environ.get('BREVO_API_KEY'):
         body = {'sender': {'name': name, 'email': addr}, 'to': [{'email': msg['to'], 'name': msg['to_name']}],
                 'replyTo': {'email': msg['reply_to'][0], 'name': msg['reply_to'][1]},

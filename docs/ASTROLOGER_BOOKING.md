@@ -87,7 +87,29 @@ repeated click return the same booking instead of a second one.
 
 The free plan allows 1 GB of storage and 100 compute-hours a month per project, and pauses the database after 5 idle minutes (the first request after a pause takes about a second longer). The app is built to let it pause: the e-mail worker touches the database only after a booking or cancellation, when a retry is due, and every 6 hours for the retention purge. Check **Usage** in Neon's dashboard after the first weeks.
 
-### 2. E-mail (Brevo, free)
+### 2. E-mail (Resend, free)
+
+Render's free plan blocks the SMTP ports (25, 465, 587), so Gmail or any SMTP
+server works only on a paid instance. Resend sends over HTTPS and its free
+tier (3,000 e-mails a month, 100 a day) covers about 50 bookings a day.
+
+1. Sign up at resend.com. Under **Domains → Add Domain**, enter `horoscopegen.in` and pick a region (any; e.g. Tokyo or us-east-1).
+2. Resend lists the records to add. For a domain whose DNS is at GoDaddy, **Auto configure** adds them for you; otherwise add them by hand, typing only the short name (`send`, not `send.horoscopegen.in`):
+
+   | Type | Name | Value | Priority |
+   |---|---|---|---|
+   | MX | `send` | as shown (`feedback-smtp.<region>.amazonses.com`) | 10 |
+   | TXT | `send` | `v=spf1 include:amazonses.com ~all` | |
+   | TXT | `resend._domainkey` | as shown (`p=…`) | |
+
+   These sit on the `send` subdomain, so they do not touch the domain's existing mail or website records. Leave **Receiving** off.
+3. Press **Verify DNS Records**. It usually verifies within minutes to a few hours.
+4. Under **API Keys → Create API Key**: name `jothidam-backend`, permission **Sending access**, domain `horoscopegen.in`. Copy the key (`re_…`), shown once.
+5. On Render set `RESEND_API_KEY` to it and `EMAIL_FROM` to `HoroscopeGen <bookings@horoscopegen.in>`; leave `BREVO_API_KEY` empty or delete it.
+
+The **Emails** page in Resend lists every message with its status.
+
+### 2b. E-mail (Brevo, alternative)
 
 1. Sign up at brevo.com (free plan). Brevo may ask you to confirm your account details before sending is enabled.
 2. Go to **Settings → Senders, Domains, IPs → Domains** and press **Add a domain**. Enter `horoscopegen.in` (the domain, not an address) and press **Authenticate**.
@@ -120,7 +142,7 @@ DATABASE_URL     = <Neon connection string without the password, e.g.
 DATABASE_PASSWORD = <the neondb_owner password, on its own>
 BOOKING_SECRET   = <python -c "import secrets; print(secrets.token_hex(32))">
 ADMIN_API_KEY    = <another long random string; you type it on admin.html>
-BREVO_API_KEY    = <from Brevo>
+RESEND_API_KEY   = <from Resend>
 EMAIL_FROM       = HoroscopeGen <bookings@horoscopegen.in>
 SITE_URL         = https://horoscopegen.in
 PUBLIC_API_URL   = https://jothidam-backend.onrender.com

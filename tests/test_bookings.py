@@ -500,8 +500,32 @@ def test_cancel_notifies_both(client, sent):
     assert _status(out['id'])['cancel_email_astrologer'] == 'sent'
 
 
+def test_resend_request(monkeypatch):
+    calls = []
+
+    class Answer:
+        status_code = 200
+
+    monkeypatch.setenv('RESEND_API_KEY', 're_test')
+    monkeypatch.setenv('EMAIL_FROM', 'HoroscopeGen <bookings@horoscopegen.in>')
+    monkeypatch.setattr(notify.requests, 'post', lambda url, **kw: calls.append((url, kw)) or Answer())
+    msg = {'to': 'priya@example.com', 'to_name': 'Priya', 'reply_to': ('astro@example.com', 'Astro'),
+           'subject': 'Appointment confirmed', 'text': 'hi', 'html': '<p>hi</p>',
+           'attachments': [('h.pdf', b'%PDF', 'application/pdf'), ('c.ics', b'BEGIN', 'text/calendar')]}
+    assert notify.send_email(msg) == 'sent'
+    url, kw = calls[0]
+    assert url == 'https://api.resend.com/emails' and kw['headers']['Authorization'] == 'Bearer re_test'
+    b = kw['json']
+    assert b['from'] == 'HoroscopeGen <bookings@horoscopegen.in>' and b['to'] == ['priya@example.com']
+    assert b['reply_to'] == ['astro@example.com']
+    assert [a['filename'] for a in b['attachments']] == ['h.pdf', 'c.ics'] and b['attachments'][0]['content'] == 'JVBERg=='
+    Answer.status_code = 403
+    with pytest.raises(RuntimeError, match='Resend answered 403'):
+        notify.send_email(msg)
+
+
 def test_no_provider_logs_without_personal_data(client, monkeypatch, caplog):
-    for k in ('BREVO_API_KEY', 'SMTP_HOST'):
+    for k in ('RESEND_API_KEY', 'BREVO_API_KEY', 'SMTP_HOST'):
         monkeypatch.delenv(k, raising=False)
     monkeypatch.setattr(notify, '_render_pdf', lambda b, l: b'%PDF')
     bid = client.post('/api/bookings', json=body()).get_json()['id']

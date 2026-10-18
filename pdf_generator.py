@@ -15,6 +15,7 @@ from fpdf import FPDF
 import charts
 import i18n
 import match_engine
+import saptarishi
 from excel_generator import (MATCH_WINDOWS_SHOWN, _match_group_counts, _match_note, _match_person,
                              _match_points, _match_summary)
 
@@ -441,6 +442,11 @@ def _hm(dt):
 
 # ── PAGES ─────────────────────────────────────────────────────────────────────
 
+def _sapta(res):
+    """The Saptarishi block of a compute() result (computed here for results made without it)."""
+    return res.get('saptarishi') or saptarishi.info(res)
+
+
 def _summary(pdf, specs):
     res, lang = pdf.res, pdf.lang
     m, v, kp, alp = res['meta'], res['vedic'], res['kp'], res['alp']
@@ -459,6 +465,7 @@ def _summary(pdf, specs):
             (L('lat'), f"{m['lat']:.4f}°"), (L('lon'), f"{m['lon']:.4f}°")]
     if m.get('gender'):
         left.append((L('gender'), i18n.word(m['gender'].title(), lang)))
+    left += saptarishi.gotra_rows(_sapta(res)['gotra'], lang)
     right = [(L('tz'), f"{m['tz']} ({m['utc_offset_str']})"),
              (L('ayanamsha'), f"{m['ayanamsha_name']}  {v['ayanamsha_dms']}"),
              (L('kp_ayanamsha'), kp['ayanamsha_dms']),
@@ -526,6 +533,7 @@ def _vedic(pdf, specs):
         (L('sunrise'), _hm(pc['sunrise'])), (L('sunset'), _hm(pc['sunset'])),
         (L('mandi_rise'), _hm(v['mandi']['rise_time']) if v.get('mandi') else '—'),
         (L('dasa_balance'), _balance(v['dasa']['balance'], lang)),
+        saptarishi.samvat_row(_sapta(res)['samvat'], lang),
     ], row_h=6.4)
     pdf.set_y(y_after)
 
@@ -827,6 +835,13 @@ def _notes(pdf):
         (L('kp_chart'), 'Roman numerals I-XII mark the sign in which each house cusp falls.'),
     ]
     pdf.table([('', 22, 'LEFT'), ('', 78, 'LEFT')], items, font_size=8, line_h=4.8, wrap=True)
+
+    sp = _sapta(res)
+    pdf.section(i18n.SL('samvat', lang), need=30)
+    items = [(f"{i18n.SL('samvat', lang)}: {sp['samvat']['display']}", saptarishi.note_text('samvat_note', lang))]
+    if sp['gotra']:
+        items.append((i18n.SL('gotra_section', lang), saptarishi.note_text('lineage_note', lang)))
+    pdf.table([('', 22, 'LEFT'), ('', 78, 'LEFT')], items, font_size=8, line_h=4.8, wrap=True)
     # Closing disclaimer: keep it whole, never one stray word on a new page.
     pdf.set_font('main', '', 7.5)
     pdf.set_text_color(*MUTED)
@@ -927,6 +942,24 @@ def _marriage(pdf, match, people):
             pdf.cell(BODY_W, 4.5, ML('windows_shown').format(n=len(shown), total=len(windows)),
                      new_x='LMARGIN', new_y='NEXT')
             pdf.ln(3)
+
+    # Gotra (when given) and the Arundhati note: information only, no result depends on them
+    sv = saptarishi.match_view(match.get('saptarishi'), lang)
+
+    def paragraph(text, size, color):
+        pdf.set_font('main', '', size)
+        pdf.set_text_color(*color)
+        pdf.set_x(MARGIN)
+        pdf.multi_cell(BODY_W, size * 0.62, text, align='L', new_x='LMARGIN', new_y='NEXT')
+        pdf.ln(3)
+    if sv['gotra']:
+        pdf.section(sv['gotra']['title'], need=12 + 5.6 * len(sv['gotra']['rows']) + 14)
+        y = pdf.pairs(MARGIN, pdf.get_y(), BODY_W, sv['gotra']['rows'], label_w=0.4)
+        pdf.set_y(y + 1)
+        paragraph(sv['gotra']['note'], 7.2, MUTED)
+    pdf.section(sv['arundhati']['title'], need=40)
+    pdf.ln(1.5)
+    paragraph(sv['arundhati']['text'], 8.2, INK)
 
     settings = match['settings']
     pdf.section(ML('settings'), need=25)

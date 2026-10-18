@@ -889,7 +889,7 @@ def _build_alp(lagna_lon, local_dt, now, years=120):
 
 def compute(name, dob, tob, pob, lat=None, lon=None, tz=None, utc_offset=None,
             ayanamsha='lahiri', node='mean', gender='', lang='en', chart_style='south',
-            now=None):
+            now=None, gotra=None):
     """
     Build the complete horoscope.
 
@@ -898,6 +898,7 @@ def compute(name, dob, tob, pob, lat=None, lon=None, tz=None, utc_offset=None,
     tz: IANA zone name; utc_offset: hours, overrides tz when given.
     now: reference moment for "current" periods (naive local time of the
          birth zone); defaults to the present.
+    gotra: optional, as entered; only used for the rishi lineage (saptarishi.py).
     """
     try:
         y, m, d = [int(x) for x in str(dob).split('-')]
@@ -932,7 +933,7 @@ def compute(name, dob, tob, pob, lat=None, lon=None, tz=None, utc_offset=None,
     alp['planets'] = [dict(p, house=((p['sign'] - alp['lagna_sign']) % 12) + 1)
                       for p in vedic['planets'] if p['name'] != 'Lagna']
 
-    return {
+    res = {
         'meta': {
             'name': name, 'gender': gender or '', 'dob': dob, 'tob': tob, 'pob': pob,
             'place_resolved': place_resolved,
@@ -949,6 +950,9 @@ def compute(name, dob, tob, pob, lat=None, lon=None, tz=None, utc_offset=None,
         'kp': kp,
         'alp': alp,
     }
+    import saptarishi                  # imported here: saptarishi.py uses this module
+    res['saptarishi'] = saptarishi.info(res, gotra)
+    return res
 
 
 def to_jsonable(obj):

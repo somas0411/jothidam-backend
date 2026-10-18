@@ -78,6 +78,12 @@ GET  /health
 - `ayanamsha`: `lahiri`, `kp`, `raman`, `yukteshwar` (Vedic and ALP sections;
   the KP section always uses the KP ayanamsha).
 - `node`: `mean` or `true`. `chartStyle`: `south` or `north`.
+- `gotra`: optional, free text (e.g. `"Kaundinya"`; common spellings are
+  accepted). Used only to show the root rishi (`data/gotra_rishi.json`); when
+  it is blank nothing about it is shown. The answer always carries
+  `saptarishi` (the Saptarishi Samvat year and the gotra lookup) and
+  `saptarishi_view` (the same, as label / value rows in the report language).
+  See `saptarishi.py` for the era formula.
 - `ai`: optional. On `/api/horoscope`, `true` adds the `ai` block; without it
   the response is exactly as before. `"brief"`, on `/api/horoscope` and
   `/api/download/json`, returns `meta` and `ai.brief` (the rows of `AI_Brief`)
@@ -241,6 +247,12 @@ is stored.
   name}`. The pada may be left out; the rasi is needed only for a star that
   lies in two rasis when the pada is not given. A record that cannot be true
   (Rohini in Mesha) is HTTP 400.
+- Either person may also hold an optional `gotra` (both modes). It is shown
+  with its root rishi, and "Same gotra: Yes/No" when both are given; it is
+  information only and changes no row, count or result of the match. The
+  answer then has `saptarishi` (the two gotras and `same`) and
+  `saptarishi_view` (the gotra rows and the Arundhati note, in the language
+  of the result).
 - The answer: `persons`, `settings`, `rows`, `summary`, `windows`, `rules`, `table_sources`,
   `not_included`, and in full mode `charts` (the rasi and navamsa chart of
   each, for the page to draw side by side).

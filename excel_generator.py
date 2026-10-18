@@ -31,6 +31,7 @@ from openpyxl.worksheet.properties import PageSetupProperties
 import charts
 import i18n
 import match_engine
+import saptarishi
 from astro_engine import fmt_dms, fmt_sign_dms
 
 # ── PALETTE (print-friendly: white paper, dark ink, one accent) ───────────────
@@ -390,6 +391,11 @@ def _age(start, birth):
 
 # ── SHEETS ────────────────────────────────────────────────────────────────────
 
+def _sapta(res):
+    """The Saptarishi block of a compute() result (computed here for results made without it)."""
+    return res.get('saptarishi') or saptarishi.info(res)
+
+
 def _summary(wb, res, specs, lang):
     g = Grid(wb, _sheet_name('summary', lang), lang, first=True)
     m, v, kp, alp = res['meta'], res['vedic'], res['kp'], res['alp']
@@ -417,6 +423,7 @@ def _summary(wb, res, specs, lang):
              (L('sunset'), _t(pc['sunset']) if pc['sunset'] else '—', TIME_FMT)]
     if m.get('gender'):
         left.append((L('gender'), i18n.word(m['gender'].title(), lang)))
+    left += saptarishi.gotra_rows(_sapta(res)['gotra'], lang)
     r = max(g.pairs(r, COL0, left), g.pairs(r, RIGHT0, right)) + 1
 
     g.section(r, L('core'))
@@ -479,6 +486,7 @@ def _vedic(wb, res, specs, lang):
         (L('sunset'), _t(pc['sunset']) if pc['sunset'] else '—', TIME_FMT),
         (L('mandi_rise'), _t(v['mandi']['rise_time']) if v.get('mandi') else '—', TIME_FMT),
         (L('dasa_balance'), _balance_text(v['dasa']['balance'], lang)),
+        saptarishi.samvat_row(_sapta(res)['samvat'], lang),
     ])
     r = top + 14
 
@@ -830,8 +838,14 @@ def _notes(wb, res, lang, ai=None):
     c = ws.cell(row=r + 1, column=2, value=L('disclaimer'))
     c.font = _font(8, False, MUTED, True)
     c.alignment = Alignment(horizontal='center')
+    # Added below everything that was already on the sheet, so no existing cell moves.
+    sp = _sapta(res)
+    r = band(r + 3, i18n.SL('samvat', lang))
+    r = row(r, f"{i18n.SL('samvat', lang)}: {sp['samvat']['display']}", saptarishi.note_text('samvat_note', lang))
+    if sp['gotra']:
+        r = row(r, i18n.SL('gotra_section', lang), saptarishi.note_text('lineage_note', lang))
+    r -= 2                      # the AI block below starts two rows lower, as before
     if ai:
-        # Added below everything that was already on the sheet, so no existing cell moves.
         r = band(r + 3, 'AI sheets: rules and variants')
         r = row(r, 'About', 'The sheets named AI_ repeat this horoscope as flat tables for AI readers and add '
                             'derived data. They are always in English. AI_ReadMe explains every column. '
@@ -1013,6 +1027,21 @@ def _marriage(wb, match, people, lang, first=False):
                   span=GRID_N, size=8, color=MUTED, italic=True, border=False, wrap=False)
             r += 1
         r += 1
+
+    # Gotra (when given) and the Arundhati note: information only, no result depends on them
+    sv = saptarishi.match_view(match.get('saptarishi'), lang)
+
+    def note_cell(r, text, size=MATCH_FONT, color=INK, italic=False):
+        lines = sum(_match_lines(part, GRID_N, lang) for part in text.split('\n'))
+        g.height(r, max(ROW_H, lines * MATCH_LINE_H + 6))
+        g.put(r, COL0, text, span=GRID_N, size=size, color=color, italic=italic, v='top', wrap=True)
+        return r + 1
+    if sv['gotra']:
+        r = g.section(r, sv['gotra']['title'])
+        r = g.pairs(r, COL0, sv['gotra']['rows'], label_span=10, value_span=15)
+        r = note_cell(r, sv['gotra']['note'], size=8, color=MUTED, italic=True) + 1
+    r = g.section(r, sv['arundhati']['title'])
+    r = note_cell(r, sv['arundhati']['text']) + 1
 
     # Settings, rules, sources
     settings = match['settings']

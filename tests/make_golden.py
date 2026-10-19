@@ -11,6 +11,13 @@ main really produced and not against the code under test.
 
 Run it again only after an intended change to the seven sheets or to the
 API, or after upgrading openpyxl or Flask (which can change formats).
+
+Regenerated for the Saptarishi additions (saptarishi.py). Checked against
+the previous golden before regenerating: the only differences were one new
+row on the Vedic sheet (Saptarishi Samvat in the Panchangam box, row 28),
+three new rows at the foot of Notes (no existing row changed), and two new
+keys in the /api/horoscope answer ("saptarishi", "saptarishi_view"); every
+other key of that answer was identical.
 """
 import functools
 import hashlib

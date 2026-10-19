@@ -1,0 +1,39 @@
+{
+  "_about": "Gotra -> root rishi (gotra-founding tradition: Kashyapa, Atri, Vasishtha, Vishvamitra, Gautama, Jamadagni, Bharadvaja, with Agastya as the eighth). This is NOT the list of the seven star names of the Saptarishi Mandala (Marichi, Vasishtha, Angiras, Atri, Pulastya, Pulaha, Kratu); a root rishi is linked to a star only when it is also a star name (Vasishtha, Atri). Starting table: needs review by a knowledgeable person. Names in other scripts are in i18n.py (GOTRA_NAMES, RISHI_NAMES).",
+  "rishis": {
+    "kashyapa":    {"line": null, "star": null},
+    "atri":        {"line": null, "star": "megrez"},
+    "vasishtha":   {"line": null, "star": "mizar"},
+    "vishvamitra": {"line": null, "star": null},
+    "gautama":     {"line": null, "star": null},
+    "jamadagni":   {"line": "bhrigu", "star": null},
+    "bharadvaja":  {"line": "angirasa", "star": null},
+    "agastya":     {"line": null, "star": null}
+  },
+  "gotras": {
+    "kashyapa":      {"rishi": "kashyapa",    "aliases": ["kashyapa", "kasyapa", "kashyap", "kasyap", "kaashyapa", "kashyaba"]},
+    "shandilya":     {"rishi": "kashyapa",    "aliases": ["shandilya", "sandilya", "shaandilya", "sandilyasa"]},
+    "naidhruva":     {"rishi": "kashyapa",    "aliases": ["naidhruva", "naidruva", "nidhruva"]},
+    "rebha":         {"rishi": "kashyapa",    "aliases": ["rebha", "raibhya"]},
+    "atreya":        {"rishi": "atri",        "aliases": ["atreya", "athreya", "atri", "athri", "aatreya"]},
+    "gavishthira":   {"rishi": "atri",        "aliases": ["gavishthira", "gavishtira", "gavisthira"]},
+    "vasishtha":     {"rishi": "vasishtha",   "aliases": ["vasishtha", "vasistha", "vashishtha", "vasishta", "vashista", "vasista", "vashishta", "vasishtar"]},
+    "kaundinya":     {"rishi": "vasishtha",   "aliases": ["kaundinya", "koundinya", "kowndinya", "kaundinyasa", "kaundinyasya", "koundinyasa"]},
+    "parashara":     {"rishi": "vasishtha",   "aliases": ["parashara", "parasara", "parashar", "parasar"]},
+    "upamanyu":      {"rishi": "vasishtha",   "aliases": ["upamanyu"]},
+    "kaushika":      {"rishi": "vishvamitra", "aliases": ["kaushika", "kausika", "kousika", "kowsika", "koushika", "kaushik", "koushik"]},
+    "vishvamitra":   {"rishi": "vishvamitra", "aliases": ["vishvamitra", "viswamitra", "vishwamitra", "visvamitra", "vishwamithra", "viswamithra"]},
+    "kata":          {"rishi": "vishvamitra", "aliases": ["kata"]},
+    "aghamarshana":  {"rishi": "vishvamitra", "aliases": ["aghamarshana", "aghamarshan", "agamarshana"]},
+    "gautama":       {"rishi": "gautama",     "aliases": ["gautama", "gautam", "gauthama", "gouthama", "gowtham", "gowthama", "goutham", "gotama"]},
+    "srivatsa":      {"rishi": "jamadagni",   "aliases": ["srivatsa", "sreevatsa", "shrivatsa", "srivathsa", "sreevathsa", "vatsa", "vathsa"]},
+    "bhargava":      {"rishi": "jamadagni",   "aliases": ["bhargava", "bhargav"]},
+    "jamadagni":     {"rishi": "jamadagni",   "aliases": ["jamadagni", "jamadagnya", "jaamadagnya"]},
+    "bharadvaja":    {"rishi": "bharadvaja",  "aliases": ["bharadvaja", "bharadwaja", "bharadwaj", "bharadvaj", "bharathwaja", "bharadhwaja", "bhardwaj", "bharathwaj"]},
+    "garga":         {"rishi": "bharadvaja",  "aliases": ["garga", "gargya", "gargeya"]},
+    "mudgala":       {"rishi": "bharadvaja",  "aliases": ["mudgala", "maudgalya", "moudgalya", "mudgal"]},
+    "vishnuvriddha": {"rishi": "bharadvaja",  "aliases": ["vishnuvriddha", "vishnuvrddha", "vishnuvridha", "vishnu vriddha"]},
+    "kanva":         {"rishi": "bharadvaja",  "aliases": ["kanva", "kanwa", "kannuva"]},
+    "agastya":       {"rishi": "agastya",     "aliases": ["agastya", "agasthya", "agastiya", "agasthiya"]}
+  }
+}

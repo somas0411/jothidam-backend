@@ -50,6 +50,7 @@ from werkzeug.exceptions import HTTPException, TooManyRequests
 import booking_api
 import charts
 import i18n
+import saptarishi
 from astro_engine import AYANAMSHAS, InputError, compute, geocode, to_jsonable
 from enrich import enrich
 from excel_generator import generate_excel, generate_match_excel
@@ -239,7 +240,7 @@ def _compute(details, settings, who=None):
         tz=(details.get('tz') or None), utc_offset=_num(details.get('utcOffset')),
         ayanamsha=str(settings.get('ayanamsha') or 'lahiri'), node=settings.get('node', 'mean'),
         gender=gender, lang=_lang(settings),
-        chart_style=settings.get('chartStyle', 'south'),
+        chart_style=settings.get('chartStyle', 'south'), gotra=details.get('gotra'),
     )
 
 
@@ -276,6 +277,9 @@ def _match_from_request():
             raise InputError(f'The details of the {role} are required.')
         people[role] = details if mode == 'star' else _compute(details, body, role)
     result = match(people['boy'], people['girl'], _match_options(body))
+    gotras = {role: (saptarishi.gotra_info(people[role].get('gotra')) if mode == 'star'
+                     else people[role]['saptarishi']['gotra']) for role in ('boy', 'girl')}
+    result['saptarishi'] = saptarishi.match_block(gotras['boy'], gotras['girl'])
     return result, (people if mode == 'full' else None), _lang(body)
 
 
@@ -297,7 +301,10 @@ def _partner_match(res):
         raise InputError('Set "gender" to male or female to add a marriage match with a partner.')
     own, other = ('boy', 'girl') if gender == 'male' else ('girl', 'boy')
     people = {own: res, other: _compute(partner, body, other)}
-    return match(people['boy'], people['girl'], _match_options(body)), people
+    result = match(people['boy'], people['girl'], _match_options(body))
+    result['saptarishi'] = saptarishi.match_block(people['boy']['saptarishi']['gotra'],
+                                                  people['girl']['saptarishi']['gotra'])
+    return result, people
 
 
 def _ai_mode():
@@ -440,6 +447,7 @@ def horoscope():
         keys, rows = charts.varga_table(res, lang)
         out['varga_table'] = {'keys': keys, 'rows': rows}
         out['names'] = i18n.bundle(lang)
+        out['saptarishi_view'] = saptarishi.view(res['saptarishi'], lang)
         out.update(_legacy_fields(res))
         if _wants_ai():
             out['ai'] = to_jsonable(enrich(res, extras=_extras()))
@@ -454,6 +462,7 @@ def match_route():
     def run():
         result, people, lang = _match_from_request()
         out = to_jsonable(result)
+        out['saptarishi_view'] = saptarishi.match_view(result.get('saptarishi'), lang)
         if people:
             # The two rasi and navamsa charts, for the page to draw side by side.
             out['charts'] = {role: {k: v for k, v in charts.build_specs(res, lang).items() if k in ('d1', 'd9')}

@@ -1251,9 +1251,9 @@ def test_api_download_json(client, ai):
     assert 'HoroscopeGen_Chart_S.json' in rv.headers['Content-Disposition']
     assert rv.headers['Content-Type'].startswith('application/json')
     data = json.loads(rv.data.decode('utf-8'))
-    assert set(data) == {'meta', 'vedic', 'kp', 'alp', 'ai'}
+    assert set(data) == {'meta', 'vedic', 'kp', 'alp', 'saptarishi', 'ai'}
     plain = client.post('/api/horoscope', json=G.API_BODY).get_json()
-    for key in ('meta', 'vedic', 'kp', 'alp'):
+    for key in ('meta', 'vedic', 'kp', 'alp', 'saptarishi'):
         assert data[key] == plain[key]
     assert data['ai'] == json.loads(json.dumps(A.to_jsonable(ai)))
     assert data['ai']['tables']['AI_Facts'][2] == {'key': 'birth_date', 'value': '1984-11-04',

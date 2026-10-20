@@ -28,6 +28,7 @@ of the API is unchanged. Design, setup (Neon, Brevo, Render), API and test plan:
 | `enrich.py` | `enrich(res)`: derived facts as flat tables for AI readers. A separate step, so `compute()` and the web page are not slowed down |
 | `charts.py` | Chart contents and layout shared by web page, Excel and PDF |
 | `i18n.py` | Names and labels (en, ta, hi, te, kn, ml, mr, bn, and `bi` = English + Tamil). The marriage labels are kept apart from the report labels, so the labels sent to the web page with each horoscope are unchanged |
+| `family_engine.py` | `family(members)`: family reading of 2 to 6 members, in sections A to H. Reads the `compute()` results; changes nothing in `compute()`. See [Family reading](#family-reading) |
 | `match_engine.py` | `match(boy, girl)`: marriage matching (porutham) of two people, one row per check. Reads two `compute()` results or two star-only records; changes nothing in `compute()`. See [Marriage matching](#marriage-matching) |
 | `excel_generator.py` | Workbook: Summary, Vedic, Divisional Charts, KP, ALP, Dasa, Notes; charts drawn with cells. With the AI block, the `AI_` sheets (28, or 30 when past events were entered) follow Notes. With a marriage match, a Marriage sheet follows Notes and the `AI_Match` sheets close the workbook; `generate_match_excel()` builds the Marriage sheet and the `AI_Match` sheets alone |
 | `pdf_generator.py` | PDF with the same content; Noto fonts embedded, text shaped by HarfBuzz. With a marriage match, a Marriage section follows the notes; `generate_match_pdf()` builds that section alone |
@@ -57,6 +58,10 @@ POST /api/match              -> JSON: marriage matching of two people (see Marri
                                 add "ai": true to also get the flat AI_Match tables
 POST /api/download/match/excel -> .xlsx: the Marriage sheet, then the AI_Match sheets
 POST /api/download/match/pdf   -> .pdf: the Marriage section
+POST /api/family             -> JSON: family reading of 2 to 6 members (see Family reading)
+                                add "ai": true to also get the flat AI_Family tables
+POST /api/download/family/excel -> .xlsx: the Family sheets, then the AI_Family sheets
+POST /api/download/family/pdf   -> .pdf: the family reading
 GET  /api/geocode?q=Chennai  -> place candidates with latitude, longitude, time zone
 GET  /health
 ```
@@ -128,7 +133,8 @@ service is that each visitor can only ask for so much:
 | What | Limit | Counted |
 |---|---|---|
 | `POST /api/horoscope` | 30 a minute, 300 an hour | per visitor |
-| `POST /api/download/excel`, `pdf`, `json`, `match/excel`, `match/pdf` | 10 a minute, 100 an hour, the five together | per visitor |
+| `POST /api/download/excel`, `pdf`, `json`, `match/excel`, `match/pdf`, `family/excel`, `family/pdf` | 10 a minute, 100 an hour, all together | per visitor |
+| `POST /api/family` | 6 a minute, 60 an hour (one request computes up to six horoscopes) | per visitor |
 | `POST /api/match` | 15 a minute, 150 an hour (one match computes two horoscopes) | per visitor |
 | `GET /api/geocode` | 20 a minute, 200 an hour | per visitor |
 | Any other route | 120 a minute | per visitor |
@@ -355,6 +361,45 @@ In Python: `match_engine.match(boy, girl)`, each argument a result of
 tables; `generate_match_excel(result, people, lang)` and
 `generate_match_pdf(result, people, lang)` for the files, `people` being
 `{'boy': res, 'girl': res}` or `None` for star-only records.
+
+## Family reading
+
+`POST /api/family` reads 2 to 6 family members together. Nothing is stored.
+
+```json
+{"members": [
+   {"relation": "Self", "name": "...", "dob": "1980-06-15", "tob": "09:10", "pob": "Chennai",
+    "lat": 13.08, "lon": 80.27, "tz": "Asia/Kolkata", "gender": "male"},
+   {"relation": "Spouse", "name": "...", "dob": "...", "tob": "...", "pob": "..."}],
+ "years": 10, "sandhiMonths": 12, "lang": "en", "ayanamsha": "lahiri", "chartStyle": "south"}
+```
+
+- Exactly one member is `Self` (the anchor). Relations: Self, Spouse, Father, Mother, Father-in-law,
+  Mother-in-law, Son, Daughter, Brother, Sister, Grandfather, Grandmother, Grandson, Granddaughter, Other.
+  At most one Spouse, Father, Mother and each parent-in-law; at most two Grandfathers and two Grandmothers.
+- Gender is taken from the relation; `gender` is read only for Self and Other.
+- Full birth details for every member (no star-only mode).
+- `years`: 1 to 20 (default 10). `sandhiMonths`: 1 to 36 (default 12).
+
+Sections of the answer (`sections`): A members; B the anchor's family houses (2, 3, 4, 5, 7, 9, 11) in D1
+and D12, the house of each relation (bhavat bhavam) with its karaka in D1 and the varga for the relation
+(D9, D7, D3, D12), and the house that stands for the anchor in each member's chart; C every pair: lagna
+and Moon axes (supportive 1/1, 1/7, 5/9, 3/11; needs care 4/10, 6/8, 2/12), Moon-lord relation and planet
+overlays; D shared patterns, ancestral factors and Raja / Dhana / Mahapurusha yogas; E the month-by-month
+family timeline (supportive / mixed / pressured), its windows, every bhukti in range and the mahadasa
+changes that fall close together; F Saturn, Jupiter, Rahu and Ketu from each Moon now and their sign
+changes ahead; G property, children, education, spouse and foreign travel per member and where members
+agree; H the summary. Every rule and variant is in `family_engine.FAMILY_RULES` and in `rules`.
+
+Nothing about the years of life of anyone, no health reading, and no line that blames one member for
+another's difficulty; a strained link reads "needs care in ...". `tests/test_family.py` checks this.
+
+`/api/download/family/excel` gives the Family, Relations, Pairs, Patterns, Transits and Rules sheets
+(headings in the report language) followed by the AI_Family sheets (schema `horoscopegen-family/1`);
+`/api/download/family/pdf` gives the members' rasi charts and the same tables.
+
+In Python: `family_engine.family([{'relation': 'Self', 'res': compute(...)}, ...])`,
+`family_engine.tables(result)`, `generate_family_excel(result, lang)`, `generate_family_pdf(result, lang)`.
 
 ## Run locally
 

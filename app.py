@@ -53,9 +53,10 @@ import i18n
 import saptarishi
 from astro_engine import AYANAMSHAS, InputError, compute, geocode, to_jsonable
 from enrich import enrich
-from excel_generator import generate_excel, generate_match_excel
+import family_engine
+from excel_generator import generate_excel, generate_family_excel, generate_match_excel
 from match_engine import match, tables as match_tables
-from pdf_generator import generate_match_pdf, generate_pdf
+from pdf_generator import generate_family_pdf, generate_match_pdf, generate_pdf
 
 app = Flask(__name__)
 app.json.ensure_ascii = False
@@ -92,6 +93,7 @@ app.config['MAX_CONTENT_LENGTH'] = MAX_BODY_BYTES
 LIMIT_DEFAULT = '120 per minute'
 LIMIT_HOROSCOPE = '30 per minute; 300 per hour'
 LIMIT_MATCH = '15 per minute; 150 per hour'         # one match computes two horoscopes
+LIMIT_FAMILY = '6 per minute; 60 per hour'        # one family request computes up to six horoscopes
 LIMIT_DOWNLOAD = '10 per minute; 100 per hour'      # all the downloads together
 LIMIT_GEOCODE = '20 per minute; 200 per hour'
 # Place look-ups go to OpenStreetMap Nominatim, which allows one request a
@@ -281,6 +283,42 @@ def _match_from_request():
                      else people[role]['saptarishi']['gotra']) for role in ('boy', 'girl')}
     result['saptarishi'] = saptarishi.match_block(gotras['boy'], gotras['girl'])
     return result, (people if mode == 'full' else None), _lang(body)
+
+
+def _family_from_request():
+    """
+    Read a family request and run every member through the engine.
+
+    Body: {"members": [{relation, name, dob, tob, pob, lat, lon, tz, utcOffset,
+    gender, gotra}, ...], "years": 1-20 (default 10), "sandhiMonths": 1-36
+    (default 12)} plus the settings of a horoscope request (ayanamsha, node,
+    lang, chartStyle). 2 to 6 members, exactly one with relation "Self".
+    Returns (family result, language).
+    """
+    body = _body()
+    raw = body.get('members')
+    if not isinstance(raw, list):
+        raise InputError('"members" must be a list of the family members.')
+    family_engine.check_relations([str((m or {}).get('relation', '')).strip() if isinstance(m, dict) else ''
+                                   for m in raw])
+    members = []
+    for i, details in enumerate(raw, start=1):
+        relation = str(details.get('relation', '')).strip()
+        details = dict(details, gender=family_engine.relation_gender(
+            relation, str(details.get('gender', '')).strip().lower()))
+        if not str(details.get('name', '')).strip():
+            raise InputError(f'The name of member {i} is required.')
+        try:
+            res = _compute(details, body)
+        except InputError as e:
+            raise InputError(f'{details.get("name")}: {e}') from None
+        members.append({'relation': relation, 'res': res})
+    options = {'years': body.get('years'), 'sandhi_months': body.get('sandhiMonths')}
+    return family_engine.family(members, options), _lang(body)
+
+
+def _family_filename(result, ext):
+    return _filename(f"Family_{result['anchor']}_{result['generated_utc']:%Y-%m-%d}", ext)
 
 
 def _partner_match(res):
@@ -496,6 +534,43 @@ def download_match_pdf():
     def run():
         result, people, lang = _match_from_request()
         return _file_response(generate_match_pdf(result, people, lang), _match_filename(result, 'pdf'),
+                              'application/pdf')
+    return _guard(run)
+
+
+@app.route('/api/family', methods=['POST'])
+@limiter.limit(LIMIT_FAMILY)
+def family_route():
+    """Family reading of 2 to 6 members. Nothing is stored."""
+    def run():
+        result, lang = _family_from_request()
+        out = to_jsonable(family_engine.public(result))
+        out['charts'] = [{k: v for k, v in charts.build_specs(m.res, lang).items() if k == 'd1'}
+                         for m in result['_people']]
+        if _wants_ai():
+            out['ai'] = to_jsonable(family_engine.tables(result))
+        return jsonify(out)
+    return _guard(run)
+
+
+@app.route('/api/download/family/excel', methods=['POST'])
+@download_limit
+def download_family_excel():
+    """The family reading as a workbook: Family sheets, then the AI_Family sheets."""
+    def run():
+        result, lang = _family_from_request()
+        return _file_response(generate_family_excel(result, lang), _family_filename(result, 'xlsx'),
+                              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    return _guard(run)
+
+
+@app.route('/api/download/family/pdf', methods=['POST'])
+@download_limit
+def download_family_pdf():
+    """The family reading as a PDF."""
+    def run():
+        result, lang = _family_from_request()
+        return _file_response(generate_family_pdf(result, lang), _family_filename(result, 'pdf'),
                               'application/pdf')
     return _guard(run)
 

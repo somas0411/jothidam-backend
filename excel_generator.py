@@ -29,6 +29,7 @@ from openpyxl.worksheet.pagebreak import Break
 from openpyxl.worksheet.properties import PageSetupProperties
 
 import charts
+import family_engine
 import i18n
 import match_engine
 import saptarishi
@@ -1205,6 +1206,187 @@ def generate_match_excel(match, people=None, lang='en'):
     _ai_sheets(wb, match_engine.tables(match))
     boy, girl = match['persons']['boy'], match['persons']['girl']
     wb.properties.title = f"HoroscopeGen - {boy['name']} and {girl['name']}"
+    wb.properties.creator = 'horoscopegen.in'
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+# ── FAMILY READING ────────────────────────────────────────────────────────────
+# family_blocks() lays the family result out as titled tables once; the
+# Family sheets here and the PDF (pdf_generator) both draw from it.
+
+STATUS_COLOR = {'supportive': 'D6EFD0', 'mixed': 'FFF1B8', 'pressured': 'F6D3CC'}
+FAMILY_SHEETS = (('family', 'sec_A'), ('relations', 'sec_B'), ('pairs', 'sec_C'), ('patterns', 'sec_D'),
+                 ('transits', 'sec_F'), ('rules', 'rules'))
+
+
+def _fd(dt):
+    return dt.strftime('%d-%m-%Y') if isinstance(dt, datetime) else ('' if dt is None else dt)
+
+
+def family_blocks(result, lang):
+    """
+    {sheet: [block]} where a block is {'title', 'cols': [(heading, width, align)],
+    'rows': [[values]], 'status': column index holding a status word or None}.
+    Headings are in the report language; values are the engine's English facts.
+    """
+    F = lambda k: i18n.FL(k, lang)
+    R = lambda r: i18n.relation_name(r, lang)
+    S = lambda st: i18n.FL(st, lang)
+    sec = result['sections']
+    names = {m['idx']: m['name'] for m in result['members']}
+    blocks = {k: [] for k, _ in FAMILY_SHEETS}
+
+    def block(sheet, title, cols, rows, status=None):
+        blocks[sheet].append({'title': title, 'cols': cols, 'rows': rows, 'status': status})
+
+    block('family', F('members'),
+          [(F('member'), 16, 'L'), (F('relation'), 12, 'L'), (F('lagna'), 11, 'L'), (F('moon_sign'), 11, 'L'),
+           (F('star'), 17, 'L'), (F('dasa_bhukti'), 17, 'L'), (F('saturn_from_moon'), 20, 'L'),
+           (F('jupiter_from_moon'), 18, 'L')],
+          [[m['member'], R(m['relation']), m['lagna'], m['moon_sign'], m['star'],
+            f"{m['dasa']} / {m['bhukti']} ({F('until')} {_fd(m['bhukti_end'])})",
+            m['saturn_from_moon'], m['jupiter_from_moon']] for m in sec['A']['members']])
+    block('family', F('sec_H'), [(F('sec_H'), 22, 'L'), ('', 100, 'L')],
+          [[i18n.FL('sec_' + x['section'], lang), x['text']] for x in result['summary']['lines']])
+    block('family', F('windows'), [(F('status'), 14, 'C'), (F('from'), 12, 'C'), (F('to'), 12, 'C'),
+                                   (F('months'), 10, 'C')],
+          [[S(w['status']), w['from'], w['to'], w['months']] for w in sec['E']['windows']], status=0)
+    member_cols = [(names[i], 22, 'L') for i in sorted(names)]
+    block('family', f"{F('timeline_grid')}  ·  {F('legend')}",
+          [('', 10, 'C'), (F('family_row'), 13, 'C')] + member_cols,
+          [[mo['month'], S(mo['status'])] +
+           [f"{mo['members'][i]['dasa']}/{mo['members'][i]['bhukti']} {mo['members'][i]['tag']}" for i in sorted(names)]
+           for mo in sec['E']['months']], status=1)
+
+    block('relations', F('family_houses'),
+          [('Chart', 6, 'C'), ('House', 5, 'C'), ('Name', 12, 'L'), ('Sign', 10, 'L'), ('Lord', 9, 'L'),
+           ('Lord in', 6, 'C'), ('Lord dignity', 16, 'L'), ('Occupants', 16, 'L'), ('Aspected by', 18, 'L')],
+          [[h['chart'], h['house'], h['name'], h['sign'], h['lord'], h['lord_house'], h['lord_dignity'],
+            h['occupants'], h['aspected_by']] for h in sec['B']['houses']])
+    block('relations', F('relation_houses'),
+          [(F('member'), 12, 'L'), (F('relation'), 10, 'L'), ('House', 5, 'C'), ('Rule', 20, 'L'),
+           ('Sign / lord', 14, 'L'), ('Lord dignity', 12, 'L'), ('Occupants', 12, 'L'), ('Karaka (D1)', 16, 'L'),
+           ('Karaka (varga)', 16, 'L')],
+          [[r['member'], R(r['relation']), r['house'], r['rule'], f"{r['sign']} / {r['lord']}",
+            r['lord_dignity'], r['occupants'], f"{r['karaka']}: {r['karaka_d1']}",
+            f"{r['karaka_varga']}: {r['karaka_in_varga']}"] for r in sec['B']['relations']])
+    block('relations', F('read_back'),
+          [(F('member'), 12, 'L'), (F('relation'), 10, 'L'), ('House', 5, 'C'), ('Rule', 22, 'L'),
+           ('Sign / lord', 14, 'L'), ('Lord dignity', 12, 'L'), ('Occupants', 14, 'L'), ('Aspected by', 14, 'L')],
+          [[r['member'], R(r['relation']), r['house'], r['rule'], f"{r['sign']} / {r['lord']}",
+            r['lord_dignity'], r['occupants'], r['aspected_by']] for r in sec['B']['read_back']])
+
+    block('pairs', F('sec_C'),
+          [(F('member'), 12, 'L'), (F('member'), 12, 'L'), (F('lagna'), 14, 'L'), ('', 12, 'C'),
+           (F('moon_sign'), 14, 'L'), ('', 12, 'C'), ('Moon lords', 16, 'L'), ('', 24, 'L')],
+          [[p['member_a'], p['member_b'], f"{p['lagna_axis']} ({p['lagna_count']})", S(p['lagna_reading']),
+            f"{p['moon_axis']} ({p['moon_count']})", S(p['moon_reading']),
+            f"{p['moon_lords']}: {p['moon_lords_relation']}",
+            '; '.join(x for x in (p['lagna_care'], p['moon_care']) if x)] for p in sec['C']['pairs']])
+    block('pairs', F('overlays'),
+          [(F('member'), 12, 'L'), ('Planet', 9, 'L'), ('Falls on', 24, 'L'), ('Sign', 10, 'L'),
+           ('', 12, 'C'), ('', 30, 'L')],
+          [[o['from_member'], o['planet'], o['falls_on'], o['sign'],
+            S('supportive') if o['kind'] == 'support' else S('strained'), o['reading']]
+           for o in sec['C']['overlays'] if o['kind'] != 'information'])
+
+    block('patterns', F('sec_D'), [('Pattern', 24, 'L'), ('Value', 16, 'L'), ('#', 4, 'C'),
+                                   (F('members'), 30, 'L'), ('', 24, 'L')],
+          [[p['pattern'], p['value'], p['count'], p['members'], p['note']] for p in sec['D']['patterns']])
+    block('patterns', F('yogas'), [(F('member'), 12, 'L'), (F('relation'), 10, 'L'), ('Yogas', 30, 'L'),
+                                   ('Ancestral factors', 36, 'L')],
+          [[y['member'], R(y['relation']), y['yogas'], y['ancestral_factors']] for y in sec['D']['per_member']])
+    block('patterns', F('sec_G'), [('Topic', 12, 'L'), (F('member'), 12, 'L'), ('', 12, 'C'), ('Facts', 50, 'L')],
+          [[t['topic'], t['member'], t['reading'], t['facts']] for t in sec['G']['topics']])
+    block('patterns', F('shared_topics'), [('Topic', 14, 'L'), ('', 14, 'C'), ('#', 4, 'C'),
+                                           (F('members'), 40, 'L')],
+          [[t['topic'], t['reading'], t['count'], t['members']] for t in sec['G']['shared']])
+
+    block('transits', F('transits_now'), [('Planet', 10, 'L'), ('Sign', 10, 'L'), ('From Moon', 8, 'C'),
+                                          (F('members'), 34, 'L'), ('', 22, 'L')],
+          [[t['planet'], t['sign'], t['house_from_moon'], t['members'], t['note']] for t in sec['F']['now']])
+    block('transits', F('transit_changes'), [('Planet', 9, 'L'), ('Sign', 10, 'L'), (F('from'), 11, 'C'),
+                                             (F('to'), 11, 'C'), ('', 60, 'L')],
+          [[t['planet'], t['sign'], _fd(t['entry_utc']), _fd(t['exit_utc']), t['from_each_moon']]
+           for t in sec['F']['stays']])
+    block('transits', F('sandhi'), [(F('member'), 12, 'L'), ('', 16, 'L'), ('', 11, 'C'), (F('member'), 12, 'L'),
+                                    ('', 16, 'L'), ('', 11, 'C'), (F('months'), 8, 'C')],
+          [[x['member_a'], x['change_a'], _fd(x['date_a']), x['member_b'], x['change_b'], _fd(x['date_b']),
+            x['months_apart']] for x in sec['E']['sandhi']])
+
+    block('rules', F('rules'), [('', 24, 'L'), ('', 100, 'L')], [[r['name'], r['rule']] for r in result['rules']])
+    block('rules', F('not_included'), [('', 4, 'C'), ('', 100, 'L')],
+          [[i, t] for i, t in enumerate(result['not_included'], 1)])
+    return blocks
+
+
+def _family_sheet(wb, title, blocks, lang, first=False):
+    ws = wb.active if first else wb.create_sheet()
+    ws.title = _sheet_name_text(title)
+    ws.sheet_view.showGridLines = False
+    ws.column_dimensions['A'].width = 2
+    ncols = max(len(b['cols']) for b in blocks) if blocks else 1
+    widths = [0] * ncols
+    r = 1
+    for b in blocks:
+        cell = ws.cell(r, 2, b['title'])
+        cell.font, cell.fill = _font(11, True, WHITE), _fill(BAND)
+        ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=1 + ncols)
+        ws.row_dimensions[r].height = 20
+        r += 1
+        if any(c[0] for c in b['cols']):
+            for j, (head, w, al) in enumerate(b['cols']):
+                c = ws.cell(r, 2 + j, head)
+                c.font, c.fill, c.border = _font(9, True, WHITE), _fill(HEAD), _BOX
+                c.alignment = _align('center', wrap=True)
+            r += 1
+        for k, row in enumerate(b['rows']):
+            for j, val in enumerate(row):
+                c = ws.cell(r, 2 + j, val)
+                c.font, c.border = _font(9), _BOX
+                al = b['cols'][j][2] if j < len(b['cols']) else 'L'
+                c.alignment = _align({'L': 'left', 'C': 'center', 'R': 'right'}[al], 'top', wrap=True)
+                if k % 2:
+                    c.fill = _fill(ALT)
+            if b['status'] is not None:
+                word = row[b['status']]
+                for st in STATUS_COLOR:
+                    if word == i18n.FL(st, lang):
+                        ws.cell(r, 2 + b['status']).fill = _fill(STATUS_COLOR[st])
+            r += 1
+        for j, (_, w, _) in enumerate(b['cols']):
+            widths[j] = max(widths[j], w)
+        r += 1
+    for j, w in enumerate(widths):
+        ws.column_dimensions[get_column_letter(2 + j)].width = max(w, 6)
+    ws.page_setup.paperSize = ws.PAPERSIZE_A4
+    ws.page_setup.orientation = 'landscape'
+    ws.sheet_properties.pageSetUpPr = PageSetupProperties(fitToPage=True)
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.oddFooter.left.text = 'horoscopegen.in'
+    ws.oddFooter.center.text = '&P / &N'
+    return ws
+
+
+def generate_family_excel(result, lang='en'):
+    """
+    The family reading: Family, Relations, Pairs, Patterns, Transits and
+    Rules sheets, then the AI_Family sheets. result: family_engine.family().
+    Returns bytes.
+    """
+    if lang not in i18n.LANGS:
+        lang = 'en'
+    wb = openpyxl.Workbook()
+    blocks = family_blocks(result, lang)
+    titles = {'family': 'Family', 'relations': 'Relations', 'pairs': 'Pairs', 'patterns': 'Patterns',
+              'transits': 'Transits', 'rules': 'Rules'}
+    for i, (key, _) in enumerate(FAMILY_SHEETS):
+        _family_sheet(wb, titles[key], blocks[key], lang, first=(i == 0))
+    _ai_sheets(wb, family_engine.tables(result))
+    wb.properties.title = f"HoroscopeGen - Family of {result['anchor']}"
     wb.properties.creator = 'horoscopegen.in'
     buf = io.BytesIO()
     wb.save(buf)

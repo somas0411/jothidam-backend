@@ -13,10 +13,11 @@ import os
 from fpdf import FPDF
 
 import charts
+import family_engine
 import i18n
 import match_engine
 import saptarishi
-from excel_generator import (MATCH_WINDOWS_SHOWN, _match_group_counts, _match_note, _match_person,
+from excel_generator import (STATUS_COLOR, MATCH_WINDOWS_SHOWN, family_blocks, _match_group_counts, _match_note, _match_person,
                              _match_points, _match_summary)
 
 FONT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fonts')
@@ -183,12 +184,13 @@ class Report(FPDF):
             self.set_font_size(size)
         return text
 
-    def table(self, cols, rows, current=None, font_size=None, line_h=4.6, wrap=False):
+    def table(self, cols, rows, current=None, font_size=None, line_h=4.6, wrap=False, fills=None):
         """
         cols: [(heading, relative width, align)]; rows: list of value lists.
         Headings repeat on every page and a row never splits across pages.
         Normal rows are one line each, with text shrunk to fit its column;
         wrap=True lays long text out on several lines (small tables only).
+        fills: {row index: (column index, (r, g, b))} colours one cell of a row.
         """
         if font_size is None:
             # Indian scripts set wider than Latin; bilingual cells carry two names.
@@ -249,6 +251,8 @@ class Report(FPDF):
             for j, (v, w, al) in enumerate(zip(vals, widths, aligns)):
                 label = not has_head and j == 0
                 self.set_fill_color(*(CURRENT if is_cur else SOFT if label else ALT if i % 2 else WHITE))
+                if fills and i in fills and fills[i][0] == j:
+                    self.set_fill_color(*fills[i][1])
                 self.set_text_color(*(MUTED if label else INK))
                 self.set_font('main', 'B' if (is_cur or label) else '', font_size)
                 if wrap:
@@ -1020,4 +1024,69 @@ def generate_match_pdf(match, people=None, lang='en'):
     pdf = Report({'meta': {'name': f"{boy['name']}  ·  {girl['name']}", 'generated_at': moment}}, lang)
     pdf.heading = i18n.ML('marriage_title', lang)
     _marriage(pdf, match, people)
+    return bytes(pdf.output())
+
+
+# ── FAMILY READING ────────────────────────────────────────────────────────────
+
+FAMILY_CHART_MM = 58.0
+
+
+def _rgb(hexcolor):
+    return tuple(int(hexcolor[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def _family(pdf, result):
+    """Cover with the members and their rasi charts, then every block of excel_generator.family_blocks()."""
+    lang = pdf.lang
+    F = lambda k: i18n.FL(k, lang)
+    people = result['_people']
+    pdf.add_page()
+    pdf.band(f"HoroscopeGen  ·  {F('family_title')}",
+             f"{F('anchor')}: {result['anchor']}  ·  {result['settings']['from']} - {result['settings']['to']}"
+             f"  ·  {F('rule_based')}")
+    style = people[0].res['meta']['chart_style']
+    gap = (BODY_W - 3 * FAMILY_CHART_MM) / 2
+    y = pdf.get_y()
+    for i, m in enumerate(people):
+        col = i % 3
+        if col == 0 and i:
+            y = y_next
+            if y + FAMILY_CHART_MM + 12 > pdf.h - 16:
+                pdf.add_page()
+                y = pdf.get_y()
+        spec = dict(charts.build_specs(m.res, lang)['d1'])
+        spec['title'] = f"{m.name} · {i18n.relation_name(m.relation, lang)}"
+        y_end = pdf.chart(MARGIN + col * (FAMILY_CHART_MM + gap), y, FAMILY_CHART_MM, spec, style)
+        y_next = y_end if col == 0 else max(y_next, y_end)
+    pdf.set_y(y_next)
+
+    blocks = family_blocks(result, lang)
+    for key, _ in (('family', 0), ('relations', 0), ('pairs', 0), ('patterns', 0), ('transits', 0), ('rules', 0)):
+        for b in blocks[key]:
+            if not b['rows']:
+                continue
+            pdf.section(b['title'], need=30)
+            fills = None
+            if b['status'] is not None:
+                fills = {}
+                for i, row in enumerate(b['rows']):
+                    for st, color in STATUS_COLOR.items():
+                        if row[b['status']] == i18n.FL(st, lang):
+                            fills[i] = (b['status'], _rgb(color))
+            cols = [(h, w, {'L': 'LEFT', 'C': 'CENTER', 'R': 'RIGHT'}[a]) for h, w, a in b['cols']]
+            many = len(b['rows']) > 40
+            pdf.table(cols, b['rows'], font_size=6.4 if len(cols) > 6 else 7.0, line_h=3.9,
+                      wrap=not many, fills=fills)
+
+
+def generate_family_pdf(result, lang='en'):
+    """The family reading as a PDF. result: family_engine.family(). Returns bytes."""
+    if lang not in i18n.LANGS:
+        lang = 'en'
+    anchor = result['_people'][0].res
+    pdf = Report({'meta': {'name': f"{result['anchor']} · {i18n.FL('family_row', lang)}",
+                           'generated_at': anchor['meta']['generated_at']}}, lang)
+    pdf.heading = i18n.FL('family_title', lang)
+    _family(pdf, result)
     return bytes(pdf.output())

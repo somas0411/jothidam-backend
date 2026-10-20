@@ -1,0 +1,73 @@
+{
+ "ruleset": "jupiter_8th_dasa",
+ "version": "1.0",
+ "definitions": {
+  "core_principle": "A planet in the 8th running its dasa is textbook-negative, but results differ per lagna and placement strength - never conclude negatively from the house alone."
+ },
+ "rules": [
+  {
+   "id": "J8-01",
+   "name": "Exalted lagna lord in 8th is not 'hidden'",
+   "condition": "lagna lord in 8th AND exalted (e.g. Jupiter in Kadagam for Dhanusu lagna)",
+   "result": "Not a concealment or dosha; a strong yoga. Marital-bond (mangalya) strength is good."
+  },
+  {
+   "id": "J8-02",
+   "name": "Exalted planet / exalted 8th lord",
+   "condition_any": [
+    "exalted planet in 8th",
+    "lord_8 exalted"
+   ],
+   "result": "Major yoga, not a dosha."
+  },
+  {
+   "id": "J8-03",
+   "name": "Ketu with exalted Jupiter in 8th",
+   "condition": "Ketu conjoined with exalted Jupiter in 8th AND Ketu's dispositor (8th-sign lord) also exalted",
+   "result": "No harm to Jupiter, Ketu or the marital house."
+  },
+  {
+   "id": "J8-04",
+   "name": "Star-lord 6/8 friction",
+   "condition": "dasa lord's nakshatra lord is in 6/8 (shashtashtaka) relation with the dasa lord",
+   "result": "Early part of that dasa (esp. its own bhukti) brings quarrels and ego clashes - not permanent separation."
+  },
+  {
+   "id": "J8-05",
+   "name": "Exalted-planet dasa start can disrupt career",
+   "condition": "mahadasa of an own-sign/exalted planet begins",
+   "result": "Career may suffer at the start (job loss possible); little job satisfaction in its own bhukti.",
+   "followups": [
+    "Next bhukti of a planet in Lagna (e.g. Saturn as 2nd lord in Lagna): must take employment, not business; family harmony returns",
+    "Bhukti of an own/exalted 10th lord sitting in an exalted planet's star: own business can be started; spouses may live apart for work (not separation)"
+   ]
+  },
+  {
+   "id": "J8-06",
+   "name": "2nd lord in Lagna",
+   "condition": "lord_2 in Lagna",
+   "result": "Strong: wealth, property and family peace in its period.",
+   "cross_link": "second_lord_placement.2L-H1"
+  },
+  {
+   "id": "J8-07",
+   "name": "Exalted badhaka/7th lord - dara dosha only in its dasa",
+   "condition": "lord_7 (also badhaka lord for dual lagnas) own/exalted, OR malefic (e.g. Rahu) in 2nd",
+   "result": "Marital dosha activates only during that planet's dasa (or Rahu dasa for Rahu in 2nd). If that dasa is already over or falls very late (e.g. 69+), no divorce indication.",
+   "cross_link": "rahu_dasa_and_love_marriage.DOSHA-TIMING-01"
+  },
+  {
+   "id": "J8-08",
+   "name": "Rahu dasa survived",
+   "condition": "Rahu in 2nd but Rahu's deciding authorities (sign lord, star lord) in mutual kendra",
+   "result": "Couple holds together through Rahu dasa; later friction is only its residue.",
+   "cross_link": "rahu_dasa_and_love_marriage.RAHU-DA-01"
+  }
+ ],
+ "guidance": [
+  "Avoid predicting divorce from surface signs (malefic in 2nd, afflicted 7th lord) without checking dasa timing and deciding authorities - wrong calls cost people good matches."
+ ],
+ "open_questions_for_implementation": [
+  "Badhaka lord table per lagna (movable/fixed/dual) needed for J8-07"
+ ]
+}

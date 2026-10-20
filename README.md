@@ -25,12 +25,13 @@ of the API is unchanged. Design, setup (Neon, Brevo, Render), API and test plan:
 | File | Purpose |
 |---|---|
 | `astro_engine.py` | All calculations. `compute()` is the single source for every output |
+| `rulebook.py` | `evaluate(res)`: the rule book. Each rule in `data/rulebook/*.json` that applies to the chart, with the dasa or bhukti that switches it on and whether that period is running, still to come, over, or outside the useful years. Feeds `AI_RuleBook` and `/api/predictions`. See [Rule book](#rule-book) |
 | `enrich.py` | `enrich(res)`: derived facts as flat tables for AI readers. A separate step, so `compute()` and the web page are not slowed down |
 | `charts.py` | Chart contents and layout shared by web page, Excel and PDF |
 | `i18n.py` | Names and labels (en, ta, hi, te, kn, ml, mr, bn, and `bi` = English + Tamil). The marriage labels are kept apart from the report labels, so the labels sent to the web page with each horoscope are unchanged |
 | `family_engine.py` | `family(members)`: family reading of 2 to 6 members, in sections A to H. Reads the `compute()` results; changes nothing in `compute()`. See [Family reading](#family-reading) |
 | `match_engine.py` | `match(boy, girl)`: marriage matching (porutham) of two people, one row per check. Reads two `compute()` results or two star-only records; changes nothing in `compute()`. See [Marriage matching](#marriage-matching) |
-| `excel_generator.py` | Workbook: Summary, Vedic, Divisional Charts, KP, ALP, Dasa, Notes; charts drawn with cells. With the AI block, the `AI_` sheets (28, or 30 when past events were entered) follow Notes. With a marriage match, a Marriage sheet follows Notes and the `AI_Match` sheets close the workbook; `generate_match_excel()` builds the Marriage sheet and the `AI_Match` sheets alone |
+| `excel_generator.py` | Workbook: Summary, Vedic, Divisional Charts, KP, ALP, Dasa, Notes; charts drawn with cells. With the AI block, the `AI_` sheets (29, or 31 when past events were entered) follow Notes. With a marriage match, a Marriage sheet follows Notes and the `AI_Match` sheets close the workbook; `generate_match_excel()` builds the Marriage sheet and the `AI_Match` sheets alone |
 | `pdf_generator.py` | PDF with the same content; Noto fonts embedded, text shaped by HarfBuzz. With a marriage match, a Marriage section follows the notes; `generate_match_pdf()` builds that section alone |
 | `app.py` | Flask routes, request limits and CORS |
 | `booking_db.py` | Booking tables (PostgreSQL via `DATABASE_URL`); the partial unique index that makes double bookings impossible |
@@ -54,6 +55,7 @@ POST /api/download/excel     -> .xlsx (the seven report sheets, then the AI_ she
 POST /api/download/pdf       -> .pdf
 POST /api/download/json      -> .json (meta, vedic, kp, alp and the "ai" block), named like the Excel file
                                 with "ai": "brief": meta and the short AI_Brief table only (under 45 KB)
+POST /api/predictions        -> JSON: rule-book readings (see Rule book)
 POST /api/match              -> JSON: marriage matching of two people (see Marriage matching)
                                 add "ai": true to also get the flat AI_Match tables
 POST /api/download/match/excel -> .xlsx: the Marriage sheet, then the AI_Match sheets
@@ -161,6 +163,40 @@ service is that each visitor can only ask for so much:
   It does not stop a script calling the API directly, which is why the limits
   above do not rely on it.
 
+## Rule book
+
+`data/rulebook/` holds 22 rule files (property, 2nd and 12th lord placement,
+retrograde planets, Rahu and Ketu, own-sign and exalted planets, dusthana
+planets, Saturn, education, job timing, marriage selection and more). The
+texts are paraphrased rules; the files carry no source or author fields.
+`rulebook.py` turns the rules that can be decided from the chart into tests
+(about 70) and evaluates them:
+
+```
+POST /api/predictions   (same body as /api/horoscope)
+-> {"meta": {...}, "columns": [...], "predictions": [rows], "summary": "text by topic", "note": "..."}
+```
+
+Each row: `rule_id`, `ruleset`, `topic`, `rule`, `tone` (favourable, mixed,
+challenging), `finding`, `basis` (the chart facts), `period_lords`, `status`
+and `window`. `status` is `running now`, `upcoming`, `past`, `dormant` (every
+period of those lords starts after age 75 or lies outside the rule's age
+range) or `always` (not tied to a period). The same rows are the `AI_RuleBook`
+sheet, where the column is named `status_at_report_date`.
+
+Principles the evaluator keeps: a yoga or dosha acts only in the dasa or
+bhukti of a planet that carries it; Rahu and Ketu give the results of their
+sign lord and star lord; retrograde reverses (debilitated + retrograde gives
+an exalted result, Jupiter's aspect or a node link changes that); a planet in
+the 6th, 8th or 12th is not "hidden" when the house lord is strong.
+
+Left out on purpose: anything about death, length of life or the manner of
+passing (the files have these removed and a test guards it), and rules meant
+for an astrologer only (intimacy, conduct, health diagnoses, second-marriage
+counts). Transit rules and rules that need two charts (property in the
+spouse's name, matching) are kept in the files as reference but are not
+evaluated yet.
+
 ## AI sheets and JSON
 
 The picture sheets are laid out for a human eye. For an AI assistant the
@@ -172,8 +208,9 @@ the end of old sheets).
 
 An assistant should start with `AI_Brief`, judge a period from its row in
 `AI_PeriodFacts`, take the promise of a topic from `AI_TopicPromise` and the
-timing from `AI_TopicWindows`. Counts, scores and windows are rule-based aids,
-not predictions.
+timing from `AI_TopicWindows`, and rule-based readings with their periods from
+`AI_RuleBook`. Counts, scores, windows and rules are rule-based aids, not
+certainties.
 
 Rules the AI sheets keep:
 
@@ -221,6 +258,7 @@ Rules the AI sheets keep:
 | `AI_TopicPromise` | topic x test | The fixed tests that support or weaken a topic in this chart, with the two counts; rule-based, not a prediction |
 | `AI_TopicScores` | bhukti x topic | Rule-based relevance, not a prediction, with its rank within the topic |
 | `AI_TopicWindows` | topic x span | Spans of the next 10 years in which two or more of the layers bhukti, antaram, Jupiter and Saturn agree; rule-based overlap, not a prediction |
+| `AI_RuleBook` | rule | Rules from the rule book that apply to this chart: finding, the chart facts behind it, the period lords, and the status of those periods at the report date (see [Rule book](#rule-book)) |
 | `AI_EventCheck` | event x bhukti | For each past event entered: the bhuktis of that year, their score for the matching topic, and where Jupiter and Saturn were; present only when an event was entered |
 
 In Python: `ai = enrich(compute(...), extras=None)`; `ai['tables'][sheet]` is a list of

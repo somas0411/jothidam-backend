@@ -1,0 +1,251 @@
+{
+ "ruleset": "venus_7th_and_venus_strength",
+ "version": "1.0",
+ "definitions": {
+  "reference": "Houses counted from LAGNA.",
+  "venus_signifies": [
+   "wealth and comforts",
+   "spouse happiness",
+   "vehicles",
+   "well-watered land",
+   "property incl. commercial",
+   "decorated homes",
+   "jewellery (designed ornaments; raw gold = Jupiter)",
+   "fame",
+   "facial radiance"
+  ],
+  "timing_principle": "Natal promise + running dasa/bhukti decides results; transit only triggers. Transit without supporting dasa gives little (like electricity with no appliances).",
+  "karako_bhava_nashti": "A karaka in its own signified house can harm that house - Venus in 7th is the classic case, but with many exceptions below."
+ },
+ "venus_strength_rules": [
+  {
+   "id": "VEN-S1",
+   "condition": "Venus own sign or exalted",
+   "result": "Financially well above self-sufficiency; may be generous or miserly but will be wealthy",
+   "grade": 1
+  },
+  {
+   "id": "VEN-S2",
+   "condition": "Venus conjoined with a planet that becomes own-sign through sign exchange (parivartana)",
+   "result": "Strong financial success",
+   "grade": 2
+  },
+  {
+   "id": "VEN-S3",
+   "condition": "Venus alone AND its dispositor exalted",
+   "result": "Financial success, slightly lower grade",
+   "grade": 3
+  },
+  {
+   "id": "VEN-S4",
+   "condition": "Venus retrograde (not own/exalted)",
+   "result": "Success comes late, after many challenges"
+  },
+  {
+   "id": "VEN-S5",
+   "condition": "Venus debilitated (Kanni), no neecha-bhanga",
+   "result": "Still succeeds financially; strongly goal-driven and may compromise on ethics to win"
+  },
+  {
+   "id": "VEN-S6",
+   "condition": "Venus in own/exalted sign, kendra/trikona, or with own/exalted planet",
+   "result": "Success through honest means"
+  },
+  {
+   "id": "VEN-S7",
+   "condition": "Venus retrograde AND with Rahu or Ketu",
+   "result": "Financial success through honest means"
+  },
+  {
+   "id": "VEN-S8",
+   "condition": "Venus conjunct Rahu",
+   "result": "Displays wealth openly - branded goods, showy house, visible jewellery; may look richer than they are"
+  },
+  {
+   "id": "VEN-S9",
+   "condition": "Venus conjunct Ketu",
+   "result": "Conceals wealth - jewellery kept hidden or unused"
+  },
+  {
+   "id": "VEN-S10",
+   "condition": "Venus strong vs weak (general)",
+   "result": "Strong: outward polish and visible comfort. Weak/hidden: looks ordinary even if owning assets"
+  }
+ ],
+ "venus_7th_rules": [
+  {
+   "id": "V7-KBN-EXCEPT",
+   "name": "Karako bhava nashti cancelled",
+   "condition_any": [
+    "Venus in 7th in own/exalted sign (Mesha, Viruchigam or Kanni lagna)",
+    "Jupiter aspects or conjoins Venus in 7th"
+   ],
+   "result": "No harm; Venus in 7th works as a yoga."
+  },
+  {
+   "id": "V7-KBN-NEUTRAL",
+   "condition_any": [
+    "lagna lord aspects or conjoins Venus in 7th",
+    "lord_5 or lord_9 aspects or conjoins Venus in 7th"
+   ],
+   "result": "Karako bhava nashti neutralised (neutral, not necessarily a big yoga)."
+  },
+  {
+   "id": "V7-CORE",
+   "name": "Venus in 7th - general results",
+   "results": [
+    "Myth rejected: does NOT by itself mean multiple marriages or poor character",
+    "Wealth/property through spouse",
+    "Attractive spouse with a pleasant smile; spouse of one's liking",
+    "Turning point and rise in life after marriage - more income, assets, jewellery, vehicles after marriage than before",
+    "Partnership business does well, especially with women partners",
+    "Female native: lives far more comfortably after marriage than in parental home",
+    "Loves travel, usually together with spouse; affectionate towards spouse and children",
+    "Female native: likely owns imitation jewellery; fond of fashion and dressing up",
+    "Business may attract professional jealousy and hidden opposition"
+   ]
+  },
+  {
+   "id": "V7-MARS",
+   "name": "Venus with Mars in 7th",
+   "condition": "Venus and Mars conjoined in 7th",
+   "result": "Not a dara dosha by default. Marital turbulence only if Mars or Venus dasa runs within the first 2-3 years of marriage; later dasas don't harm."
+  },
+  {
+   "id": "V7-MARS-LINK",
+   "condition_any": [
+    "Mars aspects Venus in 7th",
+    "Mars is Venus's nakshatra lord",
+    "Venus in a Mars sign with Mars strong elsewhere"
+   ],
+   "result": "Spouse brings property, jewellery and money from their family; marked upward mobility after marriage (e.g. vehicle comfort)."
+  },
+  {
+   "id": "V7-SUN",
+   "condition": "Venus with Sun in 7th",
+   "result": "Spouse has strong administrative ability and manages/saves money well; spectacles likely."
+  },
+  {
+   "id": "V7-JUPITER",
+   "condition": "Venus with Jupiter in 7th (or in Lagna)",
+   "result": "Very fortunate marriage; excellent spouse; life lifts to a more refined standard after marriage.",
+   "exceptions": "Fails if Jupiter or Venus retrograde, dispositor debilitated, or Rahu/Ketu involved."
+  },
+  {
+   "id": "V7-RETRO",
+   "condition": "Venus retrograde in 7th",
+   "results": [
+    "Marriage may be delayed",
+    "Still gives income and assets, but may split resources outside the household",
+    "Emotionally soft towards women relatives (sisters, spouse's sisters) - may lose money through sympathy",
+    "Used vehicles suit better than new ones",
+    "Much travel with little gain"
+   ],
+   "contrast": "Strong non-retrograde Venus in 7th: travel that earns; at least one family vacation a year."
+  },
+  {
+   "id": "V7-7L-WEAK",
+   "condition": "Venus in 7th not retrograde BUT lord_7 debilitated or retrograde",
+   "result": "Marriage talks reach final stage and then break off, repeatedly, before finally settling."
+  },
+  {
+   "id": "V7-DASA-RISK",
+   "condition": "Venus in 7th AND Venus dasa during peak earning years",
+   "modifiers": {
+    "with_rahu": "Higher vulnerability to romantic manipulation / scams - advise caution",
+    "with_ketu": "Very reserved and shy around the opposite sex"
+   }
+  },
+  {
+   "id": "V7-SULK",
+   "condition": "Venus in 7th (either gender)",
+   "result": "Deep affection, but after quarrels both wait for the other to make up first (pride)."
+  }
+ ],
+ "qa_rules": [
+  {
+   "id": "QA-VEN-MERC",
+   "condition": "Venus conjunct Mercury (esp. Mercury own sign)",
+   "result": "Good for business in women's products, attractive goods, computer/internet gadgets; startups do well, especially away from home."
+  },
+  {
+   "id": "QA-RETRO-OWN-VENUS",
+   "principle": "Same retrograde own-sign Venus gives opposite results for different lagnas - always judge by house lordship.",
+   "examples": [
+    {
+     "lagna": "Dhanusu",
+     "placement": "Venus retro in own sign in 6th",
+     "result": "Yoga - own business if lord_10 strong; else high post in private firm"
+    },
+    {
+     "lagna": "Mesham",
+     "placement": "Venus retro in own sign in 2nd",
+     "result": "Family unrest during Venus dasa"
+    },
+    {
+     "lagna": "Kadagam",
+     "placement": "Venus retro in own sign in 11th",
+     "result": "Yoga"
+    },
+    {
+     "lagna": "Simmam",
+     "placement": "Venus retro in own sign in 10th",
+     "result": "Avoid own business"
+    }
+   ]
+  },
+  {
+   "id": "QA-VENUS-DASA-BUSINESS",
+   "condition": "Simha lagna, Venus own sign in 10th, aspected by retrograde Saturn",
+   "result": "Own business succeeds in Venus dasa; reassess in other dasas."
+  },
+  {
+   "id": "QA-SATURN-DASA-MARRIAGE",
+   "condition": "Saturn dasa running AND the planet ruling the 7th sign from Saturn is in own sign",
+   "result": "Marriage happens in Saturn dasa."
+  },
+  {
+   "id": "QA-11-MULTI",
+   "condition": "More than one planet in house 11 (e.g. Venus, Mars, Ketu)",
+   "result": "Strong financial success; even stronger if lord_11 is own sign in 11."
+  },
+  {
+   "id": "QA-12-VENUS-OWN",
+   "condition": "Venus own sign in 12th (lord_12 in 12)",
+   "result": "Good marital life even with Mars/Saturn/Mercury/Rahu there; quarrels limited to in-law topics."
+  },
+  {
+   "id": "QA-POETRY",
+   "principle": "Writing talent is from the Moon (imagination); Mercury is only the pen and paper.",
+   "variants": [
+    {
+     "with": "Venus",
+     "style": "Soft - nature, beauty, gentle romance"
+    },
+    {
+     "with": "Saturn",
+     "style": "Revolutionary / social-justice writing"
+    },
+    {
+     "with": "Mars",
+     "style": "Technical, profession-oriented writing and speech"
+    }
+   ]
+  },
+  {
+   "id": "QA-SATABHISHA",
+   "result": "Myth rejected: a planet in Sathayam nakshatra is NOT inactive.",
+   "example": "Venus (2nd & 9th lord) in 6th for Kanni lagna in Sathayam - some financial/study/family/health (eyes, stomach) disturbance, otherwise fine."
+  },
+  {
+   "id": "QA-9TH-MARS-FATHER",
+   "condition": "Mars in 9th with Sun/Venus",
+   "result": "Father's health disturbed only during Mars mahadasa."
+  }
+ ],
+ "open_questions_for_implementation": [
+  "Neecha-bhanga rules needed for VEN-S5",
+  "'Connected' for V7-MARS-LINK includes nakshatra lordship - confirm",
+  "QA rules are example-driven; generalise or keep as lookups"
+ ]
+}

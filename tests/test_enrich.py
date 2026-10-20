@@ -977,7 +977,7 @@ def test_block_shape(ai, T):
         'AI_VargaLagnas', 'AI_Strength', 'AI_Ashtakavarga', 'AI_Yogas', 'AI_DasaPeriods', 'AI_Dasa', 'AI_Antaram',
         'AI_Pratyantar', 'AI_PeriodFacts', 'AI_Transits', 'AI_TransitsFast', 'AI_Stations', 'AI_TransitNow',
         'AI_SadeSati', 'AI_DoubleTransit', 'AI_TopicMap', 'AI_TopicFacts', 'AI_TopicPromise', 'AI_TopicScores',
-        'AI_TopicWindows']
+        'AI_TopicWindows', 'AI_RuleBook']
     assert [s for s in ai['sheets'] if s in old] == old             # the sheets of schema 1 keep their order
     for sheet, rows in T.items():
         cols = [c['name'] for c in ai['columns'][sheet]]
@@ -1095,7 +1095,7 @@ def test_other_reference_charts_are_consistent(b):
 def test_ai_sheets_follow_notes_in_order(workbooks, ai):
     for lang in ('en', 'ta'):
         wb = workbooks[lang][1]
-        assert len(wb.sheetnames) == 7 + 28
+        assert len(wb.sheetnames) == 7 + 29
         assert wb.sheetnames[7:] == ai['sheets']
     assert workbooks['en'][1].sheetnames[:7] == ['Summary', 'Vedic', 'Divisional Charts', 'KP', 'ALP', 'Dasa', 'Notes']
 
@@ -1266,7 +1266,7 @@ def test_api_download_excel_has_the_ai_sheets(client):
     rv = client.post('/api/download/excel', json=G.API_BODY)
     assert rv.status_code == 200 and rv.data[:2] == b'PK'
     wb = openpyxl.load_workbook(io.BytesIO(rv.data), read_only=True)
-    assert len(wb.sheetnames) == 35 and wb.sheetnames[7] == 'AI_ReadMe' and wb.sheetnames[-1] == 'AI_TopicWindows'
+    assert len(wb.sheetnames) == 36 and wb.sheetnames[7] == 'AI_ReadMe' and wb.sheetnames[-1] == 'AI_RuleBook'
 
 
 def test_api_json_errors(client):

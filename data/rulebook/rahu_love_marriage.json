@@ -1,0 +1,64 @@
+{
+ "ruleset": "rahu_dasa_and_love_marriage",
+ "version": "1.0",
+ "definitions": {
+  "rahu_deciding_authorities": "For Rahu dasa results, the two deciding planets are (a) the lord of the nakshatra Rahu occupies and (b) the lord of the sign Rahu occupies.",
+  "dasa_relevance_principle": "A dosha only matters if the planet causing it gets a dasa/bhukti within the native's relevant lifetime. A dosha whose dasa falls at age 90+ is practically irrelevant."
+ },
+ "rules": [
+  {
+   "id": "RAHU-GEN-01",
+   "name": "Textbook house rule (first step only)",
+   "condition": "Rahu in 3, 6 or 11 from Lagna",
+   "result": "Rahu dasa generally favourable",
+   "contrast": "Rahu in 6/8/12 is generally read as difficult (dishonour, losses, legal trouble).",
+   "note": "This is only the first step; many exceptions exist. Do not conclude from house alone."
+  },
+  {
+   "id": "RAHU-DA-01",
+   "name": "Deciding authorities override house",
+   "condition_any": [
+    "Rahu's star lord and sign lord are in mutual kendra or trikona",
+    "Rahu's star lord aspects Rahu's sign lord (e.g. Jupiter aspecting Moon)"
+   ],
+   "result": "Rahu dasa is yogic regardless of which house Rahu occupies - even the 8th or 12th.",
+   "weight": "high"
+  },
+  {
+   "id": "RAHU-DA-02",
+   "name": "One authority hidden from Lagna",
+   "condition": "RAHU-DA-01 holds BUT one deciding authority is in 6/8/12 from Lagna",
+   "result": "Rahu dasa still good, but with friction from the person that planet signifies (e.g. Jupiter hidden -> one parent, typically mother in the example, opposes; the other wavers)."
+  },
+  {
+   "id": "RAHU-8-MARRIAGE",
+   "name": "Rahu in 8th is not automatic mangalya dosha",
+   "condition": "Rahu in 8th AND RAHU-DA-01 holds AND Rahu dasa running in marriageable age",
+   "result": "Marriage happens in Rahu dasa; married life is good. Often settles away from native place; following dasas may bring foreign/other-language region settlement."
+  },
+  {
+   "id": "RAHU-LOVE-01",
+   "name": "Accept the love match",
+   "condition": "Chart carries several apparent marriage doshas (e.g. lone Ketu in 2nd, lord_2 hidden, Rahu in 8th, Venus or own-sign Mercury in 7th) AND Rahu dasa is yogic AND native has a love interest",
+   "result": "Love marriage is advisable. Rejecting it and seeking an arranged match risks long delay, since matchmaking by dosha-counting will keep filtering this chart out.",
+   "advice_tone": "Present as guidance for parents, not a mandate."
+  },
+  {
+   "id": "DOSHA-TIMING-01",
+   "name": "Dosha only via its dasa",
+   "examples": [
+    "Venus in 7th (karako bhava nashti) does not act if Venus dasa doesn't come in the relevant age",
+    "Own-sign Mercury in 7th for a dual lagna does not create spouse trouble if Mercury dasa comes only after 90"
+   ],
+   "result": "Ignore doshas whose dasa falls outside the relevant life window."
+  }
+ ],
+ "guidance": [
+  "Ideal marriage window per the astrologer: roughly age 23-35.",
+  "Scrutinise the chart repeatedly before calling a dosha; the deciding-authority check often reverses the textbook reading."
+ ],
+ "open_questions_for_implementation": [
+  "Should Ketu dasa use the same deciding-authority rule (star lord + sign lord)?",
+  "Define 'relevant life window' per question (marriage: ~22-40)"
+ ]
+}

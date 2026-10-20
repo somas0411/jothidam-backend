@@ -1,0 +1,228 @@
+{
+ "ruleset": "twelfth_house_significations",
+ "version": "1.0",
+ "definitions": {
+  "core_principle": "The 12th is the 'back side' of life: secrets, spirituality, sleep, sorrow/forgetting, expenditure, good and bad, loss, addiction, solitude, hospital/jail, family separation, foreign life, relocation, marital intimacy, fear/psychology, Each can turn positive or negative depending on the 12th lord.",
+  "strong_12th_lord": "own sign / exalted, OR in kendra/trikona, OR in 3/6/8 (dusthana lord in dusthana = viparita), OR conjunct/aspected by Jupiter or Venus, OR connected to lord_1/lord_5/lord_9",
+  "weak_12th_lord": "retrograde without Rahu/Ketu link, debilitated, in 6/8/12 FROM the 12th, or with malefics",
+  "dasa_gate": "Every result acts only in the dasa/bhukti of the 12th lord or a planet placed in/connected to the 12th; a combination whose dasa falls outside the relevant age window is dormant.",
+  "subha_virayam": "Expenditure that becomes investment (property, business, deposits, charity) is the good side of the 12th - the source of the 'crorepati yoga'."
+ },
+ "rules": [
+  {
+   "id": "H12-01",
+   "name": "Crorepati yoga via investment",
+   "condition": "strong_12th_lord, its dasa running in earning years",
+   "result": "Spending turns into wealth - house, property, car, new business, charitable trust; returns multiply. Wealth via re-investment rather than salary alone."
+  },
+  {
+   "id": "H12-02",
+   "name": "Retrograde 12th lord dasa",
+   "condition": "lord_12 retrograde, NOT connected to Rahu/Ketu, any house",
+   "result": "Debt never seen before; struggles to meet commitments; in old age loses or is cheated of savings - advise guarding retirement money.",
+   "cross_link": "planets_in_dusthana.DU-06"
+  },
+  {
+   "id": "H12-03",
+   "name": "Retrograde planet in 12th",
+   "condition": "any retrograde planet in 12th, its dasa running",
+   "result": "The houses that planet owns get damaged (e.g. retrograde lord_4 in 12: property sold/mortgaged or disputed)."
+  },
+  {
+   "id": "H12-04",
+   "name": "4th lord in 12th",
+   "branches": [
+    {
+     "if": "not retrograde AND strong_12th_lord",
+     "then": "Yogic: buys land/house, property growth, good health, earns through travel"
+    },
+    {
+     "if": "lord_12 weak or 6/8 from the 12th",
+     "then": "Plans to buy but ends up selling; health disturbance in its dasa"
+    }
+   ],
+   "related": "lord_6 in 4th or lord_4 in 6th running dasa/bhukti -> health disturbance in that period"
+  },
+  {
+   "id": "H12-05",
+   "name": "6th lord in 12th",
+   "result": "Good health; hospitalisation not indicated (viparita logic)."
+  },
+  {
+   "id": "H12-06",
+   "name": "Sleep quality",
+   "branches": [
+    {
+     "if": "strong_12th_lord",
+     "then": "Sound, dreamless sleep - peace of mind regardless of wealth"
+    },
+    {
+     "if": "Jupiter or Ketu in 12th",
+     "then": "Prophetic / intuitive dreams"
+    },
+    {
+     "if": "malefic (Saturn/Rahu/Ketu) in 12th",
+     "then": "Sleeps anywhere, careless of bed"
+    },
+    {
+     "if": "benefic (e.g. Venus) in 12th",
+     "then": "Neat bed and bedroom"
+    }
+   ],
+   "display_only": true
+  },
+  {
+   "id": "H12-07",
+   "name": "Sorrow and forgetting",
+   "branches": [
+    {
+     "if": "Mercury in 12th",
+     "then": "Gets over grief quickly; lightens the mood of others"
+    },
+    {
+     "if": "Ketu, Saturn or Moon in 12th",
+     "then": "Holds on to grief; sleeplessness after losses"
+    }
+   ]
+  },
+  {
+   "id": "H12-08",
+   "name": "Moon in 12th - deity dreams",
+   "result": "Dreams of deities (female deities if Moon/sign feminine, male if masculine); tends to fear that imagined bad things will happen.",
+   "display_only": true
+  },
+  {
+   "id": "H12-09",
+   "name": "3rd-12th lord link",
+   "condition": "lord_3 and lord_12 together in 3rd or 12th, dasa in youth",
+   "result": "Heightened desire and spending on appearance/vehicles to impress; dormant if dasa not in youth.",
+   "sensitivity": "not_for_end_user"
+  },
+  {
+   "id": "H12-10",
+   "name": "Addiction risk",
+   "condition": "weak_12th_lord AND (Saturn/Rahu/Ketu or a retrograde planet in 12th)",
+   "result": "Exposure to intoxicants (incl. 'addiction to praise') during that dasa; can derail progress.",
+   "exception": "lord_12 in 6th or 8th (viparita) -> no attachment; may even profit from trading such goods.",
+   "sensitivity": "not_for_end_user"
+  },
+  {
+   "id": "H12-11",
+   "name": "Love of solitude",
+   "condition": "any of: lord_1, lord_5, lord_9 or Moon in 12th",
+   "result": "Enjoys being alone."
+  },
+  {
+   "id": "H12-12",
+   "name": "Humiliation",
+   "condition": "lord_5 or lord_9 in 12th AND weak AND weak_12th_lord",
+   "result": "Humiliation, by type of planet in 12th: Jupiter - money/relations; Venus - through a woman; Mercury - transactions, property litigation; Saturn - workplace; Mars - relatives/police/court.",
+   "sensitivity": "not_for_end_user"
+  },
+  {
+   "id": "H12-13",
+   "name": "Family separation (2nd lord)",
+   "condition": "lord_2 retrograde/afflicted in 12th, lord_12 not strong",
+   "result": "Family discord / spousal separation in that dasa; duration = that dasa/bhukti only (may be just work abroad, not divorce).",
+   "exception": "Mesha lagna: lord_2 Venus exalted in 12th - no problem unless dispositor Jupiter retrograde (halves Venus)."
+  },
+  {
+   "id": "H12-14",
+   "name": "Family separation (7th lord)",
+   "condition": "lord_7 in 12th, afflicted",
+   "result": "Spousal separation in its dasa.",
+   "exception": "Mithuna lagna: lord_7 Jupiter in 12th (Vrishabha) is a strong yoga - wealth, good family, children. (Jupiter own sign in 7th for Mithuna is harmful unless retrograde; if its star lord is debilitated, only marriage delay.)"
+  },
+  {
+   "id": "H12-15",
+   "name": "Foreign life",
+   "condition": "lord_7 connected to 12th/lord_12, OR lord_5 with/in 12th AND strong_12th_lord",
+   "result": "Long foreign life; PR / citizenship / family migration."
+  },
+  {
+   "id": "H12-16",
+   "name": "Relocation",
+   "condition": "dasa of: lord_12 in 4th, lord_4 in 12th, lord_7 in 12th, or lord_12 in 7th",
+   "result": "Unavoidable change of job/business/residence in the dasa; short onsite stints in the bhukti. Good or bad decided by strength of the dispositor."
+  },
+  {
+   "id": "H12-17",
+   "name": "Marital intimacy",
+   "branches": [
+    {
+     "if": "lord_12 in 3/6/8, own sign in 12th, kendra/trikona, or with/aspected by Jupiter or Venus",
+     "then": "Fulfilling intimacy; no trouble"
+    },
+    {
+     "if": "a gap in the above",
+     "then": "Mismatched needs/preferences between spouses; absent-mindedness"
+    }
+   ],
+   "note": "Speaker: most household quarrels arise from money or the bedroom.",
+   "sensitivity": "not_for_end_user",
+   "cross_link": "marital_harmony"
+  },
+  {
+   "id": "H12-18",
+   "name": "Trance / divine possession",
+   "condition": "Ketu or lord_5/lord_9 connected to 12th AND strong_12th_lord",
+   "result": "Strong devotional emotion, trance in temple settings."
+  },
+  {
+   "id": "H12-19",
+   "name": "Fear and anxiety",
+   "condition": "lord_5/lord_9 retrograde (no node link) connected to 12th, or waning Moon with Rahu/Ketu in 12th",
+   "result": "Fear, anxiety, psychological pressure; (in children) premature birth risk. Psychological issues always involve lord_12 or lord_5.",
+   "sensitivity": "not_for_end_user"
+  },
+  {
+   "id": "H12-21",
+   "name": "Income till the end",
+   "condition": "lord_12 own/exalted, in kendra/trikona, or with/aspected by Jupiter",
+   "result": "Money keeps flowing to the last; no need to hoard for retirement."
+  },
+  {
+   "id": "H12-22",
+   "name": "Investment over business",
+   "condition": "lord_5 connected to the running dasa lord",
+   "result": "Earns better from investing (mutual funds, shares/options, FDs, property) than from running a business. Sudden windfalls come from the 12th."
+  },
+  {
+   "id": "H12-23",
+   "name": "12th lord in 2nd",
+   "result": "Thrifty; in its dasa most earnings are saved."
+  },
+  {
+   "id": "H12-24",
+   "name": "Debilitated 12th lord with neecha-bhanga",
+   "example": "Simha lagna: Moon debilitated in Vrischika, dispositor Mars own sign in Mesha -> neecha-bhanga raja yoga; excellent dasa."
+  },
+  {
+   "id": "H12-25",
+   "name": "Spiritual 12th",
+   "condition": "Jupiter or Ketu in 12th",
+   "result": "life swings between extremes, pilgrimages, secret charity and quiet spiritual depth.",
+   "cross_link": "planets_in_12th.P12-09, ketu_12th"
+  },
+  {
+   "id": "H12-26",
+   "name": "Q&A examples",
+   "examples": [
+    "Kumbha lagna, Saturn in 12th (direct): crorepati potential in Saturn dasa",
+    "Rishabha lagna, Sun + Saturn in 12th: both dasas good (trade, prosperity)",
+    "Mithuna lagna, Rahu in 12th: raja yoga if Venus strong; Rahu dasa yogic if Venus and Rahu's star lord connect",
+    "Simha lagna, Rahu+Mercury+Venus in 12th: Rahu dasa good if Moon (sign lord) and star lord in mutual kendra/trikona, aspect or conjunction",
+    "Transit Jupiter over natal Jupiter: wealth, status, health - provided natal Jupiter is not retrograde"
+   ]
+  }
+ ],
+ "excluded_from_engine": [
+  "Classical verses on sexual deviance and unlawful relationships - not reproduced, not computed",
+  "Serial-killer / criminality remarks - not computed"
+ ],
+ "open_questions_for_implementation": [
+  "Unify strong_12th_lord with twelfth_lord_placement and planets_in_12th definitions",
+  "Waxing/waning Moon flag needed for H12-19",
+  "Gender of sign/planet list for H12-08"
+ ]
+}

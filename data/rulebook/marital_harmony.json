@@ -1,0 +1,71 @@
+{
+ "ruleset": "marital_harmony_and_progeny",
+ "version": "1.0",
+ "sensitivity": "Internal reference. Present results to users only in neutral wording (e.g. 'marital harmony', 'compatibility'), never explicit language.",
+ "definitions": {
+  "reference": "Houses counted from LAGNA unless stated.",
+  "harmony_houses": "House 12 (ayana-sayana-bhoga sthana) and lord_12 decide marital intimacy/harmony.",
+  "spouse_view": "For the spouse's experience, take the 12th from the 7th (= 6th from Lagna) and the 12th from Venus."
+ },
+ "rules": [
+  {
+   "id": "MH-01",
+   "condition": "lord_12 strong (own sign / exalted / well placed)",
+   "result": "Marital harmony and intimacy are fully enjoyed; no deficiency indicated."
+  },
+  {
+   "id": "MH-02",
+   "name": "Dasa check via 12th from dasa lord",
+   "condition": "Take the sign of the current dasa lord; find the 12th sign from it; if that 12th sign's lord aspects that 12th sign",
+   "result": "No marital-harmony problems during that dasa.",
+   "example": "Rahu dasa with Rahu in Simmam: 12th from Simmam is Kadagam; Moon aspecting Kadagam from Magaram -> no issue in Rahu dasa."
+  },
+  {
+   "id": "MH-03",
+   "name": "Spouse's experience",
+   "condition": "lord of 12th-from-7th conjoined with the 4th-from-Venus lord (comfort lord) and well placed",
+   "result": "Spouse also enjoys marital comfort."
+  },
+  {
+   "id": "MH-04",
+   "condition": "Saturn (esp. debilitated) in 12th from 7th (i.e. 6th from Lagna)",
+   "result": "Occasional mood mismatches / timing differences between partners; no physical inability or refusal indicated - a matter of adjustment.",
+   "advice": "Don't exaggerate; normal friction."
+  },
+  {
+   "id": "MH-05",
+   "name": "Venus in 7th own sign",
+   "condition": "Venus own sign in 7th",
+   "result": "Malavya yoga (Pancha Mahapurusha) - karako bhava nashti does NOT apply; no marital concern from this placement.",
+   "cross_link": "venus_7th_and_venus_strength.V7-KBN-EXCEPT"
+  },
+  {
+   "id": "MH-06",
+   "name": "Lagna lord / 6th lord in 8th",
+   "condition": "lagna lord or lord_6 in 8th AND dispositor strong (e.g. in trikona with Jupiter aspect)",
+   "result": "Not harmful."
+  }
+ ],
+ "progeny_rules": [
+  {
+   "id": "PG-01",
+   "name": "Jupiter in 5th",
+   "condition": "Jupiter in 5th in own sign (or exalted)",
+   "result": "Karako bhava nashti cancelled - children assured.",
+   "contrast": "Concern applies only if Jupiter in 5th is debilitated/weak."
+  },
+  {
+   "id": "PG-02",
+   "condition": "PG-01 holds BUT Jupiter sits in the nakshatra of a debilitated planet",
+   "result": "Children still come; only some delay."
+  }
+ ],
+ "guidance": [
+  "Always combine natal promise with the running dasa/bhukti before concluding.",
+  "A bhukti lord in 8th (e.g. Sun as 10th lord in 8th) can create worry/doubt without actual deficiency - avoid alarming the querent."
+ ],
+ "open_questions_for_implementation": [
+  "Aspect set to use for MH-02 (full Vedic aspects?)",
+  "Strength scale for 'lord_12 strong'"
+ ]
+}

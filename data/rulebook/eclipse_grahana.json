@@ -1,0 +1,217 @@
+{
+ "ruleset": "eclipse_grahana_dosha",
+ "version": "1.0",
+ "definitions": {
+  "grahana_dosha": "Natal Moon conjoined with Rahu or Ketu (or Sun with Rahu/Ketu) - counts as grahana dosha whether or not an actual eclipse occurred at birth.",
+  "core_principle": "The same combination can be positive, negative or neutral. Decide using: sign, dispositor strength, nakshatra sharing, and Jupiter / 1-5-9 lord influence.",
+  "neutralisers": [
+   "Jupiter aspects the combination",
+   "lagna lord, lord_5 or lord_9 conjoins or aspects the combination (lords of 5 and 9 help even if natural malefics)"
+  ],
+  "same_nakshatra_rule": "If the two planets of a node combination sit in the SAME nakshatra, the combination turns negative even when otherwise strong."
+ },
+ "rules": [
+  {
+   "id": "ECL-SUN-MOON",
+   "name": "Sun-Moon conjunction (Amavasya / Siva-Sakti yoga)",
+   "condition": "Sun conjunct Moon (any house)",
+   "result": "A yoga, not a flaw - intelligent and capable; myth that new-moon births become thieves is rejected. Benefits the sign occupied and the 7th sign from it.",
+   "house_variants": {
+    "6": "Enemies do not survive against the native",
+    "8": "Debt-free life",
+    "12": "Fame through a unique personal skill"
+   }
+  },
+  {
+   "id": "ECL-MR-STRONG-SIGN",
+   "name": "Moon-Rahu in Moon's own or exaltation sign",
+   "condition": "Moon + Rahu (or Ketu) in Kadagam or Rishabam",
+   "result": "Big yoga - Rahu amplifies Moon's results (roughly 3x). Moon dasa (10y) + Rahu dasa (18y) can give ~28 years of good period.",
+   "conditions": [
+    "In Rishabam: dispositor Venus must be strong (not debilitated, retrograde, or in 6/8/12 from lagna or from Moon)"
+   ],
+   "failure": [
+    "Venus weak -> loss of wealth/business, friction with mother, legal and property disputes, maternal-property issues",
+    "Moon and Rahu in the same nakshatra -> negative despite strength"
+   ],
+   "example": "Thulam lagna: Moon-Rahu in 10th (Kadagam) = career success multiplied; in 8th (Rishabam, Moon exalted) = even larger success if Venus strong."
+  },
+  {
+   "id": "ECL-MR-OTHER-SIGN",
+   "name": "Moon-Rahu/Ketu in other signs",
+   "condition": "Moon + Rahu or Ketu outside Kadagam/Rishabam",
+   "branches": [
+    {
+     "if": "dispositor exalted or strong",
+     "then": "Yoga. Example: Magaram lagna, Moon-Rahu in 2nd (Kumbam) with Saturn exalted -> timely marriage, family settles abroad with good income and foreign property (instead of the textbook left-eye / mother problems)."
+    },
+    {
+     "if": "same nakshatra",
+     "then": "Negative - marriage/family turmoil even with strong dispositor."
+    },
+    {
+     "if": "dispositor debilitated, no Jupiter aspect",
+     "then": "Severe hardship through the combined Moon + Rahu dasas: family, finances, status, health suffer; relocation."
+    },
+    {
+     "if": "dispositor debilitated BUT Jupiter aspects both the conjunction and the debilitated dispositor",
+     "then": "Turns into a large yoga - a debilitated planet aspected by Jupiter gives better-than-exalted results; Moon-Jupiter mutual aspect also forms Gajakesari."
+    }
+   ]
+  },
+  {
+   "id": "ECL-MK-MARS",
+   "name": "Moon-Ketu with dispositor test",
+   "example_condition": "Moon + Ketu in 2nd (Viruchigam) for Thulam lagna",
+   "branches": [
+    {
+     "if": "Mars retrograde or debilitated (e.g. 8th from the pair)",
+     "then": "Negative"
+    },
+    {
+     "if": "Mars exalted",
+     "then": "Yoga"
+    },
+    {
+     "if": "Mars debilitated, no Jupiter aspect, BUT lagna lord / lord_5 / lord_9 conjoins or aspects the pair",
+     "then": "Neutralised - not a big yoga, but no ruin"
+    }
+   ]
+  },
+  {
+   "id": "ECL-STELLIUM",
+   "condition": "Group of planets in one sign",
+   "result": "Positive if the sign's lord is strong; negative otherwise."
+  },
+  {
+   "id": "ECL-GURU-MOON-STAR",
+   "condition": "Jupiter and Moon in the same nakshatra",
+   "result": "Rarely positive - only if their dispositor is strong or Jupiter is own/exalted; otherwise neutral."
+  },
+  {
+   "id": "ECL-NODE-STAR-LORD",
+   "condition": "Node in a sign whose lord and nakshatra lord are in 6/8 relation (e.g. Ketu in Poorattathi in Kumbam with Saturn-Jupiter 6/8)",
+   "result": "Node acts negatively; if sign lord and star lord are conjoined, positively. House number irrelevant."
+  }
+ ],
+ "dasa_pair_rules": [
+  {
+   "id": "DP-RAHU-SATURN",
+   "periods": [
+    "Rahu dasa Saturn bhukti",
+    "Saturn dasa Rahu bhukti"
+   ],
+   "branches": [
+    {
+     "if": "Rahu and Saturn connected (conjunction, aspect, star exchange) in general",
+     "then": "Negative - job change likely"
+    },
+    {
+     "if": "conjoined in Magaram, Kumbam or Thulam",
+     "then": "Positive - job rise"
+    },
+    {
+     "if": "conjoined there AND in the same nakshatra",
+     "then": "Negative"
+    },
+    {
+     "if": "Jupiter or lord of 1/5/9 aspects/conjoins",
+     "then": "Neutralised"
+    },
+    {
+     "if": "different nakshatras AND Jupiter or 1/5/9 lord influence",
+     "then": "Yoga"
+    }
+   ]
+  },
+  {
+   "id": "DP-VENUS-RAHU",
+   "periods": [
+    "Venus dasa Rahu bhukti",
+    "Rahu dasa Venus bhukti"
+   ],
+   "condition": "Venus and Rahu connected by conjunction, aspect or star exchange",
+   "result": "Highly favourable period."
+  }
+ ],
+ "strength_rules": [
+  {
+   "id": "STR-WEAK-MOON-WINS",
+   "condition": "Moon debilitated (e.g. 11th lord for Kanni lagna in 3rd) BUT Moon's dispositor in mutual 7th (samasaptama) aspect with Venus",
+   "result": "Moon dasa still brings success and expansion. Attributed to Kerala astrology texts."
+  },
+  {
+   "id": "STR-MOON-OVER-LAGNA",
+   "condition": "Lagna and lagna lord afflicted BUT Moon unafflicted and Moon's dispositor strong",
+   "result": "Native still succeeds in life."
+  },
+  {
+   "id": "STR-RETRO-SAT-SUN",
+   "condition": "Retrograde Saturn in mutual 7th aspect with Sun",
+   "result": "Good position in employment (not own business); superiors lift them if Sun is strong, pressure from superiors if Sun is weak."
+  },
+  {
+   "id": "STR-RETRO-1-2",
+   "condition": "Retrograde planet in 1st or 2nd",
+   "result": "Contrarian nature - tends to take the opposite stand."
+  },
+  {
+   "id": "STR-VARGOTTAMA",
+   "definition": "Planet in the same sign in D1 and D9 = vargottama = strong. Exalted in D1 but debilitated in D9 = weak.",
+   "alternative": "Planet strength can also be judged by the nakshatra lord's condition instead of D9."
+  },
+  {
+   "id": "STR-KBN-MOON-4",
+   "result": "Moon in 4th (karako bhava nashti) should not be read literally; mother can live long."
+  }
+ ],
+ "transit_eclipse_rules": [
+  {
+   "id": "TR-ECL-SIGNS",
+   "condition": "Eclipse occurs in sign S, nakshatra N",
+   "result": "Traditionally S, adjacent signs, adjacent nakshatras and N's trine stars (janma/anujanma) are flagged for remedies."
+  },
+  {
+   "id": "TR-ECL-6TH",
+   "condition": "Eclipse falls in 6th from natal Moon",
+   "result": "Good time to act on job moves, foreign travel, arts, disputes, court cases, health and property issues - long-pending matters can resolve."
+  },
+  {
+   "id": "TR-ECL-11TH",
+   "condition": "Eclipse falls in 11th from natal Moon",
+   "result": "Strong gains."
+  },
+  {
+   "id": "TR-ECL-7TH-AUTHORITY",
+   "condition": "Eclipse sign is 7th from Simha (i.e. in Kumbam)",
+   "result": "Pressure on those in authority; earning members may feel their word carries less weight at home."
+  }
+ ],
+ "eclipse_time_guidance": [
+  "Favourable for japa, mantra initiation, meditation, charity and focused study (including children's school study)",
+  "Drinking water during eclipse is fine",
+  "Claims that black magic works better during eclipses are rejected",
+  "Children born during an eclipse are not ill-fated; tend to be mentally strong"
+ ],
+ "prashna_rules": [
+  {
+   "id": "PR-MOON-QUESTION",
+   "principle": "The query topic can be read from the Moon's combination at query time (e.g. nakshatra lord + weekday lord). Example: Jupiter star on a Sunday -> Jupiter+Sun themes: govt/bank jobs, children, eldest child's education, promotion."
+  }
+ ],
+ "misc": [
+  {
+   "id": "MISC-3-8",
+   "result": "3rd house is the 8th from the 8th (bhavat bhavam) - key to judging the 8th."
+  },
+  {
+   "id": "MISC-MARS-MURUGAN",
+   "result": "Strong Mars -> strong devotion to Murugan."
+  }
+ ],
+ "open_questions_for_implementation": [
+  "Exact definition of 'connected' for dasa_pair_rules (conjunction, aspect, star exchange - all equal?)",
+  "Rahu/Ketu special aspects used for neutraliser checks?",
+  "transit_eclipse_rules need an eclipse calendar input"
+ ]
+}

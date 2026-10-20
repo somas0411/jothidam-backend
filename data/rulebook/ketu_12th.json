@@ -1,0 +1,209 @@
+{
+ "ruleset": "ketu_12th_from_ketu",
+ "version": "1.0",
+ "definitions": {
+  "twelfth_from_ketu": "The sign immediately BEFORE Ketu's sign in normal zodiac order (count forward normally, NOT in reverse). E.g. Ketu in Kanni -> 12th is Simha. It is also the sign Ketu transits into next, since nodes move retrograde.",
+  "trigger_modes": [
+   "OCCUPANT: planet X is placed in the 12th sign from Ketu",
+   "SIGN_LORD: the 12th sign from Ketu is owned by planet X (i.e. Ketu sits in the sign right after X's sign)"
+  ],
+  "reference": "Independent of Lagna and Rasi - only Ketu's sign matters.",
+  "strength_modifier": "Many results flip between positive and negative expression depending on whether X is strong (own/exalted, Guru aspect, sthana bala, good nakshatra lord) or weak."
+ },
+ "general_principles": [
+  {
+   "id": "KETU-GEN-01",
+   "condition": "Ketu in house 3, 6 or 11 from Lagna",
+   "result": "Generally yogic (same for Rahu). Not absolute - Ketu in 11 can still harm, Ketu in 8 can still give big success.",
+   "confidence": "general"
+  },
+  {
+   "id": "KETU-GEN-02",
+   "condition": "Ketu in any house H",
+   "result": "Results of the NEXT sign Ketu will move into (house H-1, i.e. 12th from Ketu) get suppressed first and delivered later.",
+   "example": "Ketu in 8th from Lagna -> marriage delayed because Ketu's next move is into the 7th, not because it sits in the 8th."
+  },
+  {
+   "id": "KETU-GEN-03",
+   "condition": "Ketu in 12th house from Lagna",
+   "result": "Strong spiritual inclination, pilgrimage, temple service, charity, A young native may not show it yet, it emerges with life experience."
+  },
+  {
+   "id": "KETU-GEN-04",
+   "condition": "Ketu dasa (7 yrs)",
+   "result": "Extreme outcomes - either very large gains or very severe fall, depending on Ketu's placement quality."
+  }
+ ],
+ "rules": [
+  {
+   "id": "K12-SUN",
+   "planet": "Sun",
+   "triggers": {
+    "occupant": "Sun in 12th from Ketu",
+    "sign_lord": "Ketu in Kanni (12th = Simha)"
+   },
+   "results": [
+    "Family faced financial hardship after birth and relocated; prospered after the move",
+    "Family prestige dips first, then is restored; may rise to leadership; father's/grandfather's name upheld",
+    "Career in government-related service roles: medical, NGO, relief work, sanitation; early career struggles",
+    "Humble, mixes with everyone despite high position or wealth",
+    "Spends power, popularity and money on social service; deep spirituality; strong Kula Deivam devotion"
+   ],
+   "domains": [
+    "family",
+    "career",
+    "status",
+    "spirituality"
+   ]
+  },
+  {
+   "id": "K12-MOON",
+   "planet": "Moon",
+   "triggers": {
+    "occupant": "Moon in 12th from Ketu",
+    "sign_lord": "Ketu in Simha (12th = Kadagam)"
+   },
+   "results": [
+    "Emotional, cannot bear negative sights; overly cautious about hygiene; mental confusion",
+    "Strong intuition - foresees events for self or others; takes deep to meditation/yoga/pranayama",
+    "Pitru dosha does not affect them; blessings of ancestors",
+    "Financial growth after marriage; gets along with mother-in-law (often by distance); good maternal-side support"
+   ],
+   "strength_variants": {
+    "strong": "Deep thinker; research, R&D, published work, discoveries benefiting many"
+   },
+   "domains": [
+    "mind",
+    "spirituality",
+    "marriage",
+    "research"
+   ]
+  },
+  {
+   "id": "K12-MARS",
+   "planet": "Mars",
+   "triggers": {
+    "occupant": "Mars in 12th from Ketu",
+    "sign_lord": "Ketu in Rishabam (12th = Mesham) or Ketu in Dhanusu (12th = Viruchigam)"
+   },
+   "results": [
+    "Intensely devoted - long vows, fasting, pilgrimages; donates money and labour to temples/ashrams",
+    "High passion in youth, especially during Mars or Ketu dasa - self-control needed",
+    "Intelligent strategist: defeats opponents through careful planning rather than direct fights",
+    "Property: buying or constructing a building in own name is difficult - buy in spouse/children/parents' name, else risk litigation or disturbed property"
+   ],
+   "strength_variants": {
+    "weak": "Anger, violent fights, legal cases (rare - roughly 2-3%)",
+    "strong": "Calculated, unbeatable moves"
+   },
+   "domains": [
+    "spirituality",
+    "temperament",
+    "property"
+   ]
+  },
+  {
+   "id": "K12-MERCURY",
+   "planet": "Mercury",
+   "triggers": {
+    "occupant": "Mercury in 12th from Ketu",
+    "sign_lord": "Ketu in Kadagam (12th = Mithunam) or Ketu in Thulam (12th = Kanni)"
+   },
+   "results": [
+    "Obstacles in early schooling; changes subject, school or college; education good later",
+    "Sharp intellect used either positively or negatively - earns well either way",
+    "Expert in accounts, documents and records; excellent lawyers/auditors; dual-skill combos (lawyer+auditor, astrologer+healer)",
+    "Strong in mathematics; success in electrical, electronics, pharma, chemicals - study, job, research or business",
+    "Distance or friction with in-laws (father-in-law, brother-in-law)",
+    "Younger sibling: absent, discordant or living apart",
+    "Property: avoid buying vacant land in own name to build; use spouse/children/parents' name"
+   ],
+   "strength_variants": {
+    "strong": "Excellent education; major researcher with single-minded focus",
+    "negative": "Clever white-collar wrongdoing via documents/accounts, hard to catch"
+   },
+   "domains": [
+    "education",
+    "career",
+    "in-laws",
+    "siblings",
+    "property"
+   ]
+  },
+  {
+   "id": "K12-JUPITER",
+   "planet": "Jupiter",
+   "triggers": {
+    "occupant": "Jupiter in 12th from Ketu",
+    "sign_lord": "Ketu in Mesham (12th = Meenam) or Ketu in Magaram (12th = Dhanusu)"
+   },
+   "results": [
+    "Kodeeswara yoga and Mukti yoga - wealth arrives, possibly after a period of struggle until karma clears",
+    "Extremely charitable; income keeps flowing even while spending; annadhanam; builds lasting charitable assets",
+    "Expects nothing from children; fiercely self-reliant",
+    "Smart investor - shares, crypto, forex, commodities, ETFs; reluctant to manage others' money or take responsibility",
+    "Frustrated over unmet desires in youth; mature later; role model and guide",
+    "Soft-natured but unyielding if challenged"
+   ],
+   "domains": [
+    "wealth",
+    "charity",
+    "investment",
+    "spirituality"
+   ]
+  },
+  {
+   "id": "K12-VENUS",
+   "planet": "Venus",
+   "triggers": {
+    "occupant": "Venus in 12th from Ketu",
+    "sign_lord": "Ketu in Mithunam (12th = Rishabam) or Ketu in Viruchigam (12th = Thulam)"
+   },
+   "results": [
+    "Lakshmi kataksham - vehicles, own house, luxurious bedroom and comforts",
+    "Spouse on the same wavelength (e.g. equally charitable) - positive expression",
+    "Detached / renunciate mindset after middle age; enjoys comforts within limits",
+    "Strong interest in fine arts - dance, music, painting",
+    "Heavy interference from spouse's family",
+    "Takes household decisions without consulting spouse; speech not fluent, emotional",
+    "Diabetes-related tendency with age"
+   ],
+   "strength_variants": {
+    "negative": "Constant marital quarrels; neglects health/diabetes control",
+    "positive": "Excellent spouse; disciplined health management"
+   },
+   "domains": [
+    "marriage",
+    "comforts",
+    "arts",
+    "health"
+   ]
+  },
+  {
+   "id": "K12-SATURN",
+   "planet": "Saturn",
+   "triggers": {
+    "occupant": "Saturn in 12th from Ketu",
+    "sign_lord": "Ketu in Kumbam (12th = Magaram) or Ketu in Meenam (12th = Kumbam)"
+   },
+   "results": [
+    "2-3 job/business changes early before settling",
+    "Advice: take employment first; do not start an own business with capital early - later business succeeds quickly",
+    "Immune to temptation (money, honey traps); does only what is right; very principled",
+    "Completes karma in this birth; accumulates great punya; soul purification",
+    "Career success after early hurdles - especially medical, electronics, research, chemicals/drugs; once the right line is found, rises fast"
+   ],
+   "domains": [
+    "career",
+    "business",
+    "character",
+    "spirituality"
+   ]
+  }
+ ],
+ "open_questions_for_implementation": [
+  "Rahu-in-12th-from-Ketu is not covered (Rahu is always 7th from Ketu, so N/A)",
+  "When both OCCUPANT and SIGN_LORD triggers point to different planets, apply both rule sets",
+  "Define 'strong' for strength_variants: suggest own/exalted, Jupiter aspect, or favorable nakshatra lord"
+ ]
+}

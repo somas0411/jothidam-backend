@@ -1,0 +1,325 @@
+{
+ "ruleset": "second_lord_placement",
+ "version": "1.0",
+ "definitions": {
+  "reference": "Houses counted from LAGNA.",
+  "lord_2": "Lord of the 2nd house from Lagna (Dhana / Kudumba / Vaak sthana).",
+  "core_principle": "Wealth, assets or fame come most easily through the affairs of the house where lord_2 sits.",
+  "connection": "lord_2 in house H, OR lord_H in house 2, OR conjunction, mutual aspect, sign exchange (parivartana) or nakshatra exchange between lord_2 and lord_H. Treat all as the same connection.",
+  "caveat": "Results are modified by aspecting planets, conjoined planets, sign dispositor, nakshatra lord and the running dasa/bhukti. A promised yoga may not show until a supporting dasa arrives."
+ },
+ "yoga_tiers": {
+  "top_tier": [
+   "2L-H1",
+   "2L-H2",
+   "2L-H4",
+   "2L-H9",
+   "2L-H11"
+  ]
+ },
+ "rules": [
+  {
+   "id": "2L-H1",
+   "placement": "lord_2 in house 1",
+   "tier": "top",
+   "results": [
+    "Strong money yoga; earning is a passion in itself, measures everything by profit",
+    "Self-made - needs only knowledge, not hand-holding",
+    "Very busy professionally; owns assets but has little time to enjoy them",
+    "Charming, persuasive speaker; affectionate towards family",
+    "Excellent early education, may slow down later",
+    "Success in consultancy, own business, manufacturing, supply chain, service; public-facing work"
+   ],
+   "modifiers": [
+    {
+     "if": "Mercury strong OR lord_10 strong",
+     "then": "Very shrewd in trade and business"
+    }
+   ],
+   "domains": [
+    "wealth",
+    "career",
+    "speech",
+    "education"
+   ]
+  },
+  {
+   "id": "2L-H2",
+   "placement": "lord_2 in house 2 (own sign)",
+   "tier": "top",
+   "results": [
+    "Kodeeswara yoga - wealth comparable to royalty, though may be frugal / tight-fisted",
+    "Ancestral property and prestigious family lineage; creates assets lasting generations",
+    "Guards inherited property - lets nothing go out of the family",
+    "Financial stability; income keeps flowing",
+    "Magnetic voice and pleasing modulation; words come true; keeps promises",
+    "Fond of food; tendency to put on belly weight",
+    "May run business from home or live where they work"
+   ],
+   "modifiers": [
+    {
+     "if": "Saturn strong",
+     "then": "Ability to draw crowds; leadership"
+    }
+   ],
+   "exception": "If struggling despite this placement, the supporting dasa has not yet come.",
+   "domains": [
+    "wealth",
+    "family",
+    "speech",
+    "property"
+   ]
+  },
+  {
+   "id": "2L-H3",
+   "placement": "lord_2 in house 3",
+   "results": [
+    "Good social life and cooperation from neighbours; helps everyone",
+    "Harmony with siblings",
+    "Financial help keeps arriving; never truly short of money, though complains of hardship",
+    "Earns through travel-based jobs or by working away from home",
+    "High courage and self-confidence",
+    "Success in fine arts (vocal, instruments, dance) and media/writing",
+    "Support from educated, powerful and wealthy people",
+    "Struggles in early life; strong rise after middle age"
+   ],
+   "domains": [
+    "social",
+    "siblings",
+    "career",
+    "arts"
+   ]
+  },
+  {
+   "id": "2L-H4",
+   "placement": "lord_2 in house 4",
+   "tier": "top",
+   "results": [
+    "Builds own attractive, spacious house from own earnings",
+    "Large savings; keeps money, valuables and documents separated in multiple places",
+    "Holds many property / loan / business documents",
+    "Buys property and vehicles - first vehicle used, later ones new",
+    "Success running educational or art institutions",
+    "Family happiness is top priority; good spouse - safe choice for marriage (both genders)",
+    "Mother's support till the end; mother likely wealthy",
+    "Passive income - interest, shares, crypto, forex, or business that runs on its own",
+    "Fond of rings / gold-coloured accessories"
+   ],
+   "domains": [
+    "property",
+    "savings",
+    "family",
+    "marriage",
+    "passive_income"
+   ]
+  },
+  {
+   "id": "2L-H5",
+   "placement": "lord_2 in house 5 (or any 2-5 connection)",
+   "results": [
+    "Ancestral property or inherited family business; trustee / chairman / director roles",
+    "Hereditary profession (e.g. father, son and grandson in same field)",
+    "Smart rather than hard worker; easy-going",
+    "Excellent investor - spots winners, times exits; venture capital, JV, MF, FD, NPS, crypto, forex, gold",
+    "Treats children's education as an investment that pays off",
+    "Earns from leisure / holiday businesses (resorts, hotels, tourist shops)",
+    "Gets work-from-home easily in IT"
+   ],
+   "domains": [
+    "inheritance",
+    "investment",
+    "children",
+    "career"
+   ]
+  },
+  {
+   "id": "2L-H6",
+   "placement": "lord_2 in house 6 (or any 2-6 connection)",
+   "results": [
+    "Does NOT ruin finances - income stays strong",
+    "Leaves native place to earn (other city/state/country/language), often early in life",
+    "Weak at investing - prone to wrong investments and emotional manipulation",
+    "Possible sudden gains from contests or lotteries (gains and losses both sudden)",
+    "Buys property elsewhere / abroad; rental income from buildings or vehicles",
+    "Good health",
+    "Success in service: doctor, lawyer, astrologer, teacher, military, police, uniformed services, health services",
+    "Research / PhD success in earth sciences, health and biological sciences",
+    "Good at lending, financial management, winning competitions; works very hard"
+   ],
+   "timing": "lord_2-in-6 dasa/bhukti brings income",
+   "domains": [
+    "career",
+    "relocation",
+    "investment",
+    "health"
+   ]
+  },
+  {
+   "id": "2L-H7",
+   "placement": "lord_2 in house 7",
+   "results": [
+    "Wealthy spouse, or becomes wealthy after marriage",
+    "Benefits from partnership business; spouse supports earnings (male) / couple run business together (female)",
+    "Inclined to trade and supply chain",
+    "Success after relocating; travel abroad with family",
+    "Very strong husband-wife bond - safe choice for marriage",
+    "Good family life and children; earns well wherever they go"
+   ],
+   "domains": [
+    "marriage",
+    "partnership",
+    "business"
+   ]
+  },
+  {
+   "id": "2L-H8",
+   "placement": "lord_2 in house 8",
+   "results": [
+    "Success in insurance, savings, banking",
+    "Mining, gems/navaratna cutting and sales, ore and scrap trade, rough industries",
+    "Research on hazardous / toxic materials; legal and research work",
+    "Occult / intuitive astrology or oracle-type roles; deep research if in astrology",
+    "Keeps wealth hidden - looks ordinary despite being rich",
+    "Sudden gains and sudden losses",
+    "Calm under trauma - can become eminent in medicine/surgery"
+   ],
+   "domains": [
+    "career",
+    "wealth",
+    "research",
+    "occult"
+   ]
+  },
+  {
+   "id": "2L-H9",
+   "placement": "lord_2 in house 9 (or any 2-9 connection)",
+   "tier": "top",
+   "results": [
+    "Very fortunate; large success",
+    "Ancestral property arrives",
+    "Earns abroad but returns home; earnings benefit society",
+    "Spiritual rituals, charity, help to needy",
+    "Excellent teacher, professor, lecturer, tutor - clear communicator",
+    "Smart investor (as in 2L-H5)",
+    "Blessings of ancestors and gurus; quick progress in meditation",
+    "Pride through children; can retire once children earn"
+   ],
+   "sub_principles": [
+    "Money comes through the planet conjoined with lord_9",
+    "Relationship signified by that planet stays good",
+    "House occupied by lord_9 becomes beneficial"
+   ],
+   "domains": [
+    "fortune",
+    "inheritance",
+    "teaching",
+    "spirituality",
+    "children"
+   ]
+  },
+  {
+   "id": "2L-H10",
+   "placement": "lord_2 in house 10",
+   "results": [
+    "Great wealth through position, job or own business",
+    "Earns through unique personal talent (e.g. music instrument)",
+    "Succeeds in own business; self-made",
+    "Fair reward for effort; hard worker; charitable",
+    "Interest in public service, politics, associations, leadership roles",
+    "Grows business and popularity through speech",
+    "Lifts up loyal people around them"
+   ],
+   "modifiers": [
+    {
+     "if": "lord_10 strong",
+     "then": "Results amplified"
+    }
+   ],
+   "domains": [
+    "career",
+    "business",
+    "public_life"
+   ]
+  },
+  {
+   "id": "2L-H11",
+   "placement": "lord_2 in house 11 (or lord_11 in 2, or 2-11 exchange)",
+   "tier": "top",
+   "results": [
+    "Very wealthy - Dhana yoga",
+    "Charitable; helps many others earn",
+    "Many families loyal to them",
+    "Continuous income - spends freely and income keeps flowing"
+   ],
+   "modifiers": [
+    {
+     "if": "2-11 parivartana, strong, and supported by kendra/trikona lords",
+     "then": "Exceptional wealth"
+    }
+   ],
+   "domains": [
+    "wealth",
+    "charity",
+    "gains"
+   ]
+  },
+  {
+   "id": "2L-H12",
+   "placement": "lord_2 in house 12",
+   "results": [
+    "Earns only after leaving birthplace",
+    "Income from unusual fields: sewage/waste management, arms and ammunition, chemicals, drugs, industrial and flammable materials",
+    "Supplier to hospitals, jails, military",
+    "Does NOT lose everything - can have good family, children and happiness",
+    "Hard to save - spends fast but income keeps coming",
+    "Workaholic, little family time; affectionate from a distance, quarrelsome when together",
+    "Builds property through self-earnings"
+   ],
+   "domains": [
+    "career",
+    "relocation",
+    "family",
+    "savings"
+   ]
+  }
+ ],
+ "planets_in_2nd_house": [
+  {
+   "id": "P2-MARS",
+   "planet": "Mars",
+   "result": "Impatient speech"
+  },
+  {
+   "id": "P2-NODES",
+   "planet": "Rahu or Ketu",
+   "result": "Hesitant speech; tends to repeat what was said"
+  },
+  {
+   "id": "P2-SUN",
+   "planet": "Sun",
+   "result": "Dignified / name-dropping, authoritative speech; can rise in politics"
+  },
+  {
+   "id": "P2-SATURN",
+   "planet": "Saturn",
+   "result": "Does NOT prevent being a good speaker (myth rejected)"
+  }
+ ],
+ "side_rules": [
+  {
+   "id": "SIDE-6L-H4",
+   "condition": "lord_6 in house 4 AND its dasa/bhukti running",
+   "result": "Health issues during that period"
+  },
+  {
+   "id": "SIDE-9L-H9",
+   "condition": "lord_9 in house 9 in own sign AND its dasa running",
+   "result": "Debts appear (usually repaid)"
+  }
+ ],
+ "open_questions_for_implementation": [
+  "Tier labels are qualitative; map to numeric weights if scoring",
+  "2-11 rule mentions extra conditions (Mars/Saturn in specific signs) only in a quoted verse - not encoded",
+  "Decide whether nakshatra exchange counts as full 'connection' or a weaker one"
+ ]
+}

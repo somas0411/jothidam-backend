@@ -578,7 +578,7 @@ def test_nothing_entered_means_not_given_and_no_event_sheets(ai, T):
 
 def test_what_the_user_entered_is_repeated_and_checked(full, T):
     t = full['tables']
-    assert full['sheets'] == [s for s in E.SHEETS] and len(full['sheets']) == 30
+    assert full['sheets'] == [s for s in E.SHEETS] and len(full['sheets']) == 31
     life = {r['key']: r['value'] for r in t['AI_LifeFacts']}
     assert life == {'marital_status': 'married', 'marriage_year': 2012, 'children_count': 1,
                     'first_child_birth_year': 2014, 'elder_siblings': 0, 'younger_siblings': 1,
@@ -961,9 +961,10 @@ def test_workbook_carries_every_new_sheet_as_a_flat_table(client, full):
     rv = client.post('/api/download/excel', json=dict(G.API_BODY, tobUncertaintyMin=5, life=LIFE))
     assert rv.status_code == 200
     wb = openpyxl.load_workbook(io.BytesIO(rv.data))
-    assert wb.sheetnames[7:] == full['sheets'] and len(wb.sheetnames) == 37
+    assert wb.sheetnames[7:] == full['sheets'] and len(wb.sheetnames) == 38
     for sheet in ('AI_Brief', 'AI_LifeFacts', 'AI_LifeEvents', 'AI_DasaPeriods', 'AI_Antaram', 'AI_PeriodFacts',
-                  'AI_TransitsFast', 'AI_Stations', 'AI_TopicPromise', 'AI_TopicWindows', 'AI_EventCheck'):
+                  'AI_TransitsFast', 'AI_Stations', 'AI_TopicPromise', 'AI_TopicWindows', 'AI_RuleBook',
+                  'AI_EventCheck'):
         ws = wb[sheet]
         cols = [c['name'] for c in full['columns'][sheet]]
         rows = full['tables'][sheet]

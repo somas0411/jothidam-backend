@@ -1,0 +1,198 @@
+{
+ "ruleset": "education_choice",
+ "version": "1.0",
+ "definitions": {
+  "core_principle": "Field selection = the dasa/bhukti that will run during study and career-settling years, plus the planets connected to it. Read the NEXT 5-10 years of dasas, not just the current one.",
+  "practical_rule": "Final decision must combine (1) marks/ability, (2) the student's interest, (3) family affordability. Astrology confirms direction; it does not replace these.",
+  "question_format": "Ask a specific question - 'Is branch X suitable?' - not 'What should he study?'. A single dasa (esp. Rahu) maps to too many fields to pick one blindly.",
+  "time_value": "Never waste a year: if the desired seat is unlikely this year, join an alternative course rather than waiting idle."
+ },
+ "dasa_field_map": [
+  {
+   "id": "ED-JUP",
+   "dasa": "Jupiter dasa during career-settling years",
+   "fields": [
+    "HR",
+    "administration",
+    "finance",
+    "marketing",
+    "banking",
+    "insurance",
+    "logistics"
+   ],
+   "note": "Typically at PG level, whatever the UG."
+  },
+  {
+   "id": "ED-MERC",
+   "dasa": "Mercury dasa, or next dasa connected to a strong Mercury",
+   "fields": [
+    "IT"
+   ],
+   "sub_rules": [
+    {
+     "with": "Rahu",
+     "field": "Artificial intelligence"
+    },
+    {
+     "with": "Moon",
+     "field": "Generative / creative AI"
+    },
+    {
+     "with": "Saturn",
+     "field": "Accounts"
+    },
+    {
+     "with": "Sun",
+     "field": "Science and technology"
+    }
+   ]
+  },
+  {
+   "id": "ED-RAHU",
+   "dasa": "Rahu dasa",
+   "fields": [
+    "electrical",
+    "electronics",
+    "computer science",
+    "mechatronics",
+    "foreign trade"
+   ],
+   "note": "Too broad on its own - narrow using Rahu's star lord and sign lord."
+  },
+  {
+   "id": "ED-KETU",
+   "dasa": "Ketu dasa",
+   "fields": [
+    "PhD",
+    "doctoral / post-doctoral research"
+   ],
+   "condition_example": "Ketu in 10th in a Saturn sign / Mars star -> completes PhD (even abroad)."
+  }
+ ],
+ "rules": [
+  {
+   "id": "ED-01",
+   "name": "Study delay from retrograde bhukti lord",
+   "condition": "current bhukti lord retrograde",
+   "result": "Studies slow / delayed until that bhukti ends; resume afterwards."
+  },
+  {
+   "id": "ED-02",
+   "name": "Research inclination",
+   "condition": "Jupiter in 12th (strong 12th house)",
+   "result": "Research path later in life; first complete the main degree (e.g. engineering)."
+  },
+  {
+   "id": "ED-03",
+   "name": "CA / auditing",
+   "condition": "Jupiter dasa with Jupiter own sign AND Mercury strong (incl. neecha-bhanga via exalted planet)",
+   "result": "Success in accounts and auditing (CA)."
+  },
+  {
+   "id": "ED-04",
+   "name": "Rahu in 8th for exams",
+   "condition": "Rahu in 8th in own star, sign lord (Venus) well placed in 10th",
+   "result": "Exams succeed; Rahu in 8th lifts rather than blocks.",
+   "cross_link": "rahu_dasa_and_love_marriage.RAHU-DA-01"
+  },
+  {
+   "id": "ED-05",
+   "name": "Science & technology / CS",
+   "condition": "Rahu in a sign whose lord is own-sign (e.g. Rahu in 7th), dasa lord linked to Ketu/Rahu",
+   "result": "Science and technology; computer science."
+  },
+  {
+   "id": "ED-06",
+   "name": "AI vs robotics",
+   "condition": "Jupiter dasa now; Saturn dasa only after career settles",
+   "result": "Choose AI (desk-bound, Jupiter-type work) over robotics (field/outer work, Saturn-type). Supporting signs: 6th lord own-sign in 6th with Mercury (creativity) and Ketu (invention)."
+  },
+  {
+   "id": "ED-07",
+   "name": "Medical seat",
+   "condition": "Saturn dasa Mars bhukti during entrance",
+   "branches": [
+    {
+     "if": "Mars direct",
+     "then": "Medical seat likely"
+    },
+    {
+     "if": "Mars retrograde",
+     "then": "Challenging; seat more likely via management/private quota (costs more)"
+    }
+   ]
+  },
+  {
+   "id": "ED-08",
+   "name": "Paid-seat route",
+   "condition": "dasa/bhukti planets in 6th/8th in Ketu star linked to Sun",
+   "result": "Merit seat unlikely this year; paid route possible. Recommend an alternative course this year instead of losing a year."
+  },
+  {
+   "id": "ED-09",
+   "name": "Film / animation / graphics",
+   "condition": "Next dasa Rahu in 11th, in Mars star, in a Saturn sign",
+   "result": "Animation, graphics, film technology; Saturn link adds mass-audience success."
+  },
+  {
+   "id": "ED-10",
+   "name": "IT specialisations",
+   "condition": "Venus dasa followed by Sun dasa, Venus in Ketu star",
+   "result": "IT over civil; cyber security or data analytics; strong overseas prospects."
+  },
+  {
+   "id": "ED-11",
+   "name": "Mechanical cluster",
+   "condition": "Venus dasa then Sun then Moon",
+   "result": "Mechanical, automobile or mechatronics engineering."
+  },
+  {
+   "id": "ED-12",
+   "name": "Electrical cluster",
+   "condition": "Rahu in 10th connected with retrograde (even debilitated) Jupiter, Rahu dasa through student years",
+   "result": "Electrical, electronics or ECE; top institute possible."
+  },
+  {
+   "id": "ED-13",
+   "name": "Law",
+   "condition": "Venus dasa with Venus in 12th in own star and dispositor Jupiter aspecting",
+   "result": "Law is suitable."
+  },
+  {
+   "id": "ED-14",
+   "name": "Government job indicator",
+   "condition": "Jupiter, Mars and Venus each alone in kendras",
+   "result": "High-status government position likely."
+  },
+  {
+   "id": "ED-15",
+   "name": "Engineering + govt job",
+   "condition": "lords of 1 and 5 strong; Venus dasa Jupiter bhukti in teens",
+   "result": "Engineering stream suits; government job likely later."
+  },
+  {
+   "id": "ED-16",
+   "name": "Govt exam timing",
+   "condition": "dasa/bhukti not supportive until a given date",
+   "result": "Advise private-sector job meanwhile; don't spend money/time on govt exams before the supportive period."
+  },
+  {
+   "id": "ED-17",
+   "name": "Study abroad",
+   "condition": "Jupiter dasa, Jupiter in 10th, supportive bhukti starting",
+   "result": "Foreign study opportunity opens in that bhukti; settles abroad after studies."
+  }
+ ],
+ "engine_output_suggestion": {
+  "inputs": [
+   "birth data",
+   "current class/course",
+   "candidate branches (1-3)"
+  ],
+  "output": "For each candidate branch: supportive / neutral / not supportive, with the dasa reasoning and age window. Always append the marks-interest-affordability reminder."
+ },
+ "open_questions_for_implementation": [
+  "Several rules are example-derived; generalise conditions before scoring",
+  "Field taxonomy to map planets -> course list (maintain as editable data)"
+ ]
+}

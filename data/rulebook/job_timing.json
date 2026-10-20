@@ -1,0 +1,62 @@
+{
+ "ruleset": "job_timing",
+ "version": "1.0",
+ "definitions": {
+  "core_principle": "Educational merit does not decide job timing; the dasa running in the job-seeking years does. A 'good' dasa (even Jupiter) can block job satisfaction if its lord is tied up with own/exalted planets. Predict the success window so the native can set expectations - frustration comes from expectation, not from the delay itself.",
+  "own_exalted_lock": "Dasa lord conjoined with, aspected by, or in the star of own/exalted planets -> 'over-strength'; job keeps getting disturbed / unsatisfying in that dasa.",
+  "no_pure_chart": "No chart is fully yogic or fully afflicted; every chart gets a success period.",
+  "dasa_gate": "All results by dasa/bhukti; a dasa arriving very late (e.g. after ~70) can be ignored for career."
+ },
+ "rules": [
+  {
+   "id": "JT-01",
+   "name": "Own/exalted lock on the dasa lord",
+   "condition": "dasa lord sits with an own/exalted planet AND/OR in the star of an own/exalted planet AND/OR is aspected by another own/exalted planet",
+   "result": "Job not settled / below expectations through this dasa: may have to relocate, accept a lower-than-qualified role (~1/3-1/2 of expected pay); own business not feasible (no capital, won't succeed).",
+   "second_half": "Second half of the dasa gives breathing space - roughly 40-50% of what the next good dasa will pay.",
+   "cross_link": "own_exalted_dasa.OE-01"
+  },
+  {
+   "id": "JT-02",
+   "name": "Dusthana planet not 'hidden'",
+   "rule": "A planet in 6/8/12 is not hidden if that house's lord is own/exalted (e.g. Jupiter in 8th with own-sign Mars; Sun in 6th with exalted Mercury -> education completed, children fine).",
+   "cross_link": "planets_in_dusthana.DU-01"
+  },
+  {
+   "id": "JT-03",
+   "name": "Rahu + Venus in 7th in study years",
+   "result": "Technical education / degree indicated."
+  },
+  {
+   "id": "JT-04",
+   "name": "Badhaka 11th lord own sign, retrograde",
+   "example": "Mesha lagna: Saturn (lord_10 + lord_11, badhaka) own sign in 11th, retrograde, mutual aspect with own-sign Mars; lord_2 Venus own sign in 7th",
+   "result": "Saturn dasa = big yoga in employment (top roles, 2x earlier earnings). Not own business because the 10th lord is retrograde.",
+   "if_direct": "Badhaka nature would act negatively (but own-sign Saturn-Mars mutual aspect still boosts).",
+   "cross_link": "complex_chart_techniques.CX-05, retrograde_planets"
+  },
+  {
+   "id": "JT-05",
+   "name": "Dhana yoga: lord_2 and lord_11 own sign",
+   "result": "Lasting wealth (classical 'lives like the Himalaya')."
+  },
+  {
+   "id": "JT-06",
+   "name": "Job -> own business / investments",
+   "condition": "Mercury dasa after a successful dasa, Mercury exalted and in a star of a planet in an exalted planet's sign",
+   "result": "Moves from job to own venture with maturity and savings; income from investments (mutual funds, shares) or trading."
+  },
+  {
+   "id": "JT-07",
+   "name": "Success-window output",
+   "method": "Walk the dasa timeline; mark each dasa as 'unsettled', 'breathing space', 'peak', 'transition to business/investment', 'late (ignore)'. Report the start age of the first peak dasa."
+  }
+ ],
+ "engine_output_suggestion": {
+  "career_window": "Show: current dasa status, when it eases (second half), next peak dasa with start date and job vs business suitability."
+ },
+ "open_questions_for_implementation": [
+  "Weight of each lock component (conjunction vs star vs aspect)",
+  "Define 'first half / second half' as by bhukti order or by calendar midpoint"
+ ]
+}

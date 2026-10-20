@@ -1,0 +1,215 @@
+{
+ "ruleset": "saturn_raja_yoga",
+ "version": "1.0",
+ "definitions": {
+  "core_principle": "For every lagna, Saturn in any sign can give yoga OR dosha. Textbook house-by-house Saturn results (late marriage in 7th, no children in 5th, ruin in 8th, etc.) are only defaults; the deciding factors are sthana bala (positional strength), retrogression, the dispositor's strength, Jupiter and Rahu/Ketu links, the star lord, and whether Saturn's dasa runs in the relevant life window.",
+  "sthana_bala_ok": "Saturn own/exalted, OR retrograde while debilitated (neecha + vakra = uccha result), OR its dispositor own/exalted (neecha-bhanga)",
+  "retro_rule": "Retrograde Saturn in own/exalted sign loses sthana bala ('a stage king who is not a real king') -> dosha, UNLESS rescued.",
+  "rescuers": "Jupiter aspect/conjunction/exchange (from anywhere), OR Rahu/Ketu conjunction/aspect/star link. Either converts a retrograde or weak Saturn's dasa into yoga.",
+  "conflicting_authorities": "When sign lord and star lord pull opposite ways, judge by the STRONGER of the two.",
+  "dasa_gate": "If Saturn dasa ran in infancy/childhood or arrives very late (e.g. 80s), the marriage/career effects never manifest - mark dormant.",
+  "caution": "One missed factor flips a yoga reading into its opposite; the advice can be worth lakhs or crores to the client, so check twice."
+ },
+ "rules": [
+  {
+   "id": "SAT-01",
+   "name": "Classical verse - default negative",
+   "result": "Old verse: Saturn in 12,7,8,9,10,5,4,2,1 harms wealth/marriage. Treat as default only - always override with the factors below.",
+   "engine": "do_not_use_as_standalone"
+  },
+  {
+   "id": "SAT-02",
+   "name": "Meena lagna: Saturn in Lagna (lord_11 + lord_12)",
+   "branches": [
+    {
+     "if": "direct",
+     "then": "Yoga - lord_11 in lagna, lord_12 in lagna both favourable; Saturn dasa prosperous"
+    },
+    {
+     "if": "retrograde, no rescuer",
+     "then": "Saturn dasa drains income, wealth and property"
+    },
+    {
+     "if": "dispositor Jupiter retrograde in 6th or 8th",
+     "then": "Saturn dasa troubled (no sthana bala)"
+    },
+    {
+     "if": "retrograde AND Rahu/Ketu link",
+     "then": "Saturn dasa and the node's dasa both become yoga"
+    },
+    {
+     "if": "retrograde AND Jupiter aspect/conjunction/exchange",
+     "then": "Still yoga"
+    }
+   ]
+  },
+  {
+   "id": "SAT-03",
+   "name": "Meena lagna: Saturn own sign in 12th (Kumbha)",
+   "branches": [
+    {
+     "if": "direct",
+     "then": "Strong 12th lord - property, house, vehicles, children, name and money in Saturn dasa"
+    },
+    {
+     "if": "retrograde, no rescuer",
+     "then": "Loses sthana bala - severe hardship"
+    },
+    {
+     "if": "retrograde with Jupiter or Rahu/Ketu link",
+     "then": "Yoga"
+    }
+   ],
+   "note": "Speaker: Saturn in Sathayam (Rahu's star) also works well in practice.",
+   "cross_link": "planets_in_12th.P12-11"
+  },
+  {
+   "id": "SAT-04",
+   "name": "Meena lagna: Saturn own sign in 11th (Makara)",
+   "branches": [
+    {
+     "if": "direct",
+     "then": "Large earnings, employs others, small business grows big; leaves substantial assets behind"
+    },
+    {
+     "if": "retrograde, no Jupiter link",
+     "then": "Saturn dasa in earning years is very hard"
+    }
+   ]
+  },
+  {
+   "id": "SAT-05",
+   "name": "Meena lagna: Saturn in 10th (Dhanus)",
+   "branches": [
+    {
+     "if": "dispositor Jupiter strong (e.g. exalted in Kataka, direct)",
+     "then": "Own business, big success; out-earns father and grandfather; engineering, services, supply chain, production; others earn for him"
+    },
+    {
+     "if": "Jupiter retrograde in Kataka (acts debilitated) without Rahu",
+     "then": "Unstable career; can't hold a job; steep fall"
+    },
+    {
+     "if": "Jupiter retrograde in Kataka WITH Rahu",
+     "then": "Saturn regains strength - yoga"
+    },
+    {
+     "if": "Saturn and Jupiter both retrograde",
+     "then": "Good dasa"
+    }
+   ],
+   "general": "Malefics in the 10th / kendras are acceptable."
+  },
+  {
+   "id": "SAT-06",
+   "name": "Conflicting sign lord vs star lord",
+   "example": "Saturn in Dhanus in Pooradam (Venus star) with Venus debilitated but Jupiter exalted -> judge by Jupiter (stronger) -> yoga."
+  },
+  {
+   "id": "SAT-07",
+   "name": "Saturn (or Sun/Mars) in 9th",
+   "default": "Classical: hard for the father, pitru dosha, but for the native, wealth, defeats enemies.",
+   "branches": [
+    {
+     "if": "dispositor strong",
+     "then": "Native benefits"
+    },
+    {
+     "if": "dispositor debilitated (e.g. Mars in Kataka for Saturn in Vrischika)",
+     "then": "Reverses: father prospers; native faces opposition, slow earnings, leaves native place/family trade"
+    }
+   ],
+   "sensitivity": "father-related output: show gently, not as a prediction about the father's life"
+  },
+  {
+   "id": "SAT-08",
+   "name": "Meena lagna: Saturn debilitated in 2nd (Mesha)",
+   "branches": [
+    {
+     "if": "Mars exalted (exchange + neecha-bhanga)",
+     "then": "Yoga - assets in Saturn dasa"
+    },
+    {
+     "if": "Saturn retrograde",
+     "then": "Debilitated + retrograde = exalted result - yoga"
+    },
+    {
+     "if": "Jupiter aspects (from anywhere)",
+     "then": "Yoga"
+    },
+    {
+     "if": "in Bharani/Krittika with Sun exalted",
+     "then": "Yoga"
+    },
+    {
+     "if": "with Rahu, no neecha-bhanga, not retrograde",
+     "then": "Saturn/Rahu dasa delays marriage, family discord"
+    },
+    {
+     "if": "with Rahu AND retrograde",
+     "then": "Early marriage, settled family"
+    },
+    {
+     "if": "no rescue at all BUT Saturn dasa only in childhood or very late",
+     "then": "Dormant - no marriage effect"
+    }
+   ]
+  },
+  {
+   "id": "SAT-09",
+   "name": "Retrograde Saturn in 2nd (Simha lagna)",
+   "result": "Yoga - weakened malefic (viparita logic). Direct Saturn there is the problem case."
+  },
+  {
+   "id": "SAT-10",
+   "name": "Saturn in 12th, own sign, direct (Kumbha lagna)",
+   "result": "Winning dasa - yoga as long as Saturn is not retrograde."
+  },
+  {
+   "id": "SAT-11",
+   "name": "Saturn as lord_7 exalted in 4th (Kataka lagna)",
+   "result": "Marriage is assured, even during Saturn dasa."
+  },
+  {
+   "id": "SAT-12",
+   "name": "Saturn + Jupiter in 2nd (Mesha lagna)",
+   "result": "Excellent Saturn dasa if Venus strong (best if exalted); mild wobble if Venus retrograde/debilitated. Saturn-Jupiter natives are calm and measured."
+  },
+  {
+   "id": "SAT-13",
+   "name": "Stellium in 10th",
+   "result": "Three planets in 10th incl. own-sign 10th lord (e.g. Saturn+Mars+Venus in Makara for Mesha) = wealth. Four or more in 10th can work like sanyasa yoga - check further."
+  },
+  {
+   "id": "SAT-14",
+   "name": "Rahu in 2nd or 8th",
+   "result": "Textbook loss/late marriage, but can equally give early marriage or crorepati status when rescued - same yoga/dosha logic as Saturn.",
+   "cross_link": "rahu_dasa_and_love_marriage"
+  },
+  {
+   "id": "SAT-15",
+   "name": "Astrology aptitude",
+   "condition": "any of: Mercury in kendra/trikona; Jupiter in or aspecting lagna; Saturn or Rahu/Ketu linked to 2nd",
+   "result": "Interest/aptitude for astrology (professional success needs more)."
+  },
+  {
+   "id": "SAT-16",
+   "name": "Stellium in 5th",
+   "result": "Generally beneficial."
+  },
+  {
+   "id": "SAT-17",
+   "name": "Transit Jupiter over natal Jupiter",
+   "result": "Wealth, respect, status, health - only if natal Jupiter is direct.",
+   "type": "transit"
+  }
+ ],
+ "excluded_from_engine": [
+  "Remarks on science vs astrology, Sade-sati debate - commentary only"
+ ],
+ "open_questions_for_implementation": [
+  "Most rules are worked for Meena lagna - generalise to all lagnas via lordship (lord_11/lord_12 in lagna, own-sign Saturn in 10/11/12, debilitated Saturn in 2nd etc.)",
+  "Order of rescuer precedence when several apply",
+  "Retrograde-in-debilitation = exalted: confirm it applies uniformly with the retrograde_planets ruleset"
+ ]
+}

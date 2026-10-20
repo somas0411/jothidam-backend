@@ -1,0 +1,81 @@
+{
+ "ruleset": "raja_yoga_activation",
+ "version": "1.0",
+ "definitions": {
+  "yoga": "Combination of planets giving outsized results (e.g. Gajakesari, Budhaditya, Pancha Mahapurusha, Dharma-Karmadhipati, Dhana yogas).",
+  "core_principle": "Dasa/bhukti is the control system (like control rods in a reactor) - not transits. A yoga gives results only in the dasa of a planet that carries it; an avayoga (bad yoga) likewise harms only in its dasa. Presence of a yoga is not proof of outcome.",
+  "self_reading_caution": "Reading one's own chart tends to swing to extremes; balance is hard."
+ },
+ "rules": [
+  {
+   "id": "RY-01",
+   "name": "Dhana yoga - 2-11 exchange",
+   "condition": "lord_2 and lord_11 exchange signs (strong)",
+   "result": "Major wealth yoga - but only if their dasas run in a usable age.",
+   "cross_link": "second_lord_placement.2L-H11"
+  },
+  {
+   "id": "RY-02",
+   "name": "Rahu with own/exalted planet",
+   "condition": "Rahu (or Ketu) conjoined with a planet in own sign or exaltation",
+   "result": "Not a dosha - node boosts or takes over that planet's results. Especially strong for Venus-Rahu in Rishabam, Thulam or Meenam; also strong elsewhere if their dispositor is own/exalted.",
+   "note": "Rahu-Venus generally gives affluence and social standing."
+  },
+  {
+   "id": "RY-03",
+   "name": "Wealth lords mutually placed",
+   "condition": "lord_2 and lord_11 in mutual kendra (not hidden 6/8/12 from each other); lord_11 own sign even if in 6th",
+   "result": "Dhana yoga chart."
+  },
+  {
+   "id": "RY-04",
+   "name": "Exalted 10th lord",
+   "condition": "lord_10 exalted (e.g. in Lagna)",
+   "result": "Big career yoga; own business if not retrograde.",
+   "modifier": "If retrograde: employment, possibly top management, not own business. With Sun / lord_12 conjoined: high work pressure."
+  },
+  {
+   "id": "RY-05",
+   "name": "Dasa lord in star of 6/8 planet",
+   "condition": "dasa lord sits in the nakshatra of lord_11 (or another giver) BUT that star lord is 6/8 from the dasa lord, and dasa lord is retrograde",
+   "result": "Expected gains don't materialise; limited income; pushes to employment."
+  },
+  {
+   "id": "RY-06",
+   "name": "Retrograde own-sign 6th lord dasa in youth",
+   "condition": "own-sign planet (e.g. Saturn) in 6th, retrograde, running dasa during study years",
+   "result": "Obstacles in education (may manage only one degree despite multi-degree promise); health unaffected."
+  },
+  {
+   "id": "RY-07",
+   "name": "Ketu dasa via strong deciding authorities",
+   "condition": "Ketu (even in 8th) whose sign lord and star lord are strong (e.g. both conjoined, one own sign, with Rahu boost)",
+   "result": "Ketu dasa brings sudden large wealth and lasting gains - this is NOT viparita raja yoga (which gives then takes away).",
+   "cross_link": "rahu_dasa_and_love_marriage.RAHU-DA-01"
+  },
+  {
+   "id": "RY-08",
+   "name": "Late activation",
+   "condition": "All wealth/career yogas present but their dasas fall late",
+   "result": "Ordinary life until those dasas arrive; report the activation age. A yoga dasa that already passed in infancy gives nothing usable."
+  },
+  {
+   "id": "RY-09",
+   "name": "Avayoga that never fires",
+   "examples": [
+    "Mars+Venus in 7th (classic poor-character indicator) can leave a native faithful or even unmarried if the dasa never activates it",
+    "Debilitated Mars can still give high police/authority positions",
+    "Rahu/Ketu in 3rd does not mean breast disease - check 3rd lord, Jupiter aspect, trine lords, star lords"
+   ],
+   "result": "Avayogas also need dasa activation and lack of neutralisers to manifest."
+  }
+ ],
+ "engine_output_suggestion": {
+  "yoga_report": "For each detected yoga, list: yoga name, carrying planet(s), the dasas in which it activates, and age range - not just 'yoga present'.",
+  "avayoga_report": "Same for doshas; mark as 'dormant' if their dasa is outside the relevant life window."
+ },
+ "open_questions_for_implementation": [
+  "Catalogue of named yogas (Gajakesari, Budhaditya, Pancha Mahapurusha, Dharma-Karmadhipati etc.) with detection logic",
+  "Viparita raja yoga detection to contrast with RY-07"
+ ]
+}

@@ -1,0 +1,241 @@
+{
+ "ruleset": "twelfth_lord_placement",
+ "version": "1.0",
+ "definitions": {
+  "reference": "Houses counted from LAGNA.",
+  "lord_12": "Lord of the 12th house from Lagna (vyaya / moksha sthana).",
+  "house_12_significations": [
+   "moksha / liberation",
+   "intuition",
+   "solitude / meditation",
+   "foreign settlement",
+   "jail / isolation",
+   "hospitalisation",
+   "marital intimacy (bed comforts)",
+   "expenditure",
+   "charity"
+  ],
+  "dusthana": [
+   6,
+   8,
+   12
+  ],
+  "kendra": [
+   1,
+   4,
+   7,
+   10
+  ],
+  "trikona": [
+   1,
+   5,
+   9
+  ],
+  "core_principles": [
+   "A strong lord_12 (own sign or exalted anywhere) is GOOD - high expenditure implies high income.",
+   "A dusthana lord in another dusthana is a yoga (like kendra lord in kendra, trikona lord in trikona).",
+   "House 12 is the 8th from house 6, so a strong lord_12 weakens enemies."
+  ],
+  "sensitivity": "Intimacy-related rules are for internal reference; present only in neutral, non-explicit wording to end users."
+ },
+ "house_12_rules": [
+  {
+   "id": "H12-01",
+   "condition": "benefic planet in house 12",
+   "result": "Harmonious, moderate and refined marital intimacy."
+  },
+  {
+   "id": "H12-02",
+   "condition": "malefic (Saturn, Rahu, Ketu, Mars) or retrograde planet in house 12",
+   "result": "Marital intimacy is NOT denied (common myth rejected); tends to be more intense / unconventional."
+  },
+  {
+   "id": "H12-03",
+   "condition": "house 12 empty",
+   "result": "Judge by lord_12's placement and conjunctions; empty 12th is not harmful by itself."
+  },
+  {
+   "id": "H12-04",
+   "condition": "house 12 empty AND lord_12 in kendra or trikona",
+   "result": "All comforts of life including marital harmony."
+  },
+  {
+   "id": "H12-05",
+   "name": "2nd vs 12th affliction",
+   "condition_a": "house 2 afflicted",
+   "result_a": "Family discord/separation over visible issues (money, relatives).",
+   "condition_b": "house 12 afflicted",
+   "result_b": "Discord/separation over private issues that are not spoken of openly."
+  },
+  {
+   "id": "H12-06",
+   "condition": "strong house 12",
+   "result": "Prefers solitude; intuition; settles abroad."
+  }
+ ],
+ "rules": [
+  {
+   "id": "12L-STRONG",
+   "placement": "lord_12 own sign or exalted (any house)",
+   "results": [
+    "Financially comfortable - spends because income supports it",
+    "Its dasa is the native's enjoyment period",
+    "Enemies weakened (12th is 8th from 6th)"
+   ],
+   "timing_note": "Best when the dasa falls roughly between age 20 and 40."
+  },
+  {
+   "id": "12L-H1",
+   "placement": "lord_12 in house 1",
+   "results": [
+    "Prosperous; spends readily on self, cautious/frugal towards others",
+    "Loyal to spouse (monogamous)",
+    "Strong imagination - stories, poetry, fiction writing"
+   ]
+  },
+  {
+   "id": "12L-H2",
+   "placement": "lord_12 in house 2",
+   "results": [
+    "Frugal but spends a lot on extended family and relatives",
+    "Loyal to spouse (monogamous)",
+    "Strong imagination - creative writing"
+   ]
+  },
+  {
+   "id": "12L-H3",
+   "placement": "lord_12 in house 3",
+   "results": [
+    "Spends out of pride, ego, challenge or vows - buys things when provoked regardless of debt",
+    "Drawn to bravado activities (e.g. bull-taming, rooster fights)"
+   ]
+  },
+  {
+   "id": "12L-H4",
+   "placement": "lord_12 in house 4",
+   "results": [
+    "Moves away from native place",
+    "Spends on property and vehicles, but rarely lives in own property - rents it out and lives elsewhere (transfer, onsite, abroad)",
+    "Strong support/assets from mother's side and maternal uncles"
+   ],
+   "remedy": "Buy the NEXT property in spouse's name to improve chances of living in it.",
+   "cross_link": "property_spouse_name"
+  },
+  {
+   "id": "12L-H5",
+   "placement": "lord_12 in house 5",
+   "results": [
+    "Success in degree studies, including double degrees",
+    "Children outshine and out-earn the parent and care for them well in old age",
+    "Very charitable - education sponsorship, service clubs, temple work; widely respected for generosity",
+    "Good next birth"
+   ]
+  },
+  {
+   "id": "12L-H6",
+   "placement": "lord_12 in house 6",
+   "tier": "yoga (dusthana lord in dusthana)",
+   "results": [
+    "Enemies arise but only hidden ones (back-stabbers); they destroy themselves - no need to fight",
+    "Does not settle in birthplace; in its dasa settles in another city/country/language region"
+   ]
+  },
+  {
+   "id": "12L-H7",
+   "placement": "lord_12 in house 7",
+   "results": [
+    "Marriage unlikely within relatives; possible spouse from another language, region, religion or mixed-family background",
+    "Spouse of own choice - no need to compromise even if marriage is delayed",
+    "Spouse provides all comforts; spouse's income or business in spouse's name does well",
+    "Lots of travel, usually together with spouse"
+   ]
+  },
+  {
+   "id": "12L-H8",
+   "placement": "lord_12 in house 8",
+   "tier": "yoga (dusthana lord in dusthana)",
+   "results": [
+    "Sudden gains: inheritance from childless relatives, land acquisition compensation, sharp property appreciation (not lottery/treasure)",
+    "Easy income with less effort",
+    "Sudden relationships; may propose first; unplanned conception possible"
+   ],
+   "comparison": {
+    "lord_2_in_8": "Financial hardship",
+    "lord_11_in_8": "Earns through hard toil",
+    "lord_12_in_8": "Easy / sudden income"
+   }
+  },
+  {
+   "id": "12L-H9",
+   "placement": "lord_12 in house 9",
+   "results": [
+    "Does not live in ancestral place/property; may exchange ancestral property for another",
+    "Leaves ancestral property in siblings' care",
+    "Charity, temple spending, funding education and marriages of others; meaningful life; good next birth"
+   ],
+   "modifiers": [
+    {
+     "if": "malefic or retrograde planet involved, or house lord debilitated",
+     "then": "Property/power of attorney entrusted to relatives may be taken over - be careful when transferring property"
+    }
+   ]
+  },
+  {
+   "id": "12L-H10",
+   "placement": "lord_12 in house 10",
+   "results": [
+    "Succeeds in business away from native place (other city/state/country/language region)"
+   ],
+   "modifiers": [
+    {
+     "if": "lord_10 debilitated OR lord_12 lacks sthana bala",
+     "then": "Business struggles both locally and away"
+    }
+   ]
+  },
+  {
+   "id": "12L-H11",
+   "placement": "lord_12 in house 11",
+   "results": [
+    "Keeps reinvesting profits into business; expands chain-wise",
+    "Multiple income windows - job plus part-time business, partnerships, several ventures"
+   ]
+  },
+  {
+   "id": "12L-H12",
+   "placement": "lord_12 in house 12 (own sign)",
+   "results": [
+    "Its dasa is very yogic: as a child gets everything asked for, good education",
+    "In middle age buys property, house, vehicles; name, fame and financial gains"
+   ]
+  }
+ ],
+ "low_confidence_rules": [
+  {
+   "id": "LC-3L-AFFLICTED",
+   "condition": "male chart AND lord_3 debilitated, retrograde or otherwise afflicted",
+   "result": "Reduced temptation/drive.",
+   "confidence": "low",
+   "note": "Astrologer explicitly warns this topic is easily misread. Do not surface to end users."
+  },
+  {
+   "id": "LC-3L-MERCURY",
+   "condition": "lord_3 from Lagna AND lord_3 from Moon both placed in Mithunam or Kanni",
+   "result": "Possible vitality concern.",
+   "cancellation": "Cancelled if Mercury is own sign or exalted.",
+   "confidence": "low",
+   "note": "Do not surface to end users."
+  },
+  {
+   "id": "LC-SLEEP-SIDE",
+   "condition": "degree of lord_12 within its sign",
+   "result": "0-15 deg: sleeps on right side; 15-30 deg: left side; near 0/30 deg: on the back.",
+   "confidence": "trivia"
+  }
+ ],
+ "open_questions_for_implementation": [
+  "Define 'sthana bala' check for 12L-H10",
+  "Age window for 12L-STRONG timing note (suggest 20-40)",
+  "Whether to expose low_confidence_rules at all"
+ ]
+}

@@ -1,0 +1,254 @@
+{
+ "ruleset": "complex_chart_techniques",
+ "version": "1.0",
+ "definitions": {
+  "core_principle": "Charts that look perfect on paper but don't deliver (or vice versa) are usually explained by (1) retrograde planets, (2) Rahu/Ketu links to retrograde planets, (3) the derived-house check from the dasa lord, (4) the 1-5-9 karma test, (5) the sequence of dasas across life.",
+  "retro_weight": "Treat a retrograde planet with the same importance as Rahu/Ketu. Ignoring retrogression can flip a reading by 180 degrees.",
+  "retro_nature": "A retrograde planet - benefic or malefic, any dignity - acts powerfully, fast and aggressively (like a fighting cock pulled back that lunges harder).",
+  "retro_reversal": "Debilitated + retrograde -> exalted result; exalted/own + retrograde -> debilitated result; Jupiter's aspect neutralises retrogression.",
+  "retro_node_rescue": "A retrograde planet connected to Rahu/Ketu (conjunction, aspect or star) gives yoga, not dosha.",
+  "functional_nature": "Judge benefic/malefic by lordship for the lagna, not natural nature (e.g. Saturn is yogakaraka for Thula and Rishabha).",
+  "dasa_gate": "Every rule acts only in the relevant dasa/bhukti; if the dasa never runs in the life window, the combination is dormant."
+ },
+ "rules": [
+  {
+   "id": "CX-01",
+   "name": "Retrograde yogakaraka Saturn (Thula lagna)",
+   "condition": "Saturn (lord_4 + lord_5) retrograde, its dasa running",
+   "branches_by_age": [
+    {
+     "age": "youth",
+     "result": "Higher education blocked"
+    },
+    {
+     "age": "middle age",
+     "result": "Relocation / migration abroad"
+    },
+    {
+     "age": "later middle age",
+     "result": "Property litigation, swap of property, debt from property purchase"
+    },
+    {
+     "age": "post-retirement",
+     "result": "Property disputes, grief via children, health (chest - 4th, abdomen/gastro - 5th)"
+    }
+   ],
+   "health_by_placement": "Health issue also falls on the house Saturn occupies (e.g. 8th: hip bone wear; 2nd: eyes). The house occupied is affected more than the house aspected."
+  },
+  {
+   "id": "CX-02",
+   "name": "Saturn-Mercury health by element (when afflicted/retrograde)",
+   "branches": [
+    {
+     "if": "general",
+     "then": "Skin problems that heal slowly"
+    },
+    {
+     "if": "air sign",
+     "then": "Respiratory - phlegm in lungs needing IV/nebuliser"
+    },
+    {
+     "if": "fire sign",
+     "then": "Bone problems"
+    },
+    {
+     "if": "water sign",
+     "then": "Endocrine/gland issues (e.g. thyroid)"
+    }
+   ],
+   "sensitivity": "health - not_for_end_user"
+  },
+  {
+   "id": "CX-03",
+   "name": "Same placement, opposite outcomes (Thula lagna Saturn)",
+   "branches": [
+    {
+     "if": "Saturn own sign in 4th (Makara), direct",
+     "then": "Yoga - property, often commercial / income-producing"
+    },
+    {
+     "if": "Saturn own sign in 4th, retrograde",
+     "then": "Relocation, loss of property, friction with mother; health in old age"
+    },
+    {
+     "if": "Saturn own sign in 5th (Kumbha), direct",
+     "then": "Large debt in its dasa, business trouble, relocation"
+    },
+    {
+     "if": "Saturn own sign in 5th, retrograde",
+     "then": "Own business success, many employees, commercial property"
+    },
+    {
+     "if": "Saturn debilitated in 7th (Mesha), retrograde",
+     "then": "Exalted result - property, jewellery, settles children"
+    },
+    {
+     "if": "Saturn debilitated in 7th, Mars own/exalted",
+     "then": "Neecha-bhanga - yoga"
+    },
+    {
+     "if": "Saturn debilitated in 7th, direct, Mars retrograde or in 6/8/12",
+     "then": "Hardship in that dasa"
+    }
+   ],
+   "cross_link": "dusthana_planets.DU-12, saturn_raja_yoga"
+  },
+  {
+   "id": "CX-04",
+   "name": "Retrograde 2nd lord in own/exalted sign",
+   "example": "Rishabha lagna: Mercury (lord_2) own sign in 2nd or exalted in 5th, retrograde, dasa ~27-45",
+   "branches": [
+    {
+     "if": "no node link",
+     "then": "Gives a family, then severe family turmoil in Mercury dasa"
+    },
+    {
+     "if": "Rahu/Ketu with Mercury",
+     "then": "Yoga - family is fine"
+    }
+   ]
+  },
+  {
+   "id": "CX-05",
+   "name": "Retrograde 10th lord",
+   "branches": [
+    {
+     "if": "in own business",
+     "then": "Struggles; may wind up or bring in a partner"
+    },
+    {
+     "if": "in employment",
+     "then": "Rises to top positions (supervisor -> GM, VP, director)"
+    },
+    {
+     "if": "with Rahu, or dispositor strong",
+     "then": "Fast rise to the top"
+    }
+   ],
+   "cross_link": "raja_yoga_activation.RY-04"
+  },
+  {
+   "id": "CX-06",
+   "name": "Retrograde Mercury and education",
+   "branches": [
+    {
+     "if": "default",
+     "then": "Textbook: weak studies"
+    },
+    {
+     "if": "with Ketu or in Ketu's star (or Rahu/Ketu link)",
+     "then": "Research excellence up to a lasting PhD/invention"
+    }
+   ],
+   "cross_link": "education_choice.ED-KETU"
+  },
+  {
+   "id": "CX-07",
+   "name": "Retrograde Venus as 2nd lord (Kanni lagna, own sign in 2nd)",
+   "branches": [
+    {
+     "if": "Venus dasa runs, no rescue",
+     "then": "Short-tempered, tense spouse; strain possibly to divorce/remarriage"
+    },
+    {
+     "if": "Venus dasa never runs",
+     "then": "Peaceful family"
+    },
+    {
+     "if": "Jupiter aspects Venus",
+     "then": "Separation only for good reasons (work abroad, military)"
+    },
+    {
+     "if": "Rahu/Ketu with Venus",
+     "then": "Family fine in Venus/Rahu/Ketu dasa"
+    }
+   ],
+   "cross_link": "marital_harmony"
+  },
+  {
+   "id": "CX-08",
+   "name": "6th lord in 7th",
+   "condition": "lord_6 placed in 7th, its dasa running",
+   "result": "Separation (physical or emotional - e.g. separate rooms, separate finances) in >75% of cases.",
+   "exceptions": [
+    "Vrischika lagna: Mars in 7th",
+    "Rishabha lagna: Venus in 7th",
+    "lord_6 retrograde, or Jupiter aspects, or dasa never runs -> no separation"
+   ],
+   "matching_note": "Don't reject a match on this alone - check the exceptions first."
+  },
+  {
+   "id": "CX-09",
+   "name": "Lone Jupiter in 7th / malefic for lagna in 7th",
+   "result": "Classical warning (lone Jupiter brings disrepute; Jupiter is functional malefic for Thula). Overridden if Jupiter is retrograde and in Ketu's star (e.g. Ashwini) - family stays happy."
+  },
+  {
+   "id": "CX-10",
+   "name": "Derived-house check from the dasa lord",
+   "method": "To judge family in X dasa, take the 2nd from X's sign and check its lord; for children, the 5th from X; etc.",
+   "example": "Jupiter in Mesha: 2nd lord from Mesha = Venus; Venus debilitated but neecha-bhanga + with exalted Mercury and Ketu -> family good in Jupiter dasa. Venus 6th from Mesha -> lives away from native place, rented/leased home.",
+   "cross_link": "twelfth_lord_placement (derived houses)"
+  },
+  {
+   "id": "CX-11",
+   "name": "Nodes with dignified planets",
+   "result": "Rahu/Ketu with an own-sign, exalted or retrograde planet amplifies that planet - yoga, not dosha.",
+   "cross_link": "raja_yoga_activation.RY-02"
+  },
+  {
+   "id": "CX-12",
+   "name": "Karma test - houses 1, 5, 9",
+   "method": "Score lord_1, lord_5, lord_9 as strong / weak (weak = in 6/8/12, retrograde without rescue, debilitated without neecha-bhanga).",
+   "branches": [
+    {
+     "if": "all three strong",
+     "then": "Life flows; good karma"
+    },
+    {
+     "if": "only one strong ('mono-stand')",
+     "then": "Persistent struggle to settle"
+    },
+    {
+     "if": "none strong",
+     "then": "Heavy struggle"
+    }
+   ]
+  },
+  {
+   "id": "CX-13",
+   "name": "Dasa sequence audit",
+   "method": "List every dasa from birth to ~70 with its lord's house and dignity. Count consecutive dasas whose lords sit in 6/8/12 or are debilitated, plus Rahu/Ketu whose sign and star lords are both in dusthana.",
+   "result": "A long run of such dasas through the 15-50 window = 'born to struggle' chart, even if the chart shows many named yogas (Hamsa, Sasa, Chandra-Mangala, exchange). A yoga dasa arriving only after ~65 gives little usable benefit.",
+   "cross_link": "raja_yoga_activation.RY-08"
+  },
+  {
+   "id": "CX-14",
+   "name": "12th lord in 8th",
+   "branches": [
+    {
+     "if": "8th strong / occupant strong",
+     "then": "Viparita raja yoga"
+    },
+    {
+     "if": "otherwise, in youth",
+     "then": "Unruly, unpredictable comings and goings; doesn't heed family"
+    }
+   ]
+  },
+  {
+   "id": "CX-15",
+   "name": "Communicating difficult charts",
+   "result": "Never tell a client 'you will never prosper'. For hard charts, give supportive, constructive guidance; stay composed rather than emotional.",
+   "engine": "output_tone_rule"
+  }
+ ],
+ "engine_output_suggestion": {
+  "dasa_timeline": "Produce a full life dasa timeline with a per-dasa strength score (CX-13) and flag the age window of each yoga/dosha.",
+  "retro_flag": "Every retrograde planet should be shown with its reversal result and any node/Jupiter rescue."
+ },
+ "open_questions_for_implementation": [
+  "Weighting: does a node rescue outrank Jupiter's aspect for retrograde planets?",
+  "Element (fire/earth/air/water) sign table for CX-02",
+  "Threshold for 'long run' of weak dasas in CX-13 (e.g. >= 3 consecutive in ages 15-50)"
+ ]
+}

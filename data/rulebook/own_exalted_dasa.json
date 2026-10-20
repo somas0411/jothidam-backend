@@ -1,0 +1,62 @@
+{
+ "ruleset": "own_exalted_dasa",
+ "version": "1.0",
+ "definitions": {
+  "core_principle": "An own-sign or exalted planet's dasa is a yoga, not a dosha. When it touches the 6th or 10th it forces a career change - frightening because of running commitments, but the change pushes the native to a bigger next step (better job, own business, new gateway).",
+  "trigger_set": "Dasa (or bhukti) of: (a) the own/exalted planet itself, (b) a planet sitting in its nakshatra, or (c) a planet conjoined with it.",
+  "exceptions": "Change may not happen if the own/exalted planet is retrograde, or its dispositor is debilitated.",
+  "false_dignity": "In ~10-15% of charts an own/exalted planet is 'China-piece' strength - looks dignified but is undermined (retrograde, combust/afflicted, dispositor weak, conjoined planets debilitated). Then the dasa can hurt. Always verify before predicting.",
+  "dasa_gate": "Only acts in the relevant dasa/bhukti."
+ },
+ "rules": [
+  {
+   "id": "OE-01",
+   "name": "Own/exalted planet in 6th or 10th - career change",
+   "condition": "planet own/exalted in 6th or 10th from lagna, AND a trigger_set dasa/bhukti begins",
+   "result": "Job/business change is near-certain. Outcome positive in ~90%: the native is pushed out of a comfortable rut into a better role, income or own venture.",
+   "for_business_owners": "Expect added investment, renovation/reform of the business, new product lines, new marketing strategy - and success after it.",
+   "transition_note": "Some turbulence until the planet's own bhukti (swa-bhukti) ends; growth after that.",
+   "exceptions_ref": "definitions.exceptions",
+   "cross_link": "planets_in_dusthana.DU-02, DU-03"
+  },
+  {
+   "id": "OE-02",
+   "name": "Own/exalted planet in lagna - ego and dignity",
+   "condition": "own/exalted planet in lagna, its dasa running",
+   "result": "Strong sense of self-respect/status (strongest with Jupiter own/exalted in lagna). Tends to quit jobs over lack of respect or recognition.",
+   "advice_output": "Suggest humility and flexibility at work; stay focused on the goal (earning, family security) rather than recognition.",
+   "note": "Benefic in lagna raises dignity even more than Saturn or Mars there."
+  },
+  {
+   "id": "OE-03",
+   "name": "Fear vs reality check",
+   "method": "When a native fears an upcoming own-sign dasa, check: is it in 6/10 (career change, positive)? Is the planet in mutual yogas (e.g. Jupiter-Venus, Gajakesari, Budhaditya, own-sign 3rd lord)? Is it retrograde or is its dispositor weak? Only the last case justifies fear.",
+   "example": "Meena lagna, Venus own sign in 3rd with Jupiter, Sun, Mercury; Moon opposite: multiple yogas -> Venus dasa a yoga dasa (property, house, car, jewellery, status). Had Venus been retrograde, the whole cluster would fail."
+  },
+  {
+   "id": "OE-04",
+   "name": "Ketu dasa in 6th failing",
+   "condition": "Ketu in 6th but its deciding authorities (sign lord + star lord) are 6/8 from each other",
+   "result": "Ketu dasa difficult despite the textbook 'nodes in 6th = good' rule.",
+   "cross_link": "rahu_dasa_and_love_marriage.RAHU-DA-01, ketu_12th"
+  },
+  {
+   "id": "OE-05",
+   "name": "Own-sign planet in 3rd",
+   "result": "Classical verse: strong 3rd lord / own-sign 3rd brings ornaments, clothes, property, comforts."
+  },
+  {
+   "id": "OE-06",
+   "name": "Retrograde own-sign planet in a stellium",
+   "result": "If the own-sign anchor of a multi-planet cluster is retrograde, all the cluster's yogas collapse.",
+   "cross_link": "complex_chart_techniques.CX-11"
+  }
+ ],
+ "engine_output_suggestion": {
+  "career_alert": "For each upcoming dasa/bhukti in trigger_set touching 6th/10th own/exalted planets: emit 'career change likely - positive direction', with start date, and append exceptions if retrograde/dispositor weak."
+ },
+ "open_questions_for_implementation": [
+  "Concrete test for 'false dignity' (which afflictions count)",
+  "Does OE-01 apply to bhukti as strongly as to dasa? (Speaker implies yes for job change.)"
+ ]
+}

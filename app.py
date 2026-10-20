@@ -48,6 +48,7 @@ from limits import parse as parse_limit
 from werkzeug.exceptions import HTTPException, TooManyRequests
 
 import booking_api
+import rulebook
 import charts
 import i18n
 import saptarishi
@@ -452,6 +453,26 @@ def horoscope():
         if _wants_ai():
             out['ai'] = to_jsonable(enrich(res, extras=_extras()))
         return jsonify(out)
+    return _guard(run)
+
+
+@app.route('/api/predictions', methods=['POST'])
+@limiter.limit(LIMIT_HOROSCOPE)
+def predictions():
+    """Rule-book readings for one horoscope: the rules that apply and the period that carries each."""
+    def run():
+        res, _ = _compute_from_request()
+        rows = rulebook.evaluate(res)
+        m = res['meta']
+        return jsonify({
+            'meta': {'name': m['name'], 'dob': m['dob'], 'tob': m['tob'], 'pob': m['pob'],
+                     'generated_at': to_jsonable(m['generated_at'])},
+            'columns': [{'name': n, 'meaning': t} for n, t in rulebook.COLUMNS],
+            'predictions': rows,
+            'summary': rulebook.summary(rows),
+            'note': 'Rule-based readings: each describes a tendency and the period that switches it on, '
+                    'not a certainty.',
+        })
     return _guard(run)
 
 

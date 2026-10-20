@@ -1,0 +1,230 @@
+{
+ "ruleset": "property_spouse_name",
+ "version": "1.0",
+ "definitions": {
+  "reference": "All houses counted from LAGNA, not Rasi.",
+  "dusthana": [
+   6,
+   8,
+   12
+  ],
+  "kendra": [
+   1,
+   4,
+   7,
+   10
+  ],
+  "trikona": [
+   1,
+   5,
+   9
+  ],
+  "malefics_for_4th": [
+   "Rahu",
+   "Ketu",
+   "Saturn",
+   "lord_6",
+   "lord_8",
+   "lord_12"
+  ],
+  "benefics_for_4th": [
+   "Jupiter",
+   "Venus",
+   "Waxing Moon",
+   "Mercury"
+  ],
+  "lord_4_afflicted_if_any": [
+   "debilitated",
+   "retrograde",
+   "combust",
+   "placed in 6, 8 or 12",
+   "conjoined with lord of 6, 8 or 12"
+  ],
+  "house_4_afflicted_if_any": [
+   "any malefics_for_4th occupies house 4",
+   "any malefics_for_4th aspects house 4"
+  ],
+  "lord_4_strong_if_any": [
+   "own sign or exalted",
+   "conjoined with a planet in own sign or exalted",
+   "in nakshatra of a planet that is in own sign or exalted",
+   "placed in kendra or trikona"
+  ],
+  "inputs": {
+   "husband_chart": "required",
+   "wife_chart": "required for PROP-03, 04, 08",
+   "property_type": "house | house_plot | vacant_plot | agricultural_land | commercial | rental",
+   "purpose": "hold | invest_and_sell"
+  }
+ },
+ "rules": [
+  {
+   "id": "PROP-01",
+   "name": "Husband's 4th afflicted",
+   "chart": "husband",
+   "condition": "lord_4 afflicted OR house_4 afflicted",
+   "result": "Property delayed - may come only around 45-50+ or later; not fully denied (other dasas/planet strength can deliver).",
+   "recommendation": "REGISTER_IN_WIFE_NAME",
+   "weight": "high"
+  },
+  {
+   "id": "PROP-02",
+   "name": "Husband's blocking period",
+   "chart": "husband",
+   "condition_any": [
+    "current mahadasa lord is lord of 6, 8 or 12",
+    "current mahadasa lord is retrograde",
+    "transit Saturn in 12th, 1st or 2nd from Moon (Sade Sati)",
+    "transit Saturn in 8th from Moon (Ashtama Sani)",
+    "transit Saturn in 4th from Moon (Ardhashtama Sani)"
+   ],
+   "result": "Property does not materialise in his name during this period even if the chart is otherwise strong; long dasas (Saturn 19y, Mercury 17y) prolong it.",
+   "recommendation": "REGISTER_IN_WIFE_NAME",
+   "time_bound": true,
+   "weight": "high"
+  },
+  {
+   "id": "PROP-03",
+   "name": "Wife's 4th lord stronger",
+   "chart": "both",
+   "condition": "strength(wife.lord_4) > strength(husband.lord_4)",
+   "example": "Husband's 4th lord in kendra/trikona, wife's 4th lord in own sign",
+   "result": "Property appreciates faster and gets developed further in wife's name.",
+   "recommendation": "REGISTER_IN_WIFE_NAME",
+   "weight": "medium"
+  },
+  {
+   "id": "PROP-04A",
+   "name": "Wife's chart suitable",
+   "chart": "wife",
+   "condition": "lord_4 strong (any criterion) AND lord_4 not in 6/8/12",
+   "result": "Buy freely in her name; property grows.",
+   "recommendation": "WIFE_NAME_OK",
+   "weight": "high"
+  },
+  {
+   "id": "PROP-04B",
+   "name": "Wife's chart unsuitable",
+   "chart": "wife",
+   "condition_any": [
+    "lord_4 in 6, 8 or 12",
+    "lord_4 debilitated",
+    "lord_4 retrograde"
+   ],
+   "aggravator": "current mahadasa is of wife's lord_4",
+   "result": "Avoid registering in her name.",
+   "recommendation": "AVOID_WIFE_NAME",
+   "overrides": [
+    "PROP-01",
+    "PROP-02",
+    "PROP-03"
+   ],
+   "weight": "high"
+  },
+  {
+   "id": "PROP-04C",
+   "name": "4th lord in 6th",
+   "chart": "either",
+   "condition": "lord_4 placed in house 6",
+   "result": "Risk of litigation, or owner relocates and someone else occupies the property (only rent received).",
+   "recommendation": "AVOID_THAT_PERSON_NAME",
+   "weight": "high"
+  },
+  {
+   "id": "PROP-05",
+   "name": "Benefic protection of 4th",
+   "chart": "either",
+   "condition": "any benefics_for_4th occupies or aspects house 4",
+   "result": "4th house strong; property bought in this person's name is stable and lasting.",
+   "recommendation": "THAT_PERSON_NAME_OK",
+   "weight": "medium"
+  },
+  {
+   "id": "PROP-06",
+   "name": "Short-term investment",
+   "chart": "husband",
+   "condition": "purpose == invest_and_sell",
+   "result": "Sells quickly in husband's name even if his chart is weak.",
+   "recommendation": "REGISTER_IN_HUSBAND_NAME",
+   "overrides": [
+    "PROP-01",
+    "PROP-02",
+    "PROP-03"
+   ],
+   "weight": "medium"
+  },
+  {
+   "id": "PROP-07",
+   "name": "Strong Mars - illiquid property",
+   "chart": "either",
+   "condition_any": [
+    "Mars own sign or exalted",
+    "Mars conjoined with a planet in own sign or exalted"
+   ],
+   "result": "Property acquired late in life; very hard to sell even in distress - banks/creditors reluctant to take it.",
+   "recommendation": "FLAG_ILLIQUID",
+   "weight": "low"
+  },
+  {
+   "id": "PROP-08",
+   "name": "Venus decides house construction",
+   "chart": "both",
+   "applies_to": [
+    "house",
+    "house_plot"
+   ],
+   "condition": "compare strength(Venus) in both charts",
+   "special_case": "husband Venus retrograde AND wife Venus in kendra/trikona/own/exalted and not retrograde/debilitated -> wife's name mandatory",
+   "result_if_ignored": "Construction quarrels (contractor, engineer, suppliers), money drain, illness after completion.",
+   "recommendation": "REGISTER_IN_NAME_WITH_STRONGER_VENUS",
+   "weight": "medium"
+  },
+  {
+   "id": "PROP-09",
+   "name": "4th-11th lord connection",
+   "chart": "either",
+   "applies_to": [
+    "commercial",
+    "rental"
+   ],
+   "condition": "lord_4 and lord_11 connected (conjunction, mutual aspect, exchange, or same planet)",
+   "result": "Full occupancy, good rent, profitable resale.",
+   "recommendation": "REGISTER_COMMERCIAL_IN_THAT_PERSON_NAME",
+   "weight": "medium"
+  }
+ ],
+ "karaka_by_property_type": {
+  "agricultural_land": [
+   "Mars",
+   "lord_4"
+  ],
+  "house": [
+   "Venus",
+   "lord_4"
+  ],
+  "house_plot": [
+   "Venus",
+   "lord_4"
+  ],
+  "vacant_plot": [
+   "Mercury",
+   "lord_4"
+  ]
+ },
+ "cross_links": {
+  "ketu_12th_from_ketu": "K12-MARS and K12-MERCURY also advise against building/buying in own name - merge with PROP-01 as additional affliction signals."
+ },
+ "resolution_order": [
+  "1. Apply PROP-04B / PROP-04C vetoes",
+  "2. If purpose == invest_and_sell -> PROP-06",
+  "3. For commercial/rental -> PROP-09",
+  "4. For house/house_plot -> PROP-08",
+  "5. Else score PROP-01, 02, 03, 05 by weight and pick the higher-scoring name",
+  "6. Attach PROP-07 flag as advisory"
+ ],
+ "open_questions_for_implementation": [
+  "Combustion orbs per planet",
+  "Use full Vedic special aspects (Mars 4/8, Jupiter 5/9, Saturn 3/10, Rahu/Ketu 5/9)?",
+  "Numeric strength scale for comparisons (suggest: exalted 5, own 4, kendra/trikona 3, neutral 2, dusthana 1, debilitated 0)"
+ ]
+}

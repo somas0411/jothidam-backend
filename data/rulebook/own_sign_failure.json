@@ -1,0 +1,246 @@
+{
+ "ruleset": "own_sign_failure",
+ "version": "1.0",
+ "definitions": {
+  "core_principle": "Counting own/exalted planets does not make a chart strong. Check the star lord of each dignified planet, the dasa+bhukti pairing, lords 3/5 (courage, intellect) for business ability, and where the yoga 'diverts' its result.",
+  "duplicate_dignity": "An own/exalted planet whose star lord is weak (in 6/8/12, inimical, debilitated) is 'duplicate' dignity - it may still shake the job but won't deliver business success.",
+  "rule_break_points": "Every rule has a breaking point (e.g. retro+node = good unless the dispositor is afflicted); keep fine-tuning.",
+  "dasa_gate": "All results only in the relevant dasa/bhukti."
+ },
+ "rules": [
+  {
+   "id": "OS-01",
+   "name": "Own-sign dasa lord + own-sign bhukti lord",
+   "condition": "both dasa lord and bhukti lord own/exalted (any houses)",
+   "result": "Job oscillation/pressure during that bhukti (merger, cost cuts, pushed out). Business owners tend to over-invest (raw material, stock, machinery) and fall into debt.",
+   "outcome": "~80% end up better after the push; ~20% exceptions.",
+   "cross_link": "own_exalted_dasa.OE-01"
+  },
+  {
+   "id": "OS-02",
+   "name": "Own-sign 10th lord does not guarantee business",
+   "condition": "lord_10 own sign but its star lord is weak (e.g. Moon own in 10th in Saturn's star, Saturn in 12th)",
+   "result": "Talent and job eminence, but cannot start/sustain own business; career stress in that bhukti; eases in the following bhuktis.",
+   "example_flow": "Thula lagna: Venus dasa (Venus own in lagna, in Rahu's star; Rahu in 10th) + Moon bhukti (Moon own in 10th, Pushya) -> high stress; Mars bhukti softer, Rahu softer, Jupiter bhukti (lord_6 in 12) -> fully satisfying job."
+  },
+  {
+   "id": "OS-03",
+   "name": "Business courage test",
+   "conditions_for_business": [
+    "lord_3 not in 12 (lord_3 in 12 gives courage to handle big jobs, not to stand on own finances)",
+    "lord_5 not in 12 / not afflicted",
+    "lord_2 (finance) not debilitated-then-neecha-bhanga (that pattern = earns by working, not by owning)",
+    "Sun+Saturn trade yoga only works in kendra/trikona/11, not in 12"
+   ],
+   "result": "If these fail, advise job; 'middle-class trap' - can't move up into business, job keeps getting disturbed."
+  },
+  {
+   "id": "OS-04",
+   "name": "Job vs business balance (lord_6 vs lord_10)",
+   "branches": [
+    {
+     "if": "lord_6 stronger than lord_10",
+     "then": "Job"
+    },
+    {
+     "if": "lord_6 strong, lord_10 moderate",
+     "then": "Job plus a side business"
+    },
+    {
+     "if": "lord_10 strong, lord_6 weak, a dasa hits the 6th",
+     "then": "Leaves job for full-time business"
+    },
+    {
+     "if": "lord_6 strong, lord_10 weak, started business",
+     "then": "Returns to employment"
+    }
+   ]
+  },
+  {
+   "id": "OS-05",
+   "name": "Node with own-sign planet - same star check",
+   "branches": [
+    {
+     "if": "Rahu/Ketu with own-sign planet, different nakshatra padas",
+     "then": "Boosts (catalyst) - success"
+    },
+    {
+     "if": "same nakshatra pada",
+     "then": "Great failure"
+    },
+    {
+     "if": "same sign, different stars",
+     "then": "No problem"
+    }
+   ],
+   "note": "Rahu and Ketu act the same way as boosters; whether their own dasa gives or takes is judged separately via deciding authorities.",
+   "cross_link": "rahu_dasa_and_love_marriage"
+  },
+  {
+   "id": "OS-06",
+   "name": "Rahu dasa via deciding authorities in 3/11",
+   "condition": "Rahu's sign lord and star lord 3/11 from each other",
+   "result": "Rahu dasa yogic (e.g. Rahu in 10th with own-sign 10th lord = career win)."
+  },
+  {
+   "id": "OS-07",
+   "name": "Yoga diversion",
+   "result": "A strong placement may deliver its benefit to a different area than expected, e.g. strong Jupiter but no children, Don't promise the 'main road' result."
+  },
+  {
+   "id": "OS-08",
+   "name": "Two marriages via 2/7 lord (Mars for Thula)",
+   "branches": [
+    {
+     "if": "Mars debilitated with neecha-bhanga (esp. with Rahu)",
+     "then": "First marriage breaks, second marriage"
+    },
+    {
+     "if": "Mars own in 7th",
+     "then": "Two marriages"
+    },
+    {
+     "if": "Mars own in 2nd",
+     "then": "One marriage"
+    },
+    {
+     "if": "Mars own in 7th, retrograde",
+     "then": "One marriage"
+    },
+    {
+     "if": "Mars own in 7th, Jupiter aspects",
+     "then": "One marriage"
+    }
+   ],
+   "sensitivity": "not_for_end_user",
+   "cross_link": "marriage_chart_selection"
+  },
+  {
+   "id": "OS-09",
+   "name": "Children: lord_5 + Jupiter in 6/8/12",
+   "result": "No children in the first marriage; check the 5th from the 11th (second spouse) for children later.",
+   "sensitivity": "not_for_end_user"
+  },
+  {
+   "id": "OS-10",
+   "name": "Afflicted 5th lord dasa",
+   "condition": "lord_5 dasa/bhukti/antara or star touched, lord_5 retrograde/debilitated/with malefic",
+   "branches_by_age": [
+    {
+     "age": "youth",
+     "result": "Romance before marriage"
+    },
+    {
+     "age": "adult",
+     "result": "Character tested; zeal in a newly adopted belief"
+    },
+    {
+     "age": "old",
+     "result": "Chronic illness (BP, sugar, thyroid, varicose)"
+    }
+   ],
+   "neutraliser": "Jupiter / lagna lord / lord_5 link -> only inner turbulence",
+   "sensitivity": "not_for_end_user"
+  },
+  {
+   "id": "OS-11",
+   "name": "Planets conjoined with dignified / debilitated planets",
+   "branches": [
+    {
+     "if": "with own/exalted planet",
+     "then": "Conjoined planet behaves ~50-60% as dignified"
+    },
+    {
+     "if": "Jupiter with debilitated planet",
+     "then": "Jupiter doesn't rescue it"
+    },
+    {
+     "if": "Saturn with debilitated planet",
+     "then": "Adds pressure"
+    },
+    {
+     "if": "Rahu/Ketu with debilitated planet",
+     "then": "Explosive - severe"
+    },
+    {
+     "if": "Rahu/Ketu with own-sign planet",
+     "then": "Good node"
+    }
+   ]
+  },
+  {
+   "id": "OS-12",
+   "name": "Exchange (parivartana) of own-sign lords",
+   "branches": [
+    {
+     "if": "exchange, both effectively own",
+     "then": "Mild internal changes only; good overall"
+    },
+    {
+     "if": "exchange but star lord debilitated",
+     "then": "Business fails; employment OK though native grumbles"
+    },
+    {
+     "if": "Saturn retrograde in exchange with Mercury, Rahu with Mercury",
+     "then": "Saturn and Rahu dasas yogic; Mercury dasa also good"
+    },
+    {
+     "if": "same without Rahu",
+     "then": "Saturn dasa troubled"
+    }
+   ]
+  },
+  {
+   "id": "OS-13",
+   "name": "Dharma-Karmadhipati yoga quality by lagna",
+   "result": "Stronger for Kanni (Mercury lagna lord + Venus) than Mesha (Jupiter + Saturn, Saturn being badhaka). Rishabha: Saturn own sign as 9+10 lord still fails for business if dispositor and star lord are 2/12 from each other."
+  },
+  {
+   "id": "OS-14",
+   "name": "Venus myths",
+   "branches": [
+    {
+     "if": "Venus in lagna",
+     "then": "Not a character flaw by itself"
+    },
+    {
+     "if": "Venus alone in Mesha/Vrischika lagna with malefic aspect/conjunction, dasa in youth",
+     "then": "Caution re: opposite-sex trouble"
+    },
+    {
+     "if": "Venus + Saturn",
+     "then": "Good spouse, often bringing property"
+    },
+    {
+     "if": "Venus + Mars in lagna/7th",
+     "then": "Problem pattern"
+    }
+   ],
+   "cross_link": "venus_7th_house"
+  },
+  {
+   "id": "OS-15",
+   "name": "Lone retrograde Mercury",
+   "result": "Blind courage - acts against all advice."
+  },
+  {
+   "id": "OS-16",
+   "name": "Derived houses for parents",
+   "example": "Mithuna lagna, Saturn own in 9th: for father, Saturn is his 12th lord own sign -> father buys property/vehicles (even on loan) in Saturn dasa; for mother (4th = Kanni), Saturn own in her 6th -> job change for mother."
+  }
+ ],
+ "prasna_jamakkol_notes": {
+  "status": "separate module - not natal",
+  "points": [
+   "Saturn in udayam, arudam in 12th from udayam, or arudam lord in kavippu -> delay",
+   "Time units by kavippu: 15 days / 1.5 months / 1.5 years (or day/week/month/year) - pick what fits the question",
+   "Udayam and arudam together with Moon on them -> immediate success",
+   "Change question -> treat previous arudam as new udayam"
+  ]
+ },
+ "open_questions_for_implementation": [
+  "Measure 'strong' for lord_6 vs lord_10 comparison (dignity + house + star lord)",
+  "Nakshatra-pada equality check needs pada-level positions in chart JSON",
+  "Whether to build a Jamakkol prasna module at all"
+ ]
+}

@@ -2813,13 +2813,27 @@ _NEW_SHEETS['AI_TransitsFast'] = (
     + _NEW_SHEETS['AI_TransitsFast'][:10]
     + [('own_bav_bindus', 'Bindus of the sign in the natal Bhinnashtakavarga of that planet')]
     + _NEW_SHEETS['AI_TransitsFast'][10:])
+_NEW_SHEETS['AI_RuleBook'] = [
+    ('rule_id', 'Identifier of the rule (data/rulebook)'), ('ruleset', 'Group the rule belongs to'),
+    ('topic', 'Life area: career, wealth, property, marriage, family, children, education, foreign, spiritual, '
+              'personality, general'),
+    ('rule', 'Short name of the rule'),
+    ('tone', 'favourable, mixed or challenging: how the rule reads for this chart'),
+    ('finding', 'What the rule says for this chart'),
+    ('basis', 'The chart facts that make the rule apply'),
+    ('period_lords', 'Planets whose dasa or bhukti switches the rule on; empty when the rule is not tied to a period'),
+    ('status_at_report_date', 'running now, upcoming, past, dormant (its periods fall outside the useful years of '
+                              'life) or always (not tied to a period); true at the report date only'),
+    ('window', 'The running or next period that carries the rule, with dates and ages; the last one when all are '
+               'past'),
+]
 COLUMNS.update(_NEW_SHEETS)
 SHEETS = [
     'AI_ReadMe', 'AI_Brief', 'AI_Facts', 'AI_LifeFacts', 'AI_LifeEvents', 'AI_Planets', 'AI_Houses', 'AI_Pairs',
     'AI_Vargas', 'AI_VargaLagnas', 'AI_Strength', 'AI_Ashtakavarga', 'AI_Yogas', 'AI_DasaPeriods', 'AI_Dasa',
     'AI_Antaram', 'AI_Pratyantar', 'AI_PeriodFacts', 'AI_Transits', 'AI_TransitsFast', 'AI_Stations',
     'AI_TransitNow', 'AI_SadeSati', 'AI_DoubleTransit', 'AI_TopicMap', 'AI_TopicFacts', 'AI_TopicPromise',
-    'AI_TopicScores', 'AI_TopicWindows', 'AI_EventCheck',
+    'AI_TopicScores', 'AI_TopicWindows', 'AI_RuleBook', 'AI_EventCheck',
 ]
 assert set(SHEETS) == set(COLUMNS)
 COLUMNS = {sheet: COLUMNS[sheet] for sheet in SHEETS}
@@ -2848,7 +2862,8 @@ def _readme(c, tables, sheets=None):
     add('About', 'schema', SCHEMA)
     add('About', 'where to start', 'AI_Brief is a short copy of the main facts and is enough for a first reading. '
         'To judge a period read its row in AI_PeriodFacts; for the promise of a topic read AI_TopicPromise; '
-        'for timing read AI_TopicWindows. Every other sheet holds the full detail behind them.')
+        'for timing read AI_TopicWindows; for rule-based readings with their periods read AI_RuleBook. Every other '
+        'sheet holds the full detail behind them.')
     add('Defaults', 'house system', 'Whole sign from the lagna: every "house" column means this unless its name '
         'says bhava_sripati or kp_.')
     add('Defaults', 'dasa table', f"AI_Dasa and AI_Pratyantar: Vimshottari from the Moon with the Vedic ayanamsha "
@@ -2955,10 +2970,20 @@ SHEET_ABOUT = {
                        'Rule-based, not a prediction.',
     'AI_TopicWindows': 'Per topic, the pieces of the 10 years after the report date in which two or more of the '
                        'layers bhukti, antaram, Jupiter and Saturn agree. Rule-based overlap, not a prediction.',
+    'AI_RuleBook': 'Rules from the rule book that apply to this chart, each with the dasa or bhukti that switches it '
+                   'on and whether that period is running, still to come, over, or outside the useful years. '
+                   'Rule-based reading aids: a rule describes a tendency, not a certainty.',
     'AI_EventCheck': 'For each past event the user entered: the bhuktis of that year with their score for the '
                      'matching topic, and where Jupiter and Saturn were. This sheet is present only when at '
                      'least one event was entered.',
 }
+
+
+def _rulebook(res, c):
+    import rulebook                  # imported here: rulebook.py builds on this module
+    rows = rulebook.evaluate(res, c.now)
+    return [{('status_at_report_date' if k == 'status' else k): (v if v != '' else None) for k, v in r.items()}
+            for r in rows]
 
 
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────
@@ -3010,6 +3035,7 @@ def enrich(res, now=None, extras=None):
     tables['AI_TopicPromise'] = _topic_promise(c)
     tables['AI_TopicWindows'] = _topic_windows(c)
     tables['AI_EventCheck'] = _event_check(c)
+    tables['AI_RuleBook'] = _rulebook(res, c)
     tables['AI_Brief'] = _brief(c, tables)
     sheets = [s for s in SHEETS if tables.get(s) or s not in OPTIONAL_SHEETS]
     tables['AI_ReadMe'] = _readme(c, tables, sheets)

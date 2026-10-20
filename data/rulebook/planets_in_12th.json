@@ -1,0 +1,274 @@
+{
+ "ruleset": "planets_in_12th",
+ "version": "1.0",
+ "definitions": {
+  "core_principle": "The 12th is not a blanket 'hiding' house. The same planet in the 12th gives opposite results in different charts. Decide positive vs negative from: (1) the 12th lord's strength, (2) benefic aspects/connections, (3) retrogression, (4) whether that planet's dasa runs in a usable life window.",
+  "strong_12th_lord": "own sign / exalted, OR in kendra/trikona, OR connected (conjunction, aspect, star, exchange) with lord_1, lord_5 or lord_9",
+  "positive_support": "lord_12 strong OR Jupiter / lagna lord / lord_5 / lord_9 aspects or connects the planet",
+  "negative_trigger": "lord_12 weak, OR the planet itself retrograde (except where a rule says retrograde helps)",
+  "dasa_gate": "All results below act only in the dasa/bhukti of the planet concerned.",
+  "twelfth_from_reference": "The '12th' logic also applies to 12th from the dasa lord and 12th from the Moon sign, and can be used in transits.",
+  "derived_houses": "Read relatives via bhavat-bhavam (e.g. 5th = 2nd from 4th = mother's family; 7th = 4th from 4th = mother's health). A malefic in a house does not condemn every signification of that house - check the relevant lord and karaka."
+ },
+ "rules": [
+  {
+   "id": "P12-01",
+   "name": "Stellium in 12th",
+   "condition": "two or more planets in 12th",
+   "branches": [
+    {
+     "if": "strong_12th_lord",
+     "then": "Each planet's dasa becomes yogic"
+    },
+    {
+     "if": "lord_12 weak",
+     "then": "Their dasas give 12th-house losses"
+    }
+   ],
+   "cross_link": "planets_in_dusthana.DU-07"
+  },
+  {
+   "id": "P12-02",
+   "name": "Sun in 12th",
+   "branches": [
+    {
+     "if": "positive_support",
+     "then": "Ancestral property received, carries on father's line of work, father's support, status protected, government help"
+    },
+    {
+     "if": "negative_trigger",
+     "then": "Financial strain, damage to professional standing, loss of ancestral property"
+    }
+   ],
+   "note": "For Kataka and Simha lagna the Sun in 12th is not counted as hidden."
+  },
+  {
+   "id": "P12-03",
+   "name": "Moon in 12th",
+   "branches": [
+    {
+     "if": "dispositor strong OR Jupiter / lord_1 / lord_5 / lord_9 aspects",
+     "then": "Moon dasa spreads name and fame (even abroad); strong imagination"
+    },
+    {
+     "if": "dispositor weak OR Rahu/Ketu aspect without support",
+     "then": "Mental stress; indecision"
+    }
+   ],
+   "connections": [
+    {
+     "with": "Mercury",
+     "result": "Writing - stories, poetry, essays"
+    },
+    {
+     "with": "Ketu",
+     "result": "Research"
+    },
+    {
+     "with": "Mars",
+     "result": "Excellent cook"
+    },
+    {
+     "with": "Jupiter (conjunct or aspect)",
+     "result": "Fond of food; tendency to gain weight"
+    }
+   ]
+  },
+  {
+   "id": "P12-04",
+   "name": "Debilitated Moon in 12th (Dhanus lagna)",
+   "condition": "Moon (8th lord) debilitated in Vrischika, 12th from Dhanus",
+   "result": "Viparita raja yoga; with Jupiter aspect/conjunction -> neecha-bhanga; Moon dasa becomes yogic."
+  },
+  {
+   "id": "P12-05",
+   "name": "Mars in 12th",
+   "branches": [
+    {
+     "if": "positive_support",
+     "then": "Earns and buys property personally; relocates/sells and rebuys, renovates"
+    },
+    {
+     "if": "lord_12 weak OR Mars retrograde",
+     "then": "Friction with siblings, land disputes, distress sale of property to clear debts"
+    }
+   ],
+   "remedy_note": "Traditional remedy: Murugan worship (display only, not a computed result)."
+  },
+  {
+   "id": "P12-06",
+   "name": "Moon + Mars in 12th (Chandra-Mangala)",
+   "branches": [
+    {
+     "if": "neither retrograde AND strong_12th_lord",
+     "then": "Chandra-Mangala yoga: wealth, property, mass following and public influence"
+    },
+    {
+     "if": "one retrograde (e.g. Mars) AND strong_12th_lord",
+     "then": "Leaves native place, self-earns large property elsewhere, often in a woman's name (wife/mother/sister) or jointly; may become commercial; access/water/power to the site takes effort"
+    }
+   ],
+   "cross_link": "property_spouse_name"
+  },
+  {
+   "id": "P12-07",
+   "name": "Mercury in 12th",
+   "note": "12th is NOT a hiding place for Mercury (6th and 8th are).",
+   "branches": [
+    {
+     "if": "lord_12 strong OR benefic aspects 12th",
+     "then": "Good education, eloquent speech, business skill; support from maternal uncle / father-in-law / brother-in-law"
+    },
+    {
+     "if": "negative_trigger",
+     "then": "Skin, stomach, shoulder/back/leg pain, respiratory trouble; friction with in-laws or maternal uncle; land documentation/patta problems"
+    }
+   ]
+  },
+  {
+   "id": "P12-08",
+   "name": "Sun + Mercury in 12th (Budhaditya in moksha house)",
+   "result": "Exceptional learning and skill in arts; fast progress in education; fine speaker."
+  },
+  {
+   "id": "P12-09",
+   "name": "Jupiter in 12th",
+   "branches": [
+    {
+     "if": "direct",
+     "then": "In Jupiter dasa: anxieties, future, children, health, deep spirituality, prophetic dreams, meditation, charity, pilgrimages, rediscovers kula deivam, soft-hearted, honest, generous to a fault, always repays debts"
+    },
+    {
+     "if": "retrograde",
+     "then": "Bold, fearless; 'work is worship' - little interest in rituals/temples"
+    }
+   ],
+   "modifiers": [
+    {
+     "if": "12th is a feminine sign",
+     "then": "Devotion to goddess forms"
+    },
+    {
+     "if": "12th is a masculine sign",
+     "then": "Devotion to male deities (Shiva/Vishnu/Murugan)"
+    }
+   ],
+   "cross_link": "education_choice.ED-02"
+  },
+  {
+   "id": "P12-10",
+   "name": "Venus in 12th",
+   "branches": [
+    {
+     "if": "direct AND positive_support",
+     "then": "Wealth/business via women (mother, mother-in-law, sister, sister-in-law); earnings grow with relocation or when spouse also works / joint business; imagination (with Mercury: writing); enjoys food, likes sweet and sour"
+    },
+    {
+     "if": "retrograde",
+     "then": "Still not 'no vehicle': with strong lord_4 buys vehicles on loan and may earn through them (rental/attached to offices)"
+    }
+   ],
+   "note": "Marriage outcome with Venus in 12th varies widely - never predict 'no marriage' from placement alone."
+  },
+  {
+   "id": "P12-11",
+   "name": "Saturn in 12th",
+   "branches": [
+    {
+     "if": "direct, default",
+     "then": "Generally yogic (malefic in 12th); possible friction with paternal uncle or elder brother; night birth -> friction/separation from father in Saturn dasa"
+    },
+    {
+     "if": "direct, negative",
+     "then": "Job-hopping, relocation for work, expects status beyond ability"
+    },
+    {
+     "if": "retrograde",
+     "then": "Major yoga - financial/career rise, own business; even greater if connected to Rahu/Ketu"
+    },
+    {
+     "if": "retrograde AND lagna in (Dhanus, Makara)",
+     "then": "Exception: harms family, finances or health"
+    },
+    {
+     "if": "lord_12 own sign",
+     "then": "Own business succeeds; large earnings and investment gains"
+    }
+   ]
+  },
+  {
+   "id": "P12-12",
+   "name": "Rahu in 12th",
+   "condition": "Rahu dasa; deciding authorities = sign lord and star lord of Rahu",
+   "branches": [
+    {
+     "if": "sign lord and star lord connected (kendra/trikona, mutual aspect, conjunction) and NOT 6/8 or 2/12",
+     "then": "Great yoga in Rahu dasa"
+    },
+    {
+     "if": "both afflicted",
+     "then": "Family trouble, legal issues, selling assets to clear debts"
+    },
+    {
+     "if": "both afflicted AND Venus and 7th/2nd weak",
+     "then": "Separation possibly to divorce; sometimes reunion after the period"
+    }
+   ],
+   "cross_link": "rahu_dasa_and_love_marriage"
+  },
+  {
+   "id": "P12-13",
+   "name": "Ketu in 12th",
+   "result": "Same spiritual results as Jupiter in 12th, pilgrimage, meditation, liberation, keeps sorrows to self, very loyal and trustworthy, earns name through charity.",
+   "cross_link": "ketu_12th"
+  },
+  {
+   "id": "P12-14",
+   "name": "12th lord with Ketu",
+   "result": "Strong altruism and helping nature, tender, timid mind"
+  },
+  {
+   "id": "P12-15",
+   "name": "Retrograde links retrograde",
+   "condition": "retrograde planet in lagna in its own star, dispositor also retrograde",
+   "result": "Both dasas good; bigger yoga if Rahu/Ketu connect by aspect, conjunction or star.",
+   "cross_link": "retrograde_planets"
+  },
+  {
+   "id": "P12-16",
+   "name": "Planet at 29 degrees",
+   "result": "Judge it in the sign it occupies; do not shift to the next sign."
+  },
+  {
+   "id": "P12-17",
+   "name": "Transit Jupiter over natal Venus",
+   "result": "Marriage if unmarried, vehicles, house, property, financial rise, reconciliation with female relatives.",
+   "type": "transit"
+  },
+  {
+   "id": "P12-18",
+   "name": "Transit Jupiter over natal Jupiter",
+   "result": "Finances, peace of mind, health, travel improve; joy through children (elders); new and profitable investments; stuck money recovered; enemies reconcile.",
+   "type": "transit"
+  },
+  {
+   "id": "P12-19",
+   "name": "Benign 12th combinations (Q&A)",
+   "examples": [
+    "Saturn + Rahu in 12th: career rise; better if Venus is strong",
+    "Mercury + Mars + Sun in 12th (Kanni from Simha): fine",
+    "Sun + Moon in 12th with Moon own sign (Simha lagna): yogic",
+    "Moon, Venus, Sun in 12th: positive overall - Moon-Venus especially good"
+   ]
+  }
+ ],
+ "excluded_from_engine": [
+  "Omen / nimitta-based reading (torn notebook page, body language) - not computable",
+  "Physical-habit trivia (bedsheets, eating style) - display at most as flavour text"
+ ],
+ "open_questions_for_implementation": [
+  "Masculine/feminine sign list for P12-09",
+  "Day/night birth flag needed for P12-11 (sunrise/sunset from birth data)",
+  "Overlap with twelfth_lord_placement and ketu_12th - de-duplicate in shared definitions"
+ ]
+}

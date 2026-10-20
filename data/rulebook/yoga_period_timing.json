@@ -1,0 +1,62 @@
+{
+ "ruleset": "yoga_period_timing",
+ "version": "1.0",
+ "definitions": {
+  "core_principle": "Every chart has at least one yoga period and one difficult period in its lifetime; when it arrives (age 10, 30, 50, 70...) depends on karma, read through the dasa sequence. The engine's job is to locate it.",
+  "star_lord_principle": "A dasa lord gives the results of its nakshatra lord: e.g. Mercury dasa with Mercury in a Ketu star -> judge Ketu's condition."
+ },
+ "rules": [
+  {
+   "id": "YP-01",
+   "name": "Dasa lord linked to own/exalted planets",
+   "condition": "dasa lord is connected (via star lord / dispositor) to own-sign or exalted planets, but is itself not the strongest",
+   "result": "Work continues but job satisfaction is partial (~75%); native compromises to keep the career running."
+  },
+  {
+   "id": "YP-02",
+   "name": "Dhana lord in 9th, dispositor in 8th from it",
+   "condition": "lord_2 in 9th AND lord_2's dispositor in its own sign in the 8th from lord_2",
+   "result": "Debts through that dasa - genuine, honest debts, but the native stays a debtor until the dasa ends."
+  },
+  {
+   "id": "YP-03",
+   "name": "Super-strong Ketu dasa",
+   "condition": "Ketu in the sign of an own-sign planet AND in the nakshatra of an exalted planet",
+   "result": "Ketu dasa is the yoga period - can earn in 7 years more than a preceding 17-year dasa; debts cleared. Pushes towards own business, not employment.",
+   "note": "'Ketu spoils like no other' is overridden by Ketu's dispositor and star lord strength."
+  },
+  {
+   "id": "YP-04",
+   "name": "Nodes with strong/retrograde planets",
+   "condition": "Rahu or Ketu connected with own-sign, exalted or retrograde planets",
+   "result": "Yoga. Retrogression of the linked planet does not reverse the result here."
+  },
+  {
+   "id": "YP-05",
+   "name": "Job-change timing",
+   "condition": "Within a dasa linked to own/exalted planets, a bhukti of an own-sign planet (e.g. own-sign Jupiter) begins",
+   "result": "Compulsory job change in that bhukti; change in an earlier weaker bhukti only repeats the same position elsewhere - better to wait."
+  },
+  {
+   "id": "YP-06",
+   "name": "Mars in 4th - late home",
+   "condition": "Mars in 4th from Lagna",
+   "result": "Settles into own house only after middle age; purchase likely financed by a loan, typically in a debt-bringing bhukti.",
+   "cross_link": "property_spouse_name.PROP-07 (strong Mars -> late, illiquid property)"
+  },
+  {
+   "id": "YP-07",
+   "name": "4th lord strong",
+   "condition": "lord_4 in 4th, own sign or exalted, or in kendra/trikona",
+   "result": "Fame, property, good house, vehicles"
+  }
+ ],
+ "engine_output_suggestion": {
+  "yoga_period_finder": "For each mahadasa, score the dasa lord via its star lord and dispositor strength; report the highest-scoring dasa with its age range, and flag whether it falls in a useful life window (roughly 20-60).",
+  "warning": "A yoga dasa arriving very late (65+) should be reported but noted as less usable."
+ },
+ "open_questions_for_implementation": [
+  "Scoring scale for 'super-strong' Ketu (YP-03) vs ordinary",
+  "How to define 'connected' consistently across rulesets (shared definitions file)"
+ ]
+}

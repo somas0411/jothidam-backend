@@ -1,0 +1,107 @@
+{
+ "ruleset": "retrograde_planets",
+ "version": "1.0",
+ "definitions": {
+  "retrograde": "Planet in apparent reverse motion. Shown as 'R' or '(வ)' next to the planet in the rasi chart or the nakshatra-pada table.",
+  "applicable_planets": [
+   "Mars",
+   "Mercury",
+   "Jupiter",
+   "Venus",
+   "Saturn"
+  ],
+  "exclude": {
+   "Sun": "never retrograde",
+   "Moon": "never retrograde",
+   "Rahu": "always reverse - do not treat as a retrograde flag",
+   "Ketu": "always reverse - do not treat as a retrograde flag"
+  },
+  "natural_benefics": [
+   "Jupiter",
+   "Venus",
+   "Mercury"
+  ],
+  "natural_malefics": [
+   "Saturn",
+   "Mars"
+  ],
+  "core_principle": "Retrogression INVERTS a planet's nature: a planet that should give good results gives adverse ones, and a planet that should give bad results gives good ones."
+ },
+ "rules": [
+  {
+   "id": "VAK-01",
+   "name": "Benefic turns adverse",
+   "condition": "natural or functional benefic is retrograde",
+   "example": "Retrograde Jupiter - its dasa can bring hardship; a person flourishing in Rahu dasa may struggle in the following Jupiter dasa (gains wisdom, but money is hard to hold).",
+   "result": "Planet's dasa gives reversed (adverse) results.",
+   "weight": "high"
+  },
+  {
+   "id": "VAK-02",
+   "name": "Malefic turns favourable",
+   "condition": "natural or functional malefic is retrograde",
+   "example": "Retrograde Saturn - can give children, marriage, property, fame and followers in its dasa.",
+   "result": "Planet's dasa gives reversed (favourable) results.",
+   "weight": "high"
+  },
+  {
+   "id": "VAK-03",
+   "name": "Strong functional malefic weakened",
+   "condition": "planet is a functional malefic for the lagna AND placed strongly (e.g. trikona) AND retrograde",
+   "example": "For Kadagam and Simha lagna Saturn is better weak; a retrograde Saturn in trikona loses power, so its dasa turns good.",
+   "result": "Dasa favourable.",
+   "weight": "medium"
+  },
+  {
+   "id": "VAK-04",
+   "name": "Consecutive retrograde dasas",
+   "condition": "two or more retrograde planets whose mahadasas run back-to-back (Rahu counts as reverse-moving for this sequence check)",
+   "result": "Long stretch of reversed-motion dasas - can be very difficult OR very yogic. Do not conclude negatively; decide using dispositor strength, placement and other support.",
+   "output": "Report total years of consecutive retrograde dasas and the age range they cover.",
+   "weight": "medium"
+  },
+  {
+   "id": "VAK-05",
+   "name": "Retrograde career karaka - job over business",
+   "condition_any": [
+    "Jupiter retrograde and its dasa runs in working years",
+    "Saturn (karma karaka) retrograde, even in trikona"
+   ],
+   "result": "Pushes towards employment rather than own business/startup; may take the native away from family to another place for work. Without retrogression the same placement favours own business.",
+   "weight": "medium"
+  },
+  {
+   "id": "VAK-06",
+   "name": "Retrograde 5th lord - love marriage",
+   "condition": "lord_5 (buddhi sthana lord) is retrograde",
+   "result": "Love marriage indicated.",
+   "related_love_indicators": [
+    "Mercury connected with Ketu",
+    "lord_5 afflicted",
+    "Venus conjunct Rahu"
+   ],
+   "weight": "medium"
+  }
+ ],
+ "related_rules_from_example": [
+  {
+   "id": "RAHU-DASA-01",
+   "condition": "dispositor (sign lord) of Rahu is exalted",
+   "result": "Rahu dasa is favourable - e.g. excellent education if it runs in youth."
+  },
+  {
+   "id": "RAHU-DASA-02",
+   "condition": "Rahu in a Ketu-ruled nakshatra AND that nakshatra's sign lord is not hidden (6/8/12) from the Sun",
+   "result": "Rahu dasa yogic."
+  }
+ ],
+ "evaluation_guidance": [
+  "Never conclude from retrogression alone - combine with dasa sequence, dispositor, placement and lagna strength.",
+  "Retrograde planet's effect is felt most during its own mahadasa/bhukti."
+ ],
+ "open_questions_for_implementation": [
+  "Functional benefic/malefic table per lagna is needed for VAK-01/02/03",
+  "Whether a stationary (near-zero speed) planet counts as retrograde",
+  "VAK-04: should Rahu dasa count toward the consecutive-retrograde total?"
+ ]
+}

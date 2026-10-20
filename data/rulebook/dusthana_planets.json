@@ -1,0 +1,196 @@
+{
+ "ruleset": "planets_in_dusthana",
+ "version": "1.0",
+ "definitions": {
+  "dusthana": [
+   6,
+   8,
+   12
+  ],
+  "chart_basis": "Astrologer works from the D1 rasi chart (plus nakshatra lords); bhava-chalit shifts not used.",
+  "core_principle": "A planet in 6/8/12 is not automatically 'hidden' or harmful. Its dasa succeeds if EITHER (a) that house's lord is strong (own/exalted, or the stated special strength) OR (b) Jupiter aspects. Even long runs of dusthana dasas (decades) can be highly successful.",
+  "dasa_gate": "Good or bad combinations only act in their own dasa/bhukti; transits only trigger what the dasa allows."
+ },
+ "rules": [
+  {
+   "id": "DU-01",
+   "name": "Dusthana dasa success test",
+   "condition": "dasa of a planet placed in 6, 8 or 12",
+   "branches": [
+    {
+     "if": "lord of that house own/exalted OR Jupiter aspects the house/planet",
+     "then": "Dasa succeeds"
+    },
+    {
+     "if": "neither",
+     "then": "Dasa likely difficult"
+    }
+   ]
+  },
+  {
+   "id": "DU-02",
+   "name": "6th-house dasa and foreign work",
+   "condition": "dasa of a planet in 6th",
+   "branches": [
+    {
+     "if": "lord_6 retrograde",
+     "then": "Goes abroad for work"
+    },
+    {
+     "if": "lord_6 in 6, 8 or 12",
+     "then": "Goes abroad definitely; lives comfortably there"
+    },
+    {
+     "if": "lord_6 own/exalted (e.g. Jupiter for Kadagam lagna)",
+     "then": "Abroad brings hardship; better to stay"
+    }
+   ]
+  },
+  {
+   "id": "DU-03",
+   "name": "6th lord in 6th",
+   "branches": [
+    {
+     "if": "own sign, not retrograde",
+     "then": "Own business succeeds strongly; unbeatable in competition (monopoly/pioneer)"
+    },
+    {
+     "if": "own sign AND retrograde",
+     "then": "Employment in a top-priority role, not business"
+    }
+   ]
+  },
+  {
+   "id": "DU-04",
+   "name": "8th lord in 8th",
+   "branches": [
+    {
+     "if": "own sign, not retrograde",
+     "then": "Yoga - lends money to others rather than borrowing"
+    },
+    {
+     "if": "own sign AND retrograde",
+     "then": "Hardship in its dasa: finances (young adult), health (elderly), family strain (child)"
+    }
+   ]
+  },
+  {
+   "id": "DU-05",
+   "name": "8th lord in kendra/trikona",
+   "branches": [
+    {
+     "if": "not retrograde",
+     "then": "Textbook negative (losses, domestic trouble)"
+    },
+    {
+     "if": "retrograde",
+     "then": "Turns into yoga - e.g. 8th lord retrograde in 4th: property and vehicles"
+    }
+   ]
+  },
+  {
+   "id": "DU-06",
+   "name": "12th lord dasa",
+   "branches": [
+    {
+     "if": "lord_12 own/exalted, or with own/exalted planet, or in 6/8/12 in own sign",
+     "then": "Very prosperous dasa: household goods, vehicles, property"
+    },
+    {
+     "if": "lord_12 retrograde or debilitated and not connected to Rahu/Ketu",
+     "then": "Severe financial hardship; struggles to keep word"
+    }
+   ]
+  },
+  {
+   "id": "DU-07",
+   "name": "Stellium in 12th with lord_12 own sign",
+   "condition": "lord_12 in its own sign in 12th with other planets",
+   "result": "None of those planets count as hidden - every one of their dasas becomes a yoga dasa (e.g. foreign education/settlement, financial success). Venus retrograde there is still fine if Ketu is with it; without Ketu, retrograde lord_12 spoils the combination.",
+   "cross_link": "twelfth_lord_placement.12L-H12"
+  },
+  {
+   "id": "DU-08",
+   "name": "Strong lord_12 outside 12th",
+   "condition": "lord_12 strong in kendra/trikona, or retrograde with Rahu/Ketu",
+   "result": "Dasa of a planet sitting in 12th (e.g. lone Rahu) can still be yogic."
+  },
+  {
+   "id": "DU-09",
+   "name": "Adhi yoga",
+   "condition": "Benefics in 6th, 7th and 8th from the Moon",
+   "result": "Adhi yoga, prosperity, comforts, victory over opponents."
+  },
+  {
+   "id": "DU-10",
+   "name": "Moon in 6th via lagna-lord star",
+   "condition": "Moon in 6th (even with Rahu) in the nakshatra of an own-sign lagna lord",
+   "result": "Dasa brings migration/relocation, not trouble."
+  },
+  {
+   "id": "DU-11",
+   "name": "Kendradhipatya dosha exceptions",
+   "dosha_cases": "Benefic owning two kendras placed own-sign in one of them (Jupiter for Kanni 4th/7th, Mithunam 7th/10th; Mercury for Meenam 4th/7th, Dhanusu 7th/10th).",
+   "exception": "Lagna lord in Lagna does NOT give kendradhipatya dosha (Jupiter for Dhanusu/Meenam, Mercury for Mithunam/Kanni in Lagna)."
+  },
+  {
+   "id": "DU-12",
+   "name": "5th lord dasa",
+   "branches": [
+    {
+     "if": "lord_5 not retrograde",
+     "then": "Debts likely during its dasa"
+    },
+    {
+     "if": "lord_5 retrograde",
+     "then": "Good earnings during its dasa"
+    }
+   ]
+  },
+  {
+   "id": "DU-13",
+   "name": "Mars-Rahu connection",
+   "branches": [
+    {
+     "if": "Mars retrograde in an earth sign",
+     "then": "Property comes, but with a flaw (power line/pylon across it)"
+    },
+    {
+     "if": "Mars in a water sign",
+     "then": "Property near a large water body"
+    },
+    {
+     "if": "Mars neither retrograde nor own/exalted AND its dispositor weak",
+     "then": "Property purchases become a burden"
+    },
+    {
+     "if": "Mars retrograde or own/exalted",
+     "then": "Top-grade yoga"
+    },
+    {
+     "if": "Jupiter aspects",
+     "then": "Good yoga"
+    },
+    {
+     "if": "lord_5 / lord_9 connects",
+     "then": "Moderate yoga"
+    },
+    {
+     "if": "Mars or Rahu dasa never runs",
+     "then": "No effect; property via other dasas"
+    }
+   ],
+   "cross_link": "property_spouse_name"
+  },
+  {
+   "id": "DU-14",
+   "name": "Sun-Mars and mangalya",
+   "condition": "Sun + Mars conjunction",
+   "result": "No marital (mangalya) dosha if either Sun or Mars is in own sign or exalted (Mesha, Simha, Vrischika, Makara). A strong 8th lord (own sign) also strengthens the marital bond."
+  }
+ ],
+ "open_questions_for_implementation": [
+  "Earth / water sign lists for DU-13",
+  "Benefic list for Adhi yoga (Jupiter, Venus, Mercury; waxing Moon excluded since it's the reference)"
+ ]
+}

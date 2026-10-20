@@ -1,0 +1,71 @@
+{
+ "ruleset": "marriage_chart_selection",
+ "version": "1.0",
+ "definitions": {
+  "core_principle": "Before rejecting a match for any dosha (tara/kalatra, chevvai, sarpa, putra), check WHEN its dasa runs. A dosha whose dasa has already ended, or will only come very late in life, is dormant and must not block the match.",
+  "harm": "Families often self-judge from a dosha label and reject good charts, causing years of delay (example native still unmarried at 35).",
+  "dual_lagnas": [
+   "Mithuna",
+   "Kanni",
+   "Dhanus",
+   "Meena"
+  ],
+  "dasa_gate": "Dosha is live only if its dasa/bhukti overlaps the marriage years (~22-45) or the married life window."
+ },
+ "rules": [
+  {
+   "id": "MS-01",
+   "name": "Tara dosha (second-marriage indicator) for dual lagnas",
+   "condition": "lagna in dual_lagnas AND lord_7 own sign or exalted (lord_7 is also badhaka lord for dual lagnas)",
+   "result": "Two-marriage indicator - BUT only in lord_7's dasa.",
+   "dormant_if": "lord_7 dasa already finished before marriage, or never returns in life window",
+   "cross_link": "venus_7th_house"
+  },
+  {
+   "id": "MS-02",
+   "name": "Ketu with 7th lord",
+   "result": "Marital dispute can reach court - only in the relevant dasa.",
+   "sensitivity": "not_for_end_user"
+  },
+  {
+   "id": "MS-03",
+   "name": "2nd lord hidden",
+   "condition": "lord_2 in 3rd/6th/8th/12th",
+   "result": "Family life weak - only in lord_2's dasa; dormant if that dasa comes late (e.g. after 70)."
+  },
+  {
+   "id": "MS-04",
+   "name": "Venus-Mars mutual aspect",
+   "result": "Contributes to marriage delay."
+  },
+  {
+   "id": "MS-05",
+   "name": "Exalted 7th lord in 11th",
+   "result": "11th = second-spouse house; still harmless if that planet's dasa is over."
+  },
+  {
+   "id": "MS-06",
+   "name": "Current dasa decides",
+   "method": "Evaluate the dasa running in the marriage window. Example: Saturn (lord_5 + lord_6 for Kanni) in kendra with lagna lord, in Sun's star (lord_12 with Venus) -> yoga dasa; marriage and family migration abroad indicated."
+  },
+  {
+   "id": "MS-07",
+   "name": "Matching procedure",
+   "steps": [
+    "List every dosha detected in both charts",
+    "For each, compute the dasa/bhukti that activates it and the age range",
+    "Mark dormant if outside the marriage / married-life window",
+    "Apply neutralisers (Jupiter aspect, retrograde, node links, neecha-bhanga) from other rulesets",
+    "Only live, un-neutralised doshas count against the match",
+    "Scrutinise repeatedly before rejecting"
+   ]
+  }
+ ],
+ "engine_output_suggestion": {
+  "match_report": "For each dosha: name, carrier planet, activating dasa + ages, status live/dormant/neutralised. Never show a bare 'dosha present' label to families."
+ },
+ "open_questions_for_implementation": [
+  "Exact marriage-window ages to use (configurable)",
+  "Integrate with porutham (star-matching) module if horoscopegen has one"
+ ]
+}

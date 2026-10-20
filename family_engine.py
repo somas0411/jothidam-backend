@@ -114,6 +114,9 @@ SUPPORT_PLANETS = ('Jupiter', 'Venus')
 SUPPORT_HOUSES = (2, 5, 9)
 
 GOOD_HOUSES = (1, 2, 5, 9, 11)
+ADULT_AGE = 18              # years; younger members count with MINOR_WEIGHT in the family status
+MINOR_WEIGHT = 0.5
+MIN_PRESSURE = 1.5          # weighted members needed for a pressured month (two adults, or an adult and a minor)
 TRIK_HOUSES = (6, 8, 12)
 JUPITER_GOOD_FROM_MOON = E.TRANSIT_GOOD_FROM_MOON['Jupiter']        # 2, 5, 7, 9, 11
 SATURN_PRESSURE = {12: 'sade sati - 1st phase', 1: 'sade sati - 2nd phase', 2: 'sade sati - 3rd phase',
@@ -169,19 +172,22 @@ FAMILY_RULES = [
     ('Ancestral factors', 'Read per chart and flagged when two or more members share one: Sun with Rahu, Moon '
      'with Ketu (same sign), the 9th lord or the 2nd lord debilitated, combust, or sharing a sign with Saturn, '
      'Rahu or Ketu. A traditional pattern, reported as a fact only.'),
-    ('Period of a lord', 'A dasa or bhukti lord is good when it owns a house among 1, 2, 5, 9, 11 and no house '
-     'among 6, 8, 12, or when it owns a trikona (1, 5, 9) whatever else it owns; difficult when it owns 6, 8 '
-     'or 12 and no trikona; neutral otherwise. Rahu and Ketu are read through the lord of the sign they '
+    ('Period of a lord', 'A dasa or bhukti lord is good when it owns a trikona (1, 5, 9) whatever else it owns, '
+     'or owns the 2nd or 11th and none of 6, 8, 12; neutral when it owns the 2nd or 11th together with 6, 8 or '
+     '12 and no trikona (the gain house offsets the other); difficult when it owns 6, 8 or 12 with no trikona '
+     'and no 2nd or 11th; neutral otherwise. Rahu and Ketu are read through the lord of the sign they '
      'occupy. A member\'s period is good when both the dasa and the bhukti lord are good, difficult when '
      'either is difficult and neither is good, mixed otherwise.'),
     ('Transits from the Moon', 'Sign of the transiting planet counted from the natal Moon sign. Saturn: 12th, '
      '1st, 2nd = sade sati phases 1 to 3; 8th = ashtama; 4th = ardhashtama. Jupiter favourable in the 2nd, 5th, '
      '7th, 9th and 11th. Rahu or Ketu across the 1/7 or 2/8 axis from the Moon is noted.'),
-    ('Family status of a month', 'Read at the middle of each month. Pressured: members in a difficult '
-     'period, in sade sati or in ashtama (any of the three) number at least two and at least half of the '
-     'family (2 of 3 or 4, 3 of 5 or 6). Supportive: not pressured, more than '
-     'half of the members in a good period, and at least half with Jupiter favourable from the Moon. Mixed: '
-     'otherwise. A family of two counts as pressured only when both are. Consecutive months with one status '
+    ('Family status of a month', 'Read at the middle of each month. Every member is weighted: 1 for a member '
+     f'aged {ADULT_AGE} or over at that month, {MINOR_WEIGHT} for a younger member, so the periods of the '
+     'adults who run the household count for more. Pressured: the weight of members in a difficult period, or in '
+     f'sade sati or ashtama while their own period is not good (a good dasa and bhukti offset them), is at least {MIN_PRESSURE} and at least half of the family\'s '
+     'weight. Supportive: not pressured, more than half of the weight in a good period, and at least half of '
+     'the weight with Jupiter favourable from the Moon. Mixed: otherwise. In a family of two, pressured needs '
+     'both. Consecutive months with one status '
      'make a window.'),
     ('Dasa sandhi', 'A change of mahadasa within the set number of months (default 12) of a change of another '
      'member, over the years shown.'),
@@ -319,15 +325,24 @@ class Member:
         if lord in E.NODES:
             through = SIGN_LORDS[self.c.sign[lord]]
         owned = set(self.c.owned[through])
+        trik = owned & set(TRIK_HOUSES)
+        gain = owned & {2, 11}
         if owned & {1, 5, 9}:
             q = 'good'
-        elif owned & set(TRIK_HOUSES):
+        elif trik and gain:
+            q = 'neutral'          # e.g. Saturn ruling the 11th and 12th: the 11th offsets the 12th
+        elif trik:
             q = 'difficult'
-        elif owned & set(GOOD_HOUSES):
+        elif gain:
             q = 'good'
         else:
             q = 'neutral'
         return q, sorted(owned), through
+
+    def weight_at(self, moment_utc):
+        """Weight in the family count: 1 for an adult, MINOR_WEIGHT under ADULT_AGE at that moment."""
+        age = (moment_utc - self.birth_utc).days / A.YEAR_DAYS
+        return 1.0 if age >= ADULT_AGE else MINOR_WEIGHT
 
     def period_quality(self, dasa, bhukti):
         qd = self.lord_quality(dasa)[0] if dasa else 'neutral'
@@ -595,26 +610,34 @@ def _month_starts(lo, hi):
     return out
 
 
-def pressure_threshold(n):
-    """Members needed in a difficult period, sade sati or ashtama for a pressured month."""
-    return n if n <= 2 else max(2, -(-n // 2))
+def pressure_threshold(total, n):
+    """Weight of members needed in a difficult period, sade sati or ashtama for a pressured month."""
+    if n <= 2:
+        return total
+    return max(MIN_PRESSURE, total / 2)
 
 
 def family_status(states):
-    """states: per member dicts with 'period', 'saturn', 'jupiter_good'. Returns (status, counts)."""
+    """
+    states: per member dicts with 'period', 'saturn', 'jupiter_good' and optional 'weight' (default 1).
+    Returns (status, counts); counts are weights, rounded to one decimal.
+    """
     n = len(states)
-    good = sum(1 for s in states if s['period'] == 'good')
-    hard = sum(1 for s in states if s['period'] == 'difficult' or s['saturn'] != 'none' and
-               s['saturn'] != 'ardhashtama')
-    jup = sum(1 for s in states if s['jupiter_good'])
-    need_hard = pressure_threshold(n)
-    if hard >= need_hard:
+    w = lambda s: s.get('weight', 1.0)
+    total = sum(w(s) for s in states)
+    good = sum(w(s) for s in states if s['period'] == 'good')
+    # Sade sati and ashtama press on a member whose own period is not good; a good dasa and bhukti offset them.
+    hard = sum(w(s) for s in states if s['period'] == 'difficult'
+               or (s['saturn'] not in ('none', 'ardhashtama') and s['period'] != 'good'))
+    jup = sum(w(s) for s in states if s['jupiter_good'])
+    if hard >= pressure_threshold(total, n) - 1e-9:
         status = 'pressured'
-    elif good * 2 > n and jup * 2 >= n:
+    elif good * 2 > total and jup * 2 >= total:
         status = 'supportive'
     else:
         status = 'mixed'
-    return status, {'good': good, 'pressured': hard, 'jupiter_favourable': jup}
+    r = lambda x: round(x, 1)
+    return status, {'good': r(good), 'pressured': r(hard), 'jupiter_favourable': r(jup), 'weight': r(total)}
 
 
 def _section_e(members, sky, lo, hi, sandhi_months):
@@ -626,7 +649,7 @@ def _section_e(members, sky, lo, hi, sandhi_months):
         for m in members:
             dasa, bhukti, _, _ = m.period_at(mid)
             period = m.period_quality(dasa, bhukti)
-            st = {'period': period, 'saturn': saturn_state(m, sat),
+            st = {'period': period, 'saturn': saturn_state(m, sat), 'weight': m.weight_at(mid),
                   'jupiter_good': E.house_from(jup, m.c.moon_sign) in JUPITER_GOOD_FROM_MOON}
             states.append(st)
             cells[m.idx] = {'dasa': dasa, 'bhukti': bhukti, **st,
@@ -933,8 +956,10 @@ TABLES = [
         ('to', 'Last month'), ('months', 'Number of months')]),
     ('AI_FamilyMonths', 'E', 'months', [
         ('month', 'Month (YYYY-MM), read at its middle'), ('status', 'Family status'),
-        ('good', 'Members in a good period'), ('pressured', 'Members in a difficult period, sade sati or ashtama'),
-        ('jupiter_favourable', 'Members with Jupiter favourable from the Moon'),
+        ('good', 'Weight of members in a good period (adult 1, under 18 0.5)'),
+        ('pressured', 'Weight of members in a difficult period, or in sade sati or ashtama outside a good period'),
+        ('jupiter_favourable', 'Weight of members with Jupiter favourable from the Moon'),
+        ('weight', 'Total weight of the family that month'),
         ('members', 'Per member: dasa/bhukti and tag (G good, M mixed, D difficult; S sade sati, A ashtama; '
                     'J Jupiter favourable)')]),
     ('AI_FamilyPeriods', 'E', 'periods', [

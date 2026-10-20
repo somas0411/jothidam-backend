@@ -124,13 +124,36 @@ def test_family_status_rule():
     hard = {'period': 'difficult', 'saturn': 'none', 'jupiter_good': False}
     sade = {'period': 'good', 'saturn': 'sade sati - 2nd phase', 'jupiter_good': True}
     ardha = {'period': 'good', 'saturn': 'ardhashtama', 'jupiter_good': True}
+    kid = lambda st: dict(st, weight=0.5)
     assert F.family_status([good, good])[0] == 'supportive'
     assert F.family_status([good, hard])[0] == 'mixed'
-    assert F.family_status([hard, sade])[0] == 'pressured'
+    assert F.family_status([hard, dict(sade, period='mixed')])[0] == 'pressured'
+    assert F.family_status([hard, sade])[0] == 'mixed'                 # a good period offsets sade sati
     assert F.family_status([good, ardha])[0] == 'supportive'           # ardhashtama alone is not pressure
     assert F.family_status([good] * 4 + [hard] * 2)[0] != 'pressured'  # 2 of 6 is under half
     assert F.family_status([good] * 3 + [hard] * 3)[0] == 'pressured'
-    assert [F.pressure_threshold(n) for n in range(2, 7)] == [2, 2, 2, 3, 3]
+    # two parents and two young children
+    assert F.family_status([good, good, kid(hard), kid(hard)])[0] != 'pressured'   # children alone: weight 1
+    assert F.family_status([hard, good, kid(hard), kid(good)])[0] == 'pressured'   # a parent and a child: 1.5
+    assert F.family_status([sade, good, kid(good), kid(good)])[0] == 'supportive'   # one parent alone: 1.0
+    assert F.family_status([good, good, kid(hard), kid(good)])[0] == 'supportive'
+    status, counts = F.family_status([good, good, kid(hard), kid(hard)])
+    assert counts == {'good': 2.0, 'pressured': 1.0, 'jupiter_favourable': 2.0, 'weight': 3.0}
+
+
+def test_eleventh_house_offsets_a_dusthana():
+    m = F.Member(0, 'Self', _res('Meena', '2016-12-09', '13:48', 'male'))   # Meena lagna
+    assert m.c.lagna_sign == 11
+    assert m.lord_quality('Saturn')[0] == 'neutral'                     # owns 11 and 12
+    assert m.lord_quality('Venus')[0] == 'difficult'                    # owns 3 and 8
+    assert m.lord_quality('Jupiter')[0] == 'good'                       # owns 1 and 10
+    assert m.lord_quality('Mars')[0] == 'good'                          # owns 2 and 9
+
+
+def test_minors_weigh_half(six):
+    son = F.Member(0, 'Son', six[2]['res'])                             # born 2012
+    assert son.weight_at(datetime(2026, 1, 1)) == F.MINOR_WEIGHT
+    assert son.weight_at(datetime(2031, 1, 1)) == 1.0
 
 
 def test_axes():

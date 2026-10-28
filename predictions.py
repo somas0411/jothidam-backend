@@ -46,6 +46,7 @@ from datetime import datetime, timedelta
 
 import i18n
 import match_engine as M
+import rulebook_i18n
 from astro_engine import NAKS, RASIS, SIGN_LORDS, YOGAS as NITYA_YOGAS
 from enrich import TOPICS, SAV_STRONG, SAV_WEAK
 from rulebook import BANNED
@@ -140,8 +141,26 @@ HEALTH = re.compile(r'disease|illness|\bill\b|sick|cancer|surgery|surgical|accid
                     r'tumou?r|disorder|infection|fever|chronic|diagnos|மரண|இறப்பு|ஆயுள்|நோய்|விபத்து|'
                     r'அறுவை|மருத்துவமனை', re.I)
 
-TA_MONTHS = ('ஜனவரி', 'பிப்ரவரி', 'மார்ச்', 'ஏப்ரல்', 'மே', 'ஜூன்', 'ஜூலை', 'ஆகஸ்ட்', 'செப்டம்பர்',
-             'அக்டோபர்', 'நவம்பர்', 'டிசம்பர்')
+TEXT_LANGS = ('en', 'ta', 'hi', 'te', 'kn', 'ml', 'mr', 'bn')   # languages every template is written in
+
+# Gregorian month names for the month calendar, in each report language
+MONTHS = {
+    'en': ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'),
+    'ta': ('ஜனவரி', 'பிப்ரவரி', 'மார்ச்', 'ஏப்ரல்', 'மே', 'ஜூன்', 'ஜூலை', 'ஆகஸ்ட்', 'செப்டம்பர்',
+           'அக்டோபர்', 'நவம்பர்', 'டிசம்பர்'),
+    'hi': ('जनवरी', 'फ़रवरी', 'मार्च', 'अप्रैल', 'मई', 'जून', 'जुलाई', 'अगस्त', 'सितंबर', 'अक्टूबर',
+           'नवंबर', 'दिसंबर'),
+    'te': ('జనవరి', 'ఫిబ్రవరి', 'మార్చి', 'ఏప్రిల్', 'మే', 'జూన్', 'జూలై', 'ఆగస్టు', 'సెప్టెంబర్',
+           'అక్టోబర్', 'నవంబర్', 'డిసెంబర్'),
+    'kn': ('ಜನವರಿ', 'ಫೆಬ್ರವರಿ', 'ಮಾರ್ಚ್', 'ಏಪ್ರಿಲ್', 'ಮೇ', 'ಜೂನ್', 'ಜುಲೈ', 'ಆಗಸ್ಟ್', 'ಸೆಪ್ಟೆಂಬರ್',
+           'ಅಕ್ಟೋಬರ್', 'ನವೆಂಬರ್', 'ಡಿಸೆಂಬರ್'),
+    'ml': ('ജനുവരി', 'ഫെബ്രുവരി', 'മാർച്ച്', 'ഏപ്രിൽ', 'മേയ്', 'ജൂൺ', 'ജൂലൈ', 'ഓഗസ്റ്റ്', 'സെപ്റ്റംബർ',
+           'ഒക്ടോബർ', 'നവംബർ', 'ഡിസംബർ'),
+    'mr': ('जानेवारी', 'फेब्रुवारी', 'मार्च', 'एप्रिल', 'मे', 'जून', 'जुलै', 'ऑगस्ट', 'सप्टेंबर',
+           'ऑक्टोबर', 'नोव्हेंबर', 'डिसेंबर'),
+    'bn': ('জানুয়ারি', 'ফেব্রুয়ারি', 'মার্চ', 'এপ্রিল', 'মে', 'জুন', 'জুলাই', 'আগস্ট', 'সেপ্টেম্বর',
+           'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর'),
+}
 
 COLUMNS = [
     ('section', 'Section key: ' + ', '.join(SECTIONS)),
@@ -183,7 +202,8 @@ class _Keep(dict):
 
 
 def text_lang(lang):
-    return 'ta' if lang == 'ta' else 'en'
+    """Language of the template text: the report language; English for 'bi' and unknown codes."""
+    return lang if lang in TEXT_LANGS else 'en'
 
 
 def T(key, lang, **kw):
@@ -236,9 +256,7 @@ class Reader:
         return dt.strftime('%Y-%m-%d')
 
     def month(self, dt):
-        if text_lang(self.lang) == 'ta':
-            return f'{TA_MONTHS[dt.month - 1]} {dt.year}'
-        return dt.strftime('%b %Y')
+        return f'{MONTHS[text_lang(self.lang)][dt.month - 1]} {dt.year}'
 
     def years(self, dt):
         return (dt - self.birth).days / 365.25
@@ -492,13 +510,45 @@ def _yogas(c):
             text = c.L('d.Kuja', refs=refs)
         else:
             text = c.L(f'd.{key}')
+        basis = '; '.join(g['notes']) or key
         if g['weak']:
-            text += c.L('cancel', factors='; '.join(g['weak']))
+            text += c.L('cancel')
+            basis += '; softening factors: ' + '; '.join(g['weak'])
         text += c.L('consider')
-        c.add(S, key, 'dosha', 'mixed', text, '; '.join(g['notes']) or key)
+        c.add(S, c.L(f'dname.{key}'), 'dosha', 'mixed', text, basis)
 
 
 # ── P4 life areas ────────────────────────────────────────────────────────────
+
+_WIN_DASA = re.compile(r'^(\w+) dasa, (\S+) to (\S+) \(age ([\d.]+) to ([\d.]+)\)$')
+_WIN_BHUKTI = re.compile(r'^(\w+) bhukti in (\w+) dasa, (\S+) to (\S+) \(age ([\d.]+) to ([\d.]+)\)$')
+
+
+def rule_finding(r, lang):
+    """The rule-book finding in the report language; English when no translation exists.
+    Lines that a report must not show (health, banned words) are dropped in every language."""
+    plan = lambda p: i18n.planet(p, lang)
+    text = rulebook_i18n.translate(r['finding'], r['rule_id'], lang, plan, drop=(BANNED, HEALTH))
+    if text is None:
+        text = rulebook_i18n.translate(r['finding'], r['rule_id'], 'en', plan, drop=(BANNED, HEALTH))
+    return text or ''
+
+
+def rule_window(c, window):
+    """A rule window ('X dasa, A to B (age x to y)' or 'B bhukti in D dasa, ...') in the report language."""
+    if not window or c.lang == 'en':
+        return window or ''
+    m = _WIN_DASA.match(window)
+    if m:
+        d, a, b, x, y = m.groups()
+        return f"{c.pn(d)} {c.L('level.dasa')}, {c.L('range_age', a=a, b=b, x=x, y=y)}"
+    m = _WIN_BHUKTI.match(window)
+    if m:
+        bh, d, a, b, x, y = m.groups()
+        return (f"{c.pn(d)} {c.L('level.dasa')} / {c.pn(bh)} {c.L('level.bhukti')}, "
+                f"{c.L('range_age', a=a, b=b, x=x, y=y)}")
+    return window
+
 
 def _rule_rows(c, section, topic_label, rule_topics):
     for r in c.t['AI_RuleBook']:
@@ -510,8 +560,11 @@ def _rule_rows(c, section, topic_label, rule_topics):
             continue
         if r['topic'] == 'education' and c.age > STUDY_AGE_MAX:
             continue
-        c.add(section, topic_label, 'rule: ' + r['rule'], r['tone'] or 'mixed',
-              r['finding'] + c.L('rule_lang_note'), r['basis'] or r['rule'], r.get('window') or '',
+        text = rule_finding(r, c.lang)
+        if not text:
+            continue
+        c.add(section, topic_label, 'rule: ' + r['rule_id'], r['tone'] or 'mixed',
+              text, r['basis'] or r['rule'], rule_window(c, r.get('window')),
               r.get('status_at_report_date') or 'always')
 
 

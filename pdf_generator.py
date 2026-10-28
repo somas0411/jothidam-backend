@@ -985,14 +985,49 @@ def _marriage(pdf, match, people):
               font_size=7.4, line_h=4.3, wrap=True)
 
 
+# ── PREDICTIONS ──────────────────────────────────────────────────────────────
+
+TONE_RGB = {'favourable': (228, 242, 223), 'mixed': (252, 239, 210), 'challenging': (251, 227, 196),
+            'neutral': (239, 237, 234)}
+
+
+def _predictions(pdf, block):
+    """Rule-based readings: the summary on its own page first, then one heading per section."""
+    pdf.add_page()
+    pdf.band(f"HoroscopeGen  ·  {block['title']}", block['disclaimer'])
+    labels = block['labels']
+    cols = labels['columns']
+    size = {'en': 7.4, 'bi': 6.4}.get(pdf.lang, 7.0)
+    for n, sec in enumerate(block['sections']):
+        rows = [x for x in block['rows'] if x['section'] == sec['key'] and x['item'] != 'disclaimer']
+        if not rows:
+            continue
+        if n == 1:
+            pdf.add_page()
+        pdf.section(sec['title'], need=40)
+        table, fills = [], {}
+        for i, x in enumerate(rows):
+            table.append([x['topic'], x['text'], f"{labels['tone'].get(x['tone'], x['tone'])}"
+                          + (f"\n{x['period']}" if x['period'] else '')])
+            fills[i] = (2, TONE_RGB.get(x['tone'], WHITE))
+        pdf.table([(cols['topic'], 18, 'LEFT'), (cols['text'], 60, 'LEFT'), (cols['period'], 22, 'LEFT')],
+                  table, font_size=size, line_h=4.0, wrap=True, fills=fills)
+    pdf.set_font('main', '', 7.2)
+    pdf.set_text_color(*MUTED)
+    pdf.set_x(MARGIN)
+    pdf.multi_cell(BODY_W, 4.2, block['rule'], new_x='LMARGIN', new_y='NEXT')
+
+
 # ── ENTRY POINTS ──────────────────────────────────────────────────────────────
 
-def generate_pdf(res, lang=None, match=None, people=None):
+def generate_pdf(res, lang=None, match=None, people=None, predictions=None):
     """
     Build the PDF from compute() output. Returns bytes.
     match, people: the result of match_engine.match() for this person and a
     partner, and {'boy': res, 'girl': res}; when given, a Marriage section
     follows the notes.
+    predictions: the block of predictions.build(res, ai, lang); when given, a
+    Predictions section (summary first) follows the notes.
     """
     lang = lang or res['meta'].get('lang', 'en')
     if lang not in i18n.LANGS:
@@ -1006,6 +1041,8 @@ def generate_pdf(res, lang=None, match=None, people=None):
     _alp(pdf, specs)
     _dasa(pdf)
     _notes(pdf)
+    if predictions:
+        _predictions(pdf, predictions)
     if match:
         _marriage(pdf, match, people)
     return bytes(pdf.output())

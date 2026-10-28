@@ -1,0 +1,770 @@
+{
+ "lagna_prefix": {
+  "en": "{sign} lagna: ",
+  "ta": "லக்னம் {sign}: "
+ },
+ "lagna.1": {
+  "en": "active, quick to start and direct in speech. Strength: courage and initiative; works best leading new tasks. Watch for: haste and impatience.",
+  "ta": "சுறுசுறுப்பு, விரைவாகத் தொடங்கும் தன்மை, நேரடியான பேச்சு. பலம்: தைரியமும் முன்முயற்சியும்; புதிய பணிகளை முன்னின்று நடத்துவதில் சிறப்பு. கவனம்: அவசரம், பொறுமையின்மை."
+ },
+ "lagna.2": {
+  "en": "steady, patient and fond of comfort and beauty. Strength: reliability and a good hand with money; works best in stable, long-term roles. Watch for: stubbornness.",
+  "ta": "நிதானம், பொறுமை, சுகத்திலும் அழகிலும் விருப்பம். பலம்: நம்பகத்தன்மை, பணத்தைக் கையாளும் திறன்; நிலையான, நீண்டகாலப் பணிகளில் சிறப்பு. கவனம்: பிடிவாதம்."
+ },
+ "lagna.3": {
+  "en": "curious, quick-witted and good with words. Strength: learning fast and connecting people; works best where communication and variety matter. Watch for: scattered focus.",
+  "ta": "ஆர்வம், கூர்மையான சிந்தனை, சொல்வன்மை. பலம்: விரைவாகக் கற்பது, மக்களை இணைப்பது; தொடர்பும் பல்வகைப் பணியும் உள்ள இடங்களில் சிறப்பு. கவனம்: கவனச் சிதறல்."
+ },
+ "lagna.4": {
+  "en": "caring, sensitive and attached to home and family. Strength: understanding people's needs; works best in nurturing or public-facing roles. Watch for: changing moods.",
+  "ta": "அக்கறை, மென்மையான உணர்வு, வீடு குடும்பத்தின் மீது பற்று. பலம்: பிறரின் தேவையைப் புரிந்துகொள்வது; பராமரிப்பு அல்லது பொதுமக்கள் தொடர்புப் பணிகளில் சிறப்பு. கவனம்: மனநிலை மாற்றங்கள்."
+ },
+ "lagna.5": {
+  "en": "confident, generous and dignified. Strength: leadership and a sense of responsibility; works best when given authority. Watch for: pride and the need for recognition.",
+  "ta": "தன்னம்பிக்கை, தாராள மனம், கௌரவம். பலம்: தலைமைப் பண்பு, பொறுப்புணர்வு; அதிகாரம் கிடைக்கும் இடத்தில் சிறப்பு. கவனம்: தற்பெருமை, அங்கீகாரத்திற்கான ஏக்கம்."
+ },
+ "lagna.6": {
+  "en": "practical, careful and detail-minded. Strength: analysis, planning and service; works best in roles that need accuracy. Watch for: over-worry and self-criticism.",
+  "ta": "நடைமுறை அறிவு, கவனம், நுணுக்கம். பலம்: பகுப்பாய்வு, திட்டமிடல், சேவை; துல்லியம் தேவைப்படும் பணிகளில் சிறப்பு. கவனம்: அதிகக் கவலை, சுயவிமர்சனம்."
+ },
+ "lagna.7": {
+  "en": "balanced, polite and sociable. Strength: fairness and partnership skills; works best with people, in teams or in negotiation. Watch for: indecision.",
+  "ta": "சமநிலை, மரியாதை, பழகும் தன்மை. பலம்: நியாயம், கூட்டாகச் செயல்படும் திறன்; குழுப் பணி, பேச்சுவார்த்தையில் சிறப்பு. கவனம்: முடிவெடுக்கத் தயக்கம்."
+ },
+ "lagna.8": {
+  "en": "intense, determined and private. Strength: depth, research and staying power; works best on difficult problems. Watch for: suspicion and holding on to hurt.",
+  "ta": "தீவிரம், உறுதி, தனிமையை விரும்பும் தன்மை. பலம்: ஆழ்ந்த சிந்தனை, ஆராய்ச்சி, விடாமுயற்சி; கடினமான சிக்கல்களில் சிறப்பு. கவனம்: சந்தேகம், மனக்காயங்களைப் பிடித்து வைத்தல்."
+ },
+ "lagna.9": {
+  "en": "principled, optimistic and fond of learning. Strength: guidance, teaching and fair dealing; works best where values and ideas matter. Watch for: overconfidence.",
+  "ta": "கொள்கைப் பிடிப்பு, நம்பிக்கை, கல்வியில் ஆர்வம். பலம்: வழிகாட்டல், கற்பித்தல், நேர்மை; மதிப்புகளும் கருத்துகளும் முக்கியமான இடங்களில் சிறப்பு. கவனம்: அதீத நம்பிக்கை."
+ },
+ "lagna.10": {
+  "en": "responsible, hardworking and practical. Strength: discipline and patience, with results that grow over time; works best in structured roles. Watch for: rigidity and overwork.",
+  "ta": "பொறுப்பு, கடின உழைப்பு, நடைமுறை அறிவு. பலம்: ஒழுக்கம், பொறுமை; காலப்போக்கில் பலன் வளரும்; ஒழுங்கமைந்த பணிகளில் சிறப்பு. கவனம்: இறுக்கம், அதிக வேலைப்பளு."
+ },
+ "lagna.11": {
+  "en": "independent, thoughtful and humane. Strength: new ideas and working for groups; works best in systems, technology or social causes. Watch for: distance from close ones.",
+  "ta": "சுதந்திரம், சிந்தனை, மனிதநேயம். பலம்: புதிய யோசனைகள், சமூகத்திற்காக உழைத்தல்; அமைப்புகள், தொழில்நுட்பம், சமூகப் பணிகளில் சிறப்பு. கவனம்: நெருங்கியவர்களிடம் விலகல்."
+ },
+ "lagna.12": {
+  "en": "gentle, imaginative and kind. Strength: compassion, creativity and intuition; works best in caring, creative or spiritual work. Watch for: avoiding hard decisions.",
+  "ta": "மென்மை, கற்பனை, கருணை. பலம்: இரக்கம், படைப்பாற்றல், உள்ளுணர்வு; பராமரிப்பு, படைப்பு, ஆன்மீகப் பணிகளில் சிறப்பு. கவனம்: கடினமான முடிவுகளைத் தவிர்த்தல்."
+ },
+ "moon_prefix": {
+  "en": "Moon in {sign}: ",
+  "ta": "சந்திரன் {sign} ராசியில்: "
+ },
+ "moon.1": {
+  "en": "the mind is quick and eager; feelings are shown openly and pass quickly.",
+  "ta": "மனம் வேகமும் ஆர்வமும் கொண்டது; உணர்வுகளை வெளிப்படையாகக் காட்டி விரைவில் கடந்துவிடும்."
+ },
+ "moon.2": {
+  "en": "a calm, steady mind that values security and simple comforts.",
+  "ta": "அமைதியான, நிலையான மனம்; பாதுகாப்பையும் எளிய சுகங்களையும் மதிக்கும்."
+ },
+ "moon.3": {
+  "en": "a restless, curious mind that enjoys talk, reading and variety.",
+  "ta": "ஓய்வில்லாத, ஆர்வமுள்ள மனம்; பேச்சு, வாசிப்பு, பல்வகை அனுபவங்களை விரும்பும்."
+ },
+ "moon.4": {
+  "en": "a deeply feeling mind, closely tied to mother, home and memories.",
+  "ta": "ஆழ்ந்த உணர்வுள்ள மனம்; தாய், வீடு, நினைவுகளுடன் வலுவான பிணைப்பு."
+ },
+ "moon.5": {
+  "en": "a proud, warm mind that needs respect and likes to lead.",
+  "ta": "பெருமிதமும் அன்பும் கொண்ட மனம்; மரியாதையை எதிர்பார்க்கும், முன்னின்று நடத்த விரும்பும்."
+ },
+ "moon.6": {
+  "en": "an analytical mind that likes order and finds comfort in being useful.",
+  "ta": "பகுத்தாயும் மனம்; ஒழுங்கை விரும்பும், பயனுள்ளவராக இருப்பதில் நிறைவு காணும்."
+ },
+ "moon.7": {
+  "en": "a harmony-seeking mind that values relationships and fairness.",
+  "ta": "இணக்கத்தை நாடும் மனம்; உறவுகளையும் நியாயத்தையும் மதிக்கும்."
+ },
+ "moon.8": {
+  "en": "an intense, private mind; feelings run deep and are slow to show.",
+  "ta": "தீவிரமான, ரகசியம் காக்கும் மனம்; உணர்வுகள் ஆழமானவை, எளிதில் வெளிப்படாது."
+ },
+ "moon.9": {
+  "en": "a hopeful mind drawn to ideals, faith and learning.",
+  "ta": "நம்பிக்கையுள்ள மனம்; இலட்சியம், இறைநம்பிக்கை, கல்வியின் பால் ஈர்ப்பு."
+ },
+ "moon.10": {
+  "en": "a serious, duty-minded mind that feels best with clear goals.",
+  "ta": "தீவிரமான, கடமை உணர்வுள்ள மனம்; தெளிவான இலக்குகள் இருக்கும்போது நிறைவு."
+ },
+ "moon.11": {
+  "en": "an independent mind that thinks about groups and the future.",
+  "ta": "சுதந்திரமான மனம்; சமூகம், எதிர்காலம் குறித்துச் சிந்திக்கும்."
+ },
+ "moon.12": {
+  "en": "a sensitive, dreamy mind with strong intuition and kindness.",
+  "ta": "நுண்ணுணர்வுள்ள, கனவு காணும் மனம்; வலுவான உள்ளுணர்வும் கருணையும்."
+ },
+ "nak_prefix": {
+  "en": "Birth star {nak}, pada {pada}: ",
+  "ta": "ஜென்ம நட்சத்திரம் {nak}, பாதம் {pada}: "
+ },
+ "nak.1": {
+  "en": "quick, helpful and pioneering; likes to act fast and solve problems.",
+  "ta": "விரைவு, உதவும் மனப்பான்மை, முன்னோடித் தன்மை; வேகமாகச் செயல்பட்டுச் சிக்கல்களைத் தீர்க்க விரும்புவார்."
+ },
+ "nak.2": {
+  "en": "strong-willed and responsible; carries heavy duties and keeps commitments.",
+  "ta": "மன உறுதி, பொறுப்புணர்வு; பெரிய கடமைகளைச் சுமந்து வாக்குறுதிகளைக் காப்பார்."
+ },
+ "nak.3": {
+  "en": "sharp, honest and self-respecting; cuts through confusion.",
+  "ta": "கூர்மை, நேர்மை, சுயமரியாதை; குழப்பங்களைத் தெளிவாக்குவார்."
+ },
+ "nak.4": {
+  "en": "attractive, artistic and fond of growth and comfort.",
+  "ta": "கவர்ச்சி, கலையார்வம், வளர்ச்சியிலும் சுகத்திலும் விருப்பம்."
+ },
+ "nak.5": {
+  "en": "curious and searching; always exploring new ideas and places.",
+  "ta": "ஆர்வமும் தேடலும்; புதிய யோசனைகளையும் இடங்களையும் எப்போதும் ஆராய்வார்."
+ },
+ "nak.6": {
+  "en": "intense and thoughtful; grows through change and hard questions.",
+  "ta": "தீவிரமும் சிந்தனையும்; மாற்றங்கள், கடினமான கேள்விகள் வழியே வளர்வார்."
+ },
+ "nak.7": {
+  "en": "hopeful and forgiving; able to start again after setbacks.",
+  "ta": "நம்பிக்கை, மன்னிக்கும் குணம்; தடைகளுக்குப் பின் மீண்டும் தொடங்கும் திறன்."
+ },
+ "nak.8": {
+  "en": "nurturing, dutiful and steady; a supportive presence for others.",
+  "ta": "பேணும் குணம், கடமை உணர்வு, நிலைத்தன்மை; பிறருக்கு ஆதரவாக இருப்பார்."
+ },
+ "nak.9": {
+  "en": "perceptive and clever; reads people and situations well.",
+  "ta": "நுண்ணறிவு, சாமர்த்தியம்; மனிதர்களையும் சூழ்நிலைகளையும் நன்கு புரிந்துகொள்வார்."
+ },
+ "nak.10": {
+  "en": "dignified and tradition-minded; respects elders and heritage.",
+  "ta": "கௌரவம், பாரம்பரியப் பற்று; பெரியோரையும் மரபையும் மதிப்பார்."
+ },
+ "nak.11": {
+  "en": "warm, sociable and creative; enjoys life and friendship.",
+  "ta": "அன்பு, பழகும் தன்மை, படைப்பாற்றல்; வாழ்க்கையையும் நட்பையும் ரசிப்பார்."
+ },
+ "nak.12": {
+  "en": "reliable and generous; a loyal friend and partner.",
+  "ta": "நம்பகத்தன்மை, தாராளம்; விசுவாசமான நண்பர், துணை."
+ },
+ "nak.13": {
+  "en": "skilful with hands and words; practical and resourceful.",
+  "ta": "கைத்திறனும் சொல்திறனும்; நடைமுறை அறிவும் சமயோசிதமும்."
+ },
+ "nak.14": {
+  "en": "creative and stylish; likes to build and design.",
+  "ta": "படைப்பாற்றல், நேர்த்தி; கட்டமைப்பதிலும் வடிவமைப்பதிலும் விருப்பம்."
+ },
+ "nak.15": {
+  "en": "independent and flexible; adapts well and values freedom.",
+  "ta": "சுதந்திரம், நெகிழ்வு; எளிதில் தகவமைத்துக்கொண்டு சுதந்திரத்தை மதிப்பார்."
+ },
+ "nak.16": {
+  "en": "goal-driven and determined; works steadily toward a target.",
+  "ta": "இலக்கை நோக்கிய உந்துதல், உறுதி; குறிக்கோளை நோக்கித் தொடர்ந்து உழைப்பார்."
+ },
+ "nak.17": {
+  "en": "loyal and cooperative; builds lasting friendships and teams.",
+  "ta": "விசுவாசம், ஒத்துழைப்பு; நீடித்த நட்பையும் குழுக்களையும் உருவாக்குவார்."
+ },
+ "nak.18": {
+  "en": "protective and capable; takes charge when needed.",
+  "ta": "பாதுகாக்கும் குணம், திறமை; தேவைப்படும்போது பொறுப்பேற்பார்."
+ },
+ "nak.19": {
+  "en": "searches for root causes; drawn to research and deep truths.",
+  "ta": "வேர்க் காரணங்களைத் தேடுபவர்; ஆராய்ச்சி, ஆழ்ந்த உண்மைகளின் பால் ஈர்ப்பு."
+ },
+ "nak.20": {
+  "en": "confident and persuasive; does not give up easily.",
+  "ta": "தன்னம்பிக்கை, பிறரை ஏற்கச் செய்யும் திறன்; எளிதில் விட்டுக்கொடுக்க மாட்டார்."
+ },
+ "nak.21": {
+  "en": "principled and persistent; wins through patience.",
+  "ta": "கொள்கைப் பிடிப்பு, விடாமுயற்சி; பொறுமையால் வெற்றி பெறுவார்."
+ },
+ "nak.22": {
+  "en": "a good listener and learner; gains through knowledge.",
+  "ta": "நன்கு கேட்பவர், கற்பவர்; அறிவால் முன்னேற்றம்."
+ },
+ "nak.23": {
+  "en": "energetic and well-organised; good at arranging things and earning.",
+  "ta": "சுறுசுறுப்பு, ஒழுங்கு; ஒருங்கிணைப்பதிலும் சம்பாதிப்பதிலும் திறமை."
+ },
+ "nak.24": {
+  "en": "an independent thinker; drawn to science, technology and research.",
+  "ta": "சுயசிந்தனையாளர்; அறிவியல், தொழில்நுட்பம், ஆராய்ச்சியின் பால் ஈர்ப்பு."
+ },
+ "nak.25": {
+  "en": "idealistic and intense; capable of great dedication.",
+  "ta": "இலட்சியம், தீவிரம்; பெரும் அர்ப்பணிப்புத் திறன்."
+ },
+ "nak.26": {
+  "en": "calm, wise and patient; steady in difficult times.",
+  "ta": "அமைதி, ஞானம், பொறுமை; கடினமான நேரங்களிலும் நிலைகுலையாதவர்."
+ },
+ "nak.27": {
+  "en": "kind, gentle and protective; guides others well.",
+  "ta": "கருணை, மென்மை, பாதுகாப்பு; பிறரை நல்வழியில் நடத்துவார்."
+ },
+ "pada": {
+  "en": "The Moon's pada falls in a {sign} navamsa ruled by {planet}, which adds a touch of {sig}.",
+  "ta": "சந்திரனின் பாதம் {planet} ஆளும் {sign} நவாம்சத்தில் விழுவதால் {sig} ஆகிய தன்மைகள் சேர்கின்றன."
+ },
+ "gana.Deva": {
+  "en": "Deva gana: gentle, kind and inclined to helpful, devotional ways.",
+  "ta": "தேவ கணம்: மென்மை, கருணை, உதவும், பக்தி நிறைந்த இயல்பு."
+ },
+ "gana.Manushya": {
+  "en": "Manushya gana: balanced and practical, mixing ambition with care for others.",
+  "ta": "மனுஷ கணம்: சமநிலை, நடைமுறை அறிவு; லட்சியமும் பிறர் மீதான அக்கறையும் கலந்த இயல்பு."
+ },
+ "gana.Rakshasa": {
+  "en": "Rakshasa gana: strong-willed, bold and independent; faces challenges head on.",
+  "ta": "ராட்சச கணம்: மன உறுதி, துணிவு, சுதந்திரம்; சவால்களை நேருக்கு நேர் சந்திக்கும் இயல்பு."
+ },
+ "yoni": {
+  "en": "Yoni {animal}: {quality} (mainly used in marriage matching).",
+  "ta": "யோனி {animal}: {quality} (பெரும்பாலும் திருமணப் பொருத்தத்தில் பயன்படும்)."
+ },
+ "yoni.Horse": {
+  "en": "Horse",
+  "ta": "குதிரை"
+ },
+ "yq.Horse": {
+  "en": "energetic and freedom-loving",
+  "ta": "சுறுசுறுப்பு, சுதந்திர விருப்பம்"
+ },
+ "yoni.Elephant": {
+  "en": "Elephant",
+  "ta": "யானை"
+ },
+ "yq.Elephant": {
+  "en": "strong, patient and dignified",
+  "ta": "வலிமை, பொறுமை, கௌரவம்"
+ },
+ "yoni.Sheep": {
+  "en": "Sheep",
+  "ta": "ஆடு"
+ },
+ "yq.Sheep": {
+  "en": "gentle and cooperative",
+  "ta": "மென்மை, ஒத்துழைப்பு"
+ },
+ "yoni.Serpent": {
+  "en": "Serpent",
+  "ta": "நாகம்"
+ },
+ "yq.Serpent": {
+  "en": "perceptive and watchful",
+  "ta": "நுண்ணறிவு, விழிப்பு"
+ },
+ "yoni.Dog": {
+  "en": "Dog",
+  "ta": "நாய்"
+ },
+ "yq.Dog": {
+  "en": "loyal and hardworking",
+  "ta": "விசுவாசம், உழைப்பு"
+ },
+ "yoni.Cat": {
+  "en": "Cat",
+  "ta": "பூனை"
+ },
+ "yq.Cat": {
+  "en": "independent and alert",
+  "ta": "சுதந்திரம், எச்சரிக்கை உணர்வு"
+ },
+ "yoni.Rat": {
+  "en": "Rat",
+  "ta": "எலி"
+ },
+ "yq.Rat": {
+  "en": "clever and thrifty",
+  "ta": "சாமர்த்தியம், சிக்கனம்"
+ },
+ "yoni.Cow": {
+  "en": "Cow",
+  "ta": "பசு"
+ },
+ "yq.Cow": {
+  "en": "kind and giving",
+  "ta": "கருணை, கொடைக் குணம்"
+ },
+ "yoni.Buffalo": {
+  "en": "Buffalo",
+  "ta": "எருமை"
+ },
+ "yq.Buffalo": {
+  "en": "steady and enduring",
+  "ta": "நிலைத்தன்மை, தாங்கும் சக்தி"
+ },
+ "yoni.Tiger": {
+  "en": "Tiger",
+  "ta": "புலி"
+ },
+ "yq.Tiger": {
+  "en": "bold and self-reliant",
+  "ta": "துணிவு, தன்னம்பிக்கை"
+ },
+ "yoni.Deer": {
+  "en": "Deer",
+  "ta": "மான்"
+ },
+ "yq.Deer": {
+  "en": "gentle and quick",
+  "ta": "மென்மை, சுறுசுறுப்பு"
+ },
+ "yoni.Monkey": {
+  "en": "Monkey",
+  "ta": "குரங்கு"
+ },
+ "yq.Monkey": {
+  "en": "lively and inventive",
+  "ta": "உற்சாகம், புதுமைத் திறன்"
+ },
+ "yoni.Mongoose": {
+  "en": "Mongoose",
+  "ta": "கீரி"
+ },
+ "yq.Mongoose": {
+  "en": "alert and protective",
+  "ta": "விழிப்பு, பாதுகாக்கும் குணம்"
+ },
+ "yoni.Lion": {
+  "en": "Lion",
+  "ta": "சிங்கம்"
+ },
+ "yq.Lion": {
+  "en": "brave and commanding",
+  "ta": "வீரம், ஆளுமை"
+ },
+ "nadi": {
+  "en": "Nadi {nadi}: used in marriage matching; on its own it carries no good or bad result.",
+  "ta": "நாடி {nadi}: திருமணப் பொருத்தத்தில் பயன்படும்; தனியாக நல்லது கெட்டது என்ற பலன் இல்லை."
+ },
+ "nadi.Aadi": {
+  "en": "Aadi",
+  "ta": "ஆதி"
+ },
+ "nadi.Madhya": {
+  "en": "Madhya",
+  "ta": "மத்ய"
+ },
+ "nadi.Antya": {
+  "en": "Antya",
+  "ta": "அந்திய"
+ },
+ "ll_prefix": {
+  "en": "Lagna lord {planet} in house {house}: ",
+  "ta": "லக்னாதிபதி {planet} {house}-ம் பாவத்தில்: "
+ },
+ "ll.1": {
+  "en": "life is self-driven; personal effort shapes the results.",
+  "ta": "சுயமுயற்சியால் வாழ்க்கை அமையும்; தன் உழைப்பே பலனை வடிவமைக்கும்."
+ },
+ "ll.2": {
+  "en": "the focus is on family, earning and building savings.",
+  "ta": "குடும்பம், வருமானம், சேமிப்பில் கவனம்."
+ },
+ "ll.3": {
+  "en": "the focus is on effort, skills, communication and courage.",
+  "ta": "முயற்சி, திறமை, தொடர்பு, தைரியத்தில் கவனம்."
+ },
+ "ll.4": {
+  "en": "the focus is on home, mother, property and peace of mind.",
+  "ta": "வீடு, தாய், சொத்து, மன அமைதியில் கவனம்."
+ },
+ "ll.5": {
+  "en": "the focus is on learning, children, creativity and wise investments.",
+  "ta": "கல்வி, குழந்தைகள், படைப்பாற்றல், விவேகமான முதலீடுகளில் கவனம்."
+ },
+ "ll.6": {
+  "en": "the focus is on service, competition and solving problems; progress comes through hard work.",
+  "ta": "சேவை, போட்டி, சிக்கல்களைத் தீர்ப்பதில் கவனம்; கடின உழைப்பால் முன்னேற்றம்."
+ },
+ "ll.7": {
+  "en": "life turns around the partner, partnerships and public dealings.",
+  "ta": "வாழ்க்கைத் துணை, கூட்டாண்மை, பொதுத் தொடர்புகளைச் சுற்றி வாழ்க்கை அமையும்."
+ },
+ "ll.8": {
+  "en": "life brings changes and depth; research and hidden knowledge attract.",
+  "ta": "வாழ்க்கையில் மாற்றங்களும் ஆழமும்; ஆராய்ச்சி, மறைவான அறிவின் பால் ஈர்ப்பு."
+ },
+ "ll.9": {
+  "en": "fortune, ethics, teachers and higher learning guide life.",
+  "ta": "பாக்கியம், அறநெறி, குருமார், உயர்கல்வி வாழ்க்கையை வழிநடத்தும்."
+ },
+ "ll.10": {
+  "en": "work and reputation are central; there is a strong drive to achieve.",
+  "ta": "தொழிலும் நற்பெயரும் மையமானவை; சாதிக்கும் வலுவான உந்துதல்."
+ },
+ "ll.11": {
+  "en": "gains, networks and the fulfilment of wishes are central.",
+  "ta": "லாபம், தொடர்புகள், விருப்பங்கள் நிறைவேறுவது மையமானவை."
+ },
+ "ll.12": {
+  "en": "expenses, travel or living away, and spiritual interests are prominent.",
+  "ta": "செலவுகள், பயணம் அல்லது வெளியூர் வாசம், ஆன்மீக ஆர்வம் முக்கியமானவை."
+ },
+ "paksha.Shukla": {
+  "en": "Born in the waxing fortnight (Shukla paksha): a growth-minded outlook.",
+  "ta": "வளர்பிறையில் (சுக்ல பட்சம்) பிறப்பு: வளர்ச்சியை நோக்கிய மனப்பான்மை."
+ },
+ "paksha.Krishna": {
+  "en": "Born in the waning fortnight (Krishna paksha): a reflective, inward outlook.",
+  "ta": "தேய்பிறையில் (கிருஷ்ண பட்சம்) பிறப்பு: சிந்தனை, அகநோக்குள்ள மனப்பான்மை."
+ },
+ "tithi_prefix": {
+  "en": "Tithi {tithi}: ",
+  "ta": "திதி {tithi}: "
+ },
+ "tg.nanda": {
+  "en": "a Nanda tithi, linked with joy and a cheerful approach.",
+  "ta": "நந்தா திதி; மகிழ்ச்சி, உற்சாகமான அணுகுமுறையுடன் தொடர்புடையது."
+ },
+ "tg.bhadra": {
+  "en": "a Bhadra tithi, linked with steady, good work.",
+  "ta": "பத்ரா திதி; நிலையான, நல்ல செயல்களுடன் தொடர்புடையது."
+ },
+ "tg.jaya": {
+  "en": "a Jaya tithi, linked with success through effort.",
+  "ta": "ஜயா திதி; முயற்சியால் வெற்றியுடன் தொடர்புடையது."
+ },
+ "tg.rikta": {
+  "en": "a Rikta tithi, linked with clearing obstacles and finishing tasks; patience helps.",
+  "ta": "ரிக்தா திதி; தடைகளை நீக்கிப் பணிகளை முடிப்பதுடன் தொடர்புடையது; பொறுமை உதவும்."
+ },
+ "tg.purna": {
+  "en": "a Purna tithi, linked with completeness and fulfilment.",
+  "ta": "பூர்ணா திதி; முழுமை, நிறைவுடன் தொடர்புடையது."
+ },
+ "weekday": {
+  "en": "Born on a {weekday}, ruled by {planet}: adds {sig}.",
+  "ta": "பிறந்த கிழமை {weekday} ({planet} ஆளும் நாள்): {sig} ஆகிய தன்மைகள் சேர்கின்றன."
+ },
+ "nyoga": {
+  "en": "Birth yoga {yoga}: associated with {quality}.",
+  "ta": "பிறந்த யோகம் {yoga}: {quality} ஆகியவற்றுடன் தொடர்புடையது."
+ },
+ "nyoga_no": {
+  "en": "Birth yoga (number {no} of the 27): associated with {quality}.",
+  "ta": "பிறந்த யோகம் (27-ல் {no}-வது): {quality} ஆகியவற்றுடன் தொடர்புடையது."
+ },
+ "nyq.Vishkambha": {
+  "en": "steady support",
+  "ta": "நிலையான ஆதரவு"
+ },
+ "nyq.Priti": {
+  "en": "affection and goodwill",
+  "ta": "அன்பு, நல்லெண்ணம்"
+ },
+ "nyq.Ayushman": {
+  "en": "vitality and endurance",
+  "ta": "உயிரோட்டம், தாங்கும் சக்தி"
+ },
+ "nyq.Saubhagya": {
+  "en": "good fortune",
+  "ta": "நல்ல அதிர்ஷ்டம்"
+ },
+ "nyq.Shobhana": {
+  "en": "grace and charm",
+  "ta": "அழகு, வசீகரம்"
+ },
+ "nyq.Atiganda": {
+  "en": "meeting obstacles with determination",
+  "ta": "தடைகளை உறுதியுடன் எதிர்கொள்ளுதல்"
+ },
+ "nyq.Sukarma": {
+  "en": "good deeds",
+  "ta": "நற்செயல்கள்"
+ },
+ "nyq.Dhriti": {
+  "en": "steadiness and resolve",
+  "ta": "நிலைத்தன்மை, மன உறுதி"
+ },
+ "nyq.Shoola": {
+  "en": "sharp focus",
+  "ta": "கூர்மையான கவனம்"
+ },
+ "nyq.Ganda": {
+  "en": "untying knots through persistence",
+  "ta": "விடாமுயற்சியால் சிக்கல்களை அவிழ்த்தல்"
+ },
+ "nyq.Vriddhi": {
+  "en": "growth",
+  "ta": "வளர்ச்சி"
+ },
+ "nyq.Dhruva": {
+  "en": "stability",
+  "ta": "ஸ்திரத்தன்மை"
+ },
+ "nyq.Vyaghata": {
+  "en": "frankness",
+  "ta": "வெளிப்படையான பேச்சு"
+ },
+ "nyq.Harshana": {
+  "en": "cheerfulness",
+  "ta": "மகிழ்ச்சி"
+ },
+ "nyq.Vajra": {
+  "en": "firmness",
+  "ta": "உறுதி"
+ },
+ "nyq.Siddhi": {
+  "en": "accomplishment",
+  "ta": "காரிய சித்தி"
+ },
+ "nyq.Vyatipata": {
+  "en": "sudden turns that teach",
+  "ta": "பாடம் கற்பிக்கும் திடீர் திருப்பங்கள்"
+ },
+ "nyq.Variyan": {
+  "en": "comfort and ease",
+  "ta": "சுகம், எளிமை"
+ },
+ "nyq.Parigha": {
+  "en": "persistence past barriers",
+  "ta": "தடைகளைத் தாண்டும் விடாமுயற்சி"
+ },
+ "nyq.Shiva": {
+  "en": "auspiciousness",
+  "ta": "மங்களம்"
+ },
+ "nyq.Siddha": {
+  "en": "skill",
+  "ta": "திறமை"
+ },
+ "nyq.Sadhya": {
+  "en": "discipline and what can be achieved",
+  "ta": "ஒழுக்கம், அடையக்கூடியவை"
+ },
+ "nyq.Shubha": {
+  "en": "goodness",
+  "ta": "நன்மை"
+ },
+ "nyq.Shukla": {
+  "en": "clarity",
+  "ta": "தெளிவு"
+ },
+ "nyq.Brahma": {
+  "en": "knowledge",
+  "ta": "ஞானம்"
+ },
+ "nyq.Indra": {
+  "en": "leadership",
+  "ta": "தலைமைப் பண்பு"
+ },
+ "nyq.Vaidhriti": {
+  "en": "independence",
+  "ta": "சுதந்திரம்"
+ },
+ "karana": {
+  "en": "Karana {karana}: associated with {quality}.",
+  "ta": "கரணம் {karana}: {quality} ஆகியவற்றுடன் தொடர்புடையது."
+ },
+ "kq.Bava": {
+  "en": "enterprise",
+  "ta": "முயற்சியுடைமை"
+ },
+ "kq.Balava": {
+  "en": "learning and duty",
+  "ta": "கல்வி, கடமை"
+ },
+ "kq.Kaulava": {
+  "en": "friendliness",
+  "ta": "நட்புணர்வு"
+ },
+ "kq.Taitila": {
+  "en": "comfort and charm",
+  "ta": "சுகம், வசீகரம்"
+ },
+ "kq.Gara": {
+  "en": "hard work and growth",
+  "ta": "கடின உழைப்பு, வளர்ச்சி"
+ },
+ "kq.Vanija": {
+  "en": "trade and business sense",
+  "ta": "வணிகம், வியாபார அறிவு"
+ },
+ "kq.Vishti": {
+  "en": "persistence through difficulty",
+  "ta": "சிரமத்திலும் விடாமுயற்சி"
+ },
+ "kq.Shakuni": {
+  "en": "shrewdness",
+  "ta": "சாதுரியம்"
+ },
+ "kq.Chatushpada": {
+  "en": "care and patience",
+  "ta": "அக்கறை, பொறுமை"
+ },
+ "kq.Naga": {
+  "en": "firmness",
+  "ta": "உறுதி"
+ },
+ "kq.Kimstughna": {
+  "en": "good beginnings",
+  "ta": "நல்ல தொடக்கங்கள்"
+ },
+ "nyn.Vishkambha": {
+  "en": "Vishkambha",
+  "ta": "விஷ்கம்பம்"
+ },
+ "nyn.Priti": {
+  "en": "Priti",
+  "ta": "ப்ரீதி"
+ },
+ "nyn.Ayushman": {
+  "en": "Ayushman",
+  "ta": "ஆயுஷ்மான்"
+ },
+ "nyn.Saubhagya": {
+  "en": "Saubhagya",
+  "ta": "சௌபாக்கியம்"
+ },
+ "nyn.Shobhana": {
+  "en": "Shobhana",
+  "ta": "சோபனம்"
+ },
+ "nyn.Atiganda": {
+  "en": "Atiganda",
+  "ta": "அதிகண்டம்"
+ },
+ "nyn.Sukarma": {
+  "en": "Sukarma",
+  "ta": "சுகர்மம்"
+ },
+ "nyn.Dhriti": {
+  "en": "Dhriti",
+  "ta": "திருதி"
+ },
+ "nyn.Shoola": {
+  "en": "Shoola",
+  "ta": "சூலம்"
+ },
+ "nyn.Ganda": {
+  "en": "Ganda",
+  "ta": "கண்டம்"
+ },
+ "nyn.Vriddhi": {
+  "en": "Vriddhi",
+  "ta": "விருத்தி"
+ },
+ "nyn.Dhruva": {
+  "en": "Dhruva",
+  "ta": "துருவம்"
+ },
+ "nyn.Vyaghata": {
+  "en": "Vyaghata",
+  "ta": "வியாகாதம்"
+ },
+ "nyn.Harshana": {
+  "en": "Harshana",
+  "ta": "ஹர்ஷணம்"
+ },
+ "nyn.Vajra": {
+  "en": "Vajra",
+  "ta": "வஜ்ரம்"
+ },
+ "nyn.Siddhi": {
+  "en": "Siddhi",
+  "ta": "சித்தி"
+ },
+ "nyn.Vyatipata": {
+  "en": "Vyatipata",
+  "ta": "வியதீபாதம்"
+ },
+ "nyn.Variyan": {
+  "en": "Variyan",
+  "ta": "வரீயான்"
+ },
+ "nyn.Parigha": {
+  "en": "Parigha",
+  "ta": "பரிகம்"
+ },
+ "nyn.Shiva": {
+  "en": "Shiva",
+  "ta": "சிவம்"
+ },
+ "nyn.Siddha": {
+  "en": "Siddha",
+  "ta": "சித்தம்"
+ },
+ "nyn.Sadhya": {
+  "en": "Sadhya",
+  "ta": "சாத்தியம்"
+ },
+ "nyn.Shubha": {
+  "en": "Shubha",
+  "ta": "சுபம்"
+ },
+ "nyn.Shukla": {
+  "en": "Shukla",
+  "ta": "சுக்லம்"
+ },
+ "nyn.Brahma": {
+  "en": "Brahma",
+  "ta": "பிரம்மம்"
+ },
+ "nyn.Indra": {
+  "en": "Indra",
+  "ta": "இந்திரம்"
+ },
+ "nyn.Vaidhriti": {
+  "en": "Vaidhriti",
+  "ta": "வைதிருதி"
+ },
+ "krn.Bava": {
+  "en": "Bava",
+  "ta": "பவம்"
+ },
+ "krn.Balava": {
+  "en": "Balava",
+  "ta": "பாலவம்"
+ },
+ "krn.Kaulava": {
+  "en": "Kaulava",
+  "ta": "கௌலவம்"
+ },
+ "krn.Taitila": {
+  "en": "Taitila",
+  "ta": "தைதுலம்"
+ },
+ "krn.Gara": {
+  "en": "Gara",
+  "ta": "கரசை"
+ },
+ "krn.Vanija": {
+  "en": "Vanija",
+  "ta": "வணிசை"
+ },
+ "krn.Vishti": {
+  "en": "Vishti",
+  "ta": "பத்திரை (விஷ்டி)"
+ },
+ "krn.Shakuni": {
+  "en": "Shakuni",
+  "ta": "சகுனி"
+ },
+ "krn.Chatushpada": {
+  "en": "Chatushpada",
+  "ta": "சதுஷ்பாதம்"
+ },
+ "krn.Naga": {
+  "en": "Naga",
+  "ta": "நாகவம்"
+ },
+ "krn.Kimstughna": {
+  "en": "Kimstughna",
+  "ta": "கிம்ஸ்துக்னம்"
+ }
+}

@@ -1,0 +1,322 @@
+{
+ "month": {
+  "en": "{month}: {rating}; main supported area: {topic}.",
+  "ta": "{month}: {rating}; முக்கிய ஆதரவுத் துறை: {topic}."
+ },
+ "month_none": {
+  "en": "{month}: {rating}.",
+  "ta": "{month}: {rating}."
+ },
+ "rating.favourable": {
+  "en": "favourable",
+  "ta": "சாதகம்"
+ },
+ "rating.mixed": {
+  "en": "mixed",
+  "ta": "கலவை"
+ },
+ "rating.careful": {
+  "en": "go carefully",
+  "ta": "கவனமாகச் செல்லவும்"
+ },
+ "rule": {
+  "en": "How the months are rated: at the middle of each month, add +1 / 0 / -1 for each of five factors: the bhukti lord (functional benefic or yogakaraka +1, malefic -1, else 0), the antaram lord (same), Jupiter from the Moon (houses 2, 5, 7, 9, 11 +1; 4, 6, 8, 10, 12 -1; else 0), Saturn from the Moon (houses 3, 6, 11 +1; 1, 2, 4, 8, 12 -1; else 0), and the tara of the antaram lord's star from the birth star (favourable +1, unfavourable -1, Janma 0). A total of 1 or more is favourable, -2 or less is go carefully, anything else is mixed. The main area is the life area with the most timing-window days in that month, each day counted once per agreeing layer.",
+  "ta": "மாதங்கள் மதிப்பிடப்படும் முறை: ஒவ்வொரு மாதத்தின் நடுவில் ஐந்து அம்சங்களுக்கும் +1 / 0 / -1 கூட்டப்படும்: புத்தி அதிபதி (சுபர் அல்லது யோககாரகன் +1, பாவி -1, மற்றவை 0), அந்தர அதிபதி (அதே முறை), சந்திரனிலிருந்து குரு (2, 5, 7, 9, 11 +1; 4, 6, 8, 10, 12 -1; மற்றவை 0), சந்திரனிலிருந்து சனி (3, 6, 11 +1; 1, 2, 4, 8, 12 -1; மற்றவை 0), ஜென்ம நட்சத்திரத்திலிருந்து அந்தர அதிபதியின் நட்சத்திரத் தாரை (சாதகம் +1, பாதகம் -1, ஜென்மம் 0). மொத்தம் 1 அல்லது அதற்கு மேல் சாதகம், -2 அல்லது குறைவு கவனம், மற்றவை கலவை. முக்கியத் துறை என்பது அந்த மாதத்தில் அதிக சாதக கால நாட்களைக் கொண்ட வாழ்க்கைத் துறை; ஒவ்வொரு நாளும் ஒத்துப்போகும் அடுக்குகளின் எண்ணிக்கையால் பெருக்கப்படும்."
+ },
+ "remedy": {
+  "en": "{planet}{why}: day {day}; deity {deity}; colour {colour}; charity: {charity}; prayer: {mantra}.",
+  "ta": "{planet}{why}: நாள் {day}; தெய்வம் {deity}; நிறம் {colour}; தானம்: {charity}; வழிபாடு: {mantra}."
+ },
+ "remedy_why.dasa": {
+  "en": " (the running dasa lord)",
+  "ta": " (நடப்புத் தசா நாதன்)"
+ },
+ "remedy_why.weak": {
+  "en": " (the weakest functional benefic)",
+  "ta": " (மிகவும் பலவீனமான சுபக் கிரகம்)"
+ },
+ "remedy_note": {
+  "en": "Optional and traditional; not a substitute for professional advice.",
+  "ta": "விருப்பத்தின் பேரில் செய்யக்கூடிய பாரம்பரிய வழிகள்; தொழில்முறை ஆலோசனைக்கு மாற்று அல்ல."
+ },
+ "rem.Sun": {
+  "en": {
+   "day": "Sunday",
+   "deity": "Surya",
+   "colour": "orange or copper red",
+   "charity": "wheat, or help to elders and fathers in need",
+   "mantra": "Aditya Hridayam"
+  },
+  "ta": {
+   "day": "ஞாயிறு",
+   "deity": "சூரிய பகவான்",
+   "colour": "ஆரஞ்சு அல்லது செம்பு நிறம்",
+   "charity": "கோதுமை, அல்லது முதியோர், தந்தையருக்கு உதவி",
+   "mantra": "ஆதித்ய ஹ்ருதயம்"
+  }
+ },
+ "rem.Moon": {
+  "en": {
+   "day": "Monday",
+   "deity": "Goddess Parvati",
+   "colour": "white",
+   "charity": "rice or milk to those in need",
+   "mantra": "Chandra Gayatri"
+  },
+  "ta": {
+   "day": "திங்கள்",
+   "deity": "பார்வதி தேவி",
+   "colour": "வெள்ளை",
+   "charity": "தேவைப்படுவோருக்கு அரிசி அல்லது பால்",
+   "mantra": "சந்திர காயத்ரி"
+  }
+ },
+ "rem.Mars": {
+  "en": {
+   "day": "Tuesday",
+   "deity": "Lord Murugan",
+   "colour": "red",
+   "charity": "red lentils, or help to siblings",
+   "mantra": "Skanda Sashti Kavacham"
+  },
+  "ta": {
+   "day": "செவ்வாய்",
+   "deity": "முருகப் பெருமான்",
+   "colour": "சிவப்பு",
+   "charity": "துவரம் பருப்பு, அல்லது உடன்பிறப்புகளுக்கு உதவி",
+   "mantra": "கந்த சஷ்டி கவசம்"
+  }
+ },
+ "rem.Mercury": {
+  "en": {
+   "day": "Wednesday",
+   "deity": "Lord Vishnu",
+   "colour": "green",
+   "charity": "books or study material to students",
+   "mantra": "Vishnu Sahasranamam"
+  },
+  "ta": {
+   "day": "புதன்",
+   "deity": "மகா விஷ்ணு",
+   "colour": "பச்சை",
+   "charity": "மாணவர்களுக்குப் புத்தகங்கள், படிப்புப் பொருட்கள்",
+   "mantra": "விஷ்ணு சஹஸ்ரநாமம்"
+  }
+ },
+ "rem.Jupiter": {
+  "en": {
+   "day": "Thursday",
+   "deity": "Lord Dakshinamurthy",
+   "colour": "yellow",
+   "charity": "chana dal, or respect and help to teachers",
+   "mantra": "Guru Gayatri"
+  },
+  "ta": {
+   "day": "வியாழன்",
+   "deity": "தட்சிணாமூர்த்தி",
+   "colour": "மஞ்சள்",
+   "charity": "கடலைப் பருப்பு, அல்லது ஆசிரியர்களுக்கு மரியாதையும் உதவியும்",
+   "mantra": "குரு காயத்ரி"
+  }
+ },
+ "rem.Venus": {
+  "en": {
+   "day": "Friday",
+   "deity": "Goddess Mahalakshmi",
+   "colour": "white or light pink",
+   "charity": "sweets or clothes to women in need",
+   "mantra": "Sri Suktam"
+  },
+  "ta": {
+   "day": "வெள்ளி",
+   "deity": "மகாலட்சுமி",
+   "colour": "வெள்ளை அல்லது வெளிர் இளஞ்சிவப்பு",
+   "charity": "தேவைப்படும் பெண்களுக்கு இனிப்பு அல்லது ஆடை",
+   "mantra": "ஸ்ரீ சூக்தம்"
+  }
+ },
+ "rem.Saturn": {
+  "en": {
+   "day": "Saturday",
+   "deity": "Lord Hanuman",
+   "colour": "dark blue or black",
+   "charity": "sesame, or help to workers and the elderly",
+   "mantra": "Hanuman Chalisa"
+  },
+  "ta": {
+   "day": "சனி",
+   "deity": "ஆஞ்சநேயர்",
+   "colour": "கருநீலம் அல்லது கருப்பு",
+   "charity": "எள், அல்லது தொழிலாளர்கள், முதியோருக்கு உதவி",
+   "mantra": "ஹனுமான் சாலீசா"
+  }
+ },
+ "rem.Rahu": {
+  "en": {
+   "day": "Saturday",
+   "deity": "Goddess Durga",
+   "colour": "smoky blue",
+   "charity": "help to the underprivileged",
+   "mantra": "Durga Gayatri"
+  },
+  "ta": {
+   "day": "சனி",
+   "deity": "துர்கை அம்மன்",
+   "colour": "புகை நீலம்",
+   "charity": "ஏழை எளியோருக்கு உதவி",
+   "mantra": "துர்கா காயத்ரி"
+  }
+ },
+ "rem.Ketu": {
+  "en": {
+   "day": "Tuesday",
+   "deity": "Lord Ganesha",
+   "colour": "grey or multi-coloured",
+   "charity": "blankets, or food for stray animals",
+   "mantra": "Ganesha Gayatri"
+  },
+  "ta": {
+   "day": "செவ்வாய்",
+   "deity": "விநாயகப் பெருமான்",
+   "colour": "சாம்பல் அல்லது பல வண்ணம்",
+   "charity": "போர்வைகள், அல்லது தெரு விலங்குகளுக்கு உணவு",
+   "mantra": "கணேச காயத்ரி"
+  }
+ },
+ "sum.chart": {
+  "en": "{lagna} lagna, Moon in {moon}, birth star {nak}.",
+  "ta": "லக்னம் {lagna}, ராசி {moon}, நட்சத்திரம் {nak}."
+ },
+ "sum.strong": {
+  "en": "Strongest life areas: {a} and {b}.",
+  "ta": "வலுவான வாழ்க்கைத் துறைகள்: {a}, {b}."
+ },
+ "sum.effort": {
+  "en": "Needs the most effort: {a}.",
+  "ta": "அதிக முயற்சி தேவைப்படும் துறை: {a}."
+ },
+ "sum.period": {
+  "en": "Running now: {dasa} dasa, {bhukti} bhukti (until {end}).",
+  "ta": "நடப்பில்: {dasa} தசை, {bhukti} புத்தி ({end} வரை)."
+ },
+ "sum.window": {
+  "en": "Next notable window: {topic}, {period}.",
+  "ta": "அடுத்த முக்கிய சாதக காலம்: {topic}, {period}."
+ },
+ "sum.sade_on": {
+  "en": "Sade Sati is running ({phase}) until {end}.",
+  "ta": "ஏழரைச் சனி நடப்பில் ({phase}), {end} வரை."
+ },
+ "sum.sade_next": {
+  "en": "Sade Sati is not running now; the next one starts on {start}.",
+  "ta": "இப்போது ஏழரைச் சனி இல்லை; அடுத்தது {start} அன்று தொடங்கும்."
+ },
+ "sum.sade_no": {
+  "en": "Sade Sati is not running now.",
+  "ta": "இப்போது ஏழரைச் சனி இல்லை."
+ },
+ "sum.yoga": {
+  "en": "Key yoga: {yoga}.",
+  "ta": "முக்கிய யோகம்: {yoga}."
+ },
+ "phase.sade sati - 1st phase": {
+  "en": "1st phase",
+  "ta": "முதல் கட்டம்"
+ },
+ "phase.sade sati - 2nd phase": {
+  "en": "2nd phase",
+  "ta": "இரண்டாம் கட்டம்"
+ },
+ "phase.sade sati - 3rd phase": {
+  "en": "3rd phase",
+  "ta": "மூன்றாம் கட்டம்"
+ },
+ "yname.Ruchaka": {
+  "en": "Ruchaka yoga",
+  "ta": "ருசக யோகம்"
+ },
+ "yname.Bhadra": {
+  "en": "Bhadra yoga",
+  "ta": "பத்ர யோகம்"
+ },
+ "yname.Hamsa": {
+  "en": "Hamsa yoga",
+  "ta": "ஹம்ச யோகம்"
+ },
+ "yname.Malavya": {
+  "en": "Malavya yoga",
+  "ta": "மாளவ்ய யோகம்"
+ },
+ "yname.Sasa": {
+  "en": "Sasa yoga",
+  "ta": "சச யோகம்"
+ },
+ "yname.Gajakesari": {
+  "en": "Gajakesari yoga",
+  "ta": "கஜகேசரி யோகம்"
+ },
+ "yname.Dharma-Karmadhipati": {
+  "en": "Dharma-Karmadhipati yoga",
+  "ta": "தர்ம கர்மாதிபதி யோகம்"
+ },
+ "yname.Raja": {
+  "en": "Raja yoga",
+  "ta": "ராஜ யோகம்"
+ },
+ "yname.Dhana": {
+  "en": "Dhana yoga",
+  "ta": "தன யோகம்"
+ },
+ "yname.Viparita": {
+  "en": "Viparita raja yoga",
+  "ta": "விபரீத ராஜ யோகம்"
+ },
+ "yname.Budha-Aditya": {
+  "en": "Budha-Aditya yoga",
+  "ta": "புதாதித்ய யோகம்"
+ },
+ "yname.Chandra-Mangala": {
+  "en": "Chandra-Mangala yoga",
+  "ta": "சந்திர மங்கள யோகம்"
+ },
+ "yname.Parivartana": {
+  "en": "Parivartana yoga",
+  "ta": "பரிவர்த்தனை யோகம்"
+ },
+ "yname.Adhi": {
+  "en": "Adhi yoga",
+  "ta": "அதி யோகம்"
+ },
+ "yname.Amala": {
+  "en": "Amala yoga",
+  "ta": "அமல யோகம்"
+ },
+ "yname.Neecha bhanga": {
+  "en": "Neecha bhanga",
+  "ta": "நீசபங்கம்"
+ },
+ "yname.Sunapha": {
+  "en": "Sunapha yoga",
+  "ta": "சுனபா யோகம்"
+ },
+ "yname.Anapha": {
+  "en": "Anapha yoga",
+  "ta": "அனபா யோகம்"
+ },
+ "yname.Durudhara": {
+  "en": "Durudhara yoga",
+  "ta": "துருதுரா யோகம்"
+ },
+ "yname.Vasi": {
+  "en": "Vasi yoga",
+  "ta": "வாசி யோகம்"
+ },
+ "yname.Vesi": {
+  "en": "Vesi yoga",
+  "ta": "வேசி யோகம்"
+ },
+ "yname.Ubhayachari": {
+  "en": "Ubhayachari yoga",
+  "ta": "உபயசாரி யோகம்"
+ }
+}

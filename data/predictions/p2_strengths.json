@@ -1,0 +1,34 @@
+{
+ "exalted": {
+  "en": "{planet} is exalted: strong results for {sig}, and for the matters of {areas}.",
+  "ta": "{planet} உச்சம்: {sig} ஆகியவற்றுக்கும், {areas} ஆகிய விஷயங்களுக்கும் வலுவான பலன்."
+ },
+ "own": {
+  "en": "{planet} is in its own sign: dependable results for {sig}, and for {areas}.",
+  "ta": "{planet} ஆட்சி: {sig} ஆகியவற்றுக்கும், {areas} ஆகியவற்றுக்கும் நம்பகமான பலன்."
+ },
+ "moola": {
+  "en": "{planet} is in moolatrikona: well placed to give {sig}; it supports {areas}.",
+  "ta": "{planet} மூலத்திரிகோணத்தில்: {sig} ஆகியவற்றை நன்கு தரும் நிலை; {areas} ஆகியவற்றுக்கு ஆதரவு."
+ },
+ "debil": {
+  "en": "{planet} is debilitated: {sig}, and the matters of {areas}, need extra effort and patience.",
+  "ta": "{planet} நீசம்: {sig}, மற்றும் {areas} ஆகிய விஷயங்களில் கூடுதல் முயற்சியும் பொறுமையும் தேவை."
+ },
+ "debil_cancel": {
+  "en": "{planet} is debilitated, but the weakness is cancelled (neecha bhanga): after early effort, {sig} and {areas} can improve well.",
+  "ta": "{planet} நீசம், ஆனால் நீசபங்கம் உள்ளது: தொடக்க முயற்சிக்குப் பின் {sig}, {areas} ஆகியவை நன்கு மேம்படும்."
+ },
+ "vargottama": {
+  "en": "{planet} is vargottama (the same sign in Rasi and Navamsa): its results for {sig} are steady and reliable.",
+  "ta": "{planet} வர்கோத்தமம் (ராசியிலும் நவாம்சத்திலும் ஒரே ராசி): {sig} ஆகியவற்றுக்கான பலன் நிலையானதும் நம்பகமானதும்."
+ },
+ "sav_strong": {
+  "en": "House {house} has {bindus} Ashtakavarga bindus, among the strongest in the chart: {meaning} tend to go smoothly.",
+  "ta": "{house}-ம் பாவத்தில் {bindus} அஷ்டகவர்க்கப் பரல்கள், ஜாதகத்தில் வலுவானவற்றில் ஒன்று: {meaning} ஆகியவை சுமுகமாக அமையும்."
+ },
+ "sav_weak": {
+  "en": "House {house} has {bindus} Ashtakavarga bindus, among the lowest in the chart: {meaning} need more effort.",
+  "ta": "{house}-ம் பாவத்தில் {bindus} அஷ்டகவர்க்கப் பரல்கள், ஜாதகத்தில் குறைவானவற்றில் ஒன்று: {meaning} ஆகியவற்றில் கூடுதல் முயற்சி தேவை."
+ }
+}

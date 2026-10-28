@@ -1,0 +1,54 @@
+{
+ "period": {
+  "en": "{level} of {planet}, {period}: {planet} rules {owned} and sits in house {house} ({meaning}), so these matters come forward.",
+  "ta": "{planet} {level}, {period}: {planet} {owned} ஆகியவற்றை ஆள்கிறது, {house}-ம் பாவத்தில் ({meaning}) அமர்ந்துள்ளது; எனவே இவ்விஷயங்கள் முன்னுக்கு வரும்."
+ },
+ "period_node": {
+  "en": "{level} of {planet}, {period}: {planet} sits in house {house} ({meaning}) and gives the results of its sign lord {sl}, which rules {owned}.",
+  "ta": "{planet} {level}, {period}: {planet} {house}-ம் பாவத்தில் ({meaning}) அமர்ந்து, {owned} ஆகியவற்றை ஆளும் தன் ராசி அதிபதி {sl} பலனைத் தரும்."
+ },
+ "owned_one": {
+  "en": "house {h} ({meaning})",
+  "ta": "{h}-ம் பாவம் ({meaning})"
+ },
+ "child": {
+  "en": "{level} of {planet}, {period}: a period to build studies, habits and family bonds; guidance from parents and teachers helps.",
+  "ta": "{planet} {level}, {period}: கல்வி, நல்ல பழக்கங்கள், குடும்பப் பிணைப்பை வளர்க்கும் காலம்; பெற்றோர், ஆசிரியர்களின் வழிகாட்டல் உதவும்."
+ },
+ "ptone.favourable": {
+  "en": " Overall supportive: {planet} is a functional benefic for this lagna.",
+  "ta": " பொதுவாகச் சாதகம்: இந்த லக்னத்துக்கு {planet} சுபர்."
+ },
+ "ptone.yogakaraka": {
+  "en": " Overall supportive: {planet} is the yogakaraka for this lagna.",
+  "ta": " பொதுவாகச் சாதகம்: இந்த லக்னத்துக்கு {planet} யோககாரகன்."
+ },
+ "ptone.mixed": {
+  "en": " Mixed: results depend on effort and on the other running periods.",
+  "ta": " கலவையான பலன்: முயற்சியையும் மற்ற நடப்புக் காலங்களையும் பொறுத்தது."
+ },
+ "ptone.challenging": {
+  "en": " Needs care: {planet} is a functional malefic here; go steady and avoid hasty decisions.",
+  "ta": " கவனம் தேவை: இங்கு {planet} பாவி; நிதானமாகச் செல்லுங்கள், அவசர முடிவுகளைத் தவிர்க்கவும்."
+ },
+ "strong_dignity": {
+  "en": " Its strong dignity ({dignity}) improves the results.",
+  "ta": " அதன் வலுவான நிலை ({dignity}) பலனை மேம்படுத்துகிறது."
+ },
+ "weak_dignity": {
+  "en": " Its debilitation asks for patience.",
+  "ta": " அதன் நீச நிலை பொறுமையைக் கோருகிறது."
+ },
+ "starlord": {
+  "en": " It works through its star lord {sl}, which rules {owned}.",
+  "ta": " அது தன் நட்சத்திர அதிபதி {sl} வழியே செயல்படும்; {sl} {owned} ஆகியவற்றை ஆள்கிறது."
+ },
+ "starlord_node": {
+  "en": " It works through its star lord {sl}, placed in house {house}.",
+  "ta": " அது தன் நட்சத்திர அதிபதி {sl} வழியே செயல்படும்; {sl} {house}-ம் பாவத்தில் உள்ளது."
+ },
+ "next": {
+  "en": "Next: {planet} {level}, {period}.",
+  "ta": "அடுத்து: {planet} {level}, {period}."
+ }
+}

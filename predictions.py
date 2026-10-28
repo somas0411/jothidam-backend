@@ -140,6 +140,15 @@ RULE_TOPICS = {
 HEALTH = re.compile(r'disease|illness|\bill\b|sick|cancer|surgery|surgical|accident|injur|hospital\b|diabet|'
                     r'tumou?r|disorder|infection|fever|chronic|diagnos|மரண|இறப்பு|ஆயுள்|நோய்|விபத்து|'
                     r'அறுவை|மருத்துவமனை', re.I)
+# The same policy in the other report scripts: death, length of life, maraka and
+# health words. Hindi/Marathi आयु means age and is allowed; words that also mean
+# health (आरोग्य) or contain the letters (प्रोग्रामिंग, పురోగతి) are excluded by the look-behinds.
+NATIVE_BANNED = re.compile(
+    r'मृत्यु|मौत|मरण|दीर्घायु|अल्पायु|आयुष्य|मारक|(?<![\u0900-\u097F])रोग|बीमारी|आजार|दुर्घटना|अपघात|कैंसर|कर्करोग|मधुमेह|शस्त्रक्रिया|सर्जरी|'
+    r'మరణ|మృత్యు|ఆయుష్|మారక|వ్యాధి|(?<![\u0C00-\u0C7F])రోగ|శస్త్రచికిత్స|మధుమేహ|'
+    r'ಮರಣ|ಸಾವು|ಆಯುಷ್ಯ|ಮಾರಕ|(?<![\u0C80-\u0CFF])ರೋಗ|ಕಾಯಿಲೆ|ಶಸ್ತ್ರಚಿಕಿತ್ಸೆ|ಅಪಘಾತ|ಮಧುಮೇಹ|'
+    r'മരണ|ആയുസ്സ|മാരക|(?<![\u0D00-\u0D7F])രോഗ|ശസ്ത്രക്രിയ|പ്രമേഹ|'
+    r'মৃত্যু|মরণ|আয়ু|মারক|(?<![\u0980-\u09FF])রোগ|অসুখ|অস্ত্রোপচার|দুর্ঘটনা|ক্যানসার|ডায়াবেটিস')
 
 TEXT_LANGS = ('en', 'ta', 'hi', 'te', 'kn', 'ml', 'mr', 'bn')   # languages every template is written in
 
@@ -524,13 +533,19 @@ _WIN_DASA = re.compile(r'^(\w+) dasa, (\S+) to (\S+) \(age ([\d.]+) to ([\d.]+)\
 _WIN_BHUKTI = re.compile(r'^(\w+) bhukti in (\w+) dasa, (\S+) to (\S+) \(age ([\d.]+) to ([\d.]+)\)$')
 
 
+# Data-file lines of the rule book that a report never shows, in any language:
+# banned and health words, and supply to hospitals (a health setting in the
+# other scripts).
+RULE_LINE_DROP = (BANNED, HEALTH, re.compile(r'hospitals', re.I))
+
+
 def rule_finding(r, lang):
     """The rule-book finding in the report language; English when no translation exists.
     Lines that a report must not show (health, banned words) are dropped in every language."""
     plan = lambda p: i18n.planet(p, lang)
-    text = rulebook_i18n.translate(r['finding'], r['rule_id'], lang, plan, drop=(BANNED, HEALTH))
+    text = rulebook_i18n.translate(r['finding'], r['rule_id'], lang, plan, drop=RULE_LINE_DROP)
     if text is None:
-        text = rulebook_i18n.translate(r['finding'], r['rule_id'], 'en', plan, drop=(BANNED, HEALTH))
+        text = rulebook_i18n.translate(r['finding'], r['rule_id'], 'en', plan, drop=RULE_LINE_DROP)
     return text or ''
 
 
@@ -1001,7 +1016,7 @@ def _clean(rows):
     keep = []
     for r in rows:
         blob = ' '.join(str(r[k] or '') for k in ('topic', 'item', 'text', 'basis', 'period'))
-        if BANNED.search(blob) or HEALTH.search(blob):
+        if BANNED.search(blob) or HEALTH.search(blob) or NATIVE_BANNED.search(blob):
             continue
         keep.append(r)
     return keep

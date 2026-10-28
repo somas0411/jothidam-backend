@@ -16,8 +16,9 @@ import charts
 import family_engine
 import i18n
 import match_engine
+import notes_i18n
 import saptarishi
-from excel_generator import (STATUS_COLOR, MATCH_WINDOWS_SHOWN, family_blocks, _match_group_counts, _match_note, _match_person,
+from excel_generator import (STATUS_COLOR, VARGA_RULES, MATCH_WINDOWS_SHOWN, family_blocks, _match_group_counts, _match_note, _match_person,
                              _match_points, _match_summary)
 
 FONT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fonts')
@@ -820,13 +821,16 @@ def _notes(pdf):
                 f"nakshatra pada lasts 1 year 1 month 10 days. Year of {m['year_days']} days."),
         ('Generated', m['generated_at'].strftime('%d-%m-%Y %H:%M') + f" ({m['utc_offset_str']})"),
     ]
+    if notes_i18n.active(lang, 'pdf'):
+        items = notes_i18n.how_items(res, lang, 'pdf')
     pdf.table([('', 22, 'LEFT'), ('', 78, 'LEFT')], items, font_size=8, line_h=4.8, wrap=True)
 
     pdf.section(L('divisional'), need=60)
     en = i18n.LABELS['en']
-    items = [(L('tob'), L('varga_time_note') if lang in ('ta', 'hi', 'mr', 'bi') else en['varga_time_note'])]
-    items += [(i18n.varga_name(vg['key'], lang), vg['rule']) for vg in v['vargas']]
-    items.append((L('vargottama'), en['vargottama_note']))
+    items = [(L('tob'), L('varga_time_note') if lang != 'en' else en['varga_time_note'])]
+    items += [(i18n.varga_name(vg['key'], lang), notes_i18n.varga_rule(vg['key'], lang, VARGA_RULES[vg['key']], 'pdf'))
+              for vg in v['vargas']]
+    items.append((L('vargottama'), L('vargottama_note') if notes_i18n.active(lang, 'pdf') else en['vargottama_note']))
     pdf.table([('', 22, 'LEFT'), ('', 78, 'LEFT')], items, font_size=8, line_h=4.8, wrap=True)
 
     pdf.section(L('abbreviations'), need=45)
@@ -834,9 +838,11 @@ def _notes(pdf):
     items = [
         (L('planet'), '   '.join(f"{i18n.abbr(n, lang)} = "
                                  f"{i18n.planet(n, lang) if n != 'ALP' else L('alp_lagna_now')}" for n in names)),
-        (L('retro'), f"{i18n.retro_mark(lang)} after a planet = retrograde"),
+        (L('retro'), notes_i18n.retro_line(lang) if notes_i18n.active(lang, 'pdf')
+         else f"{i18n.retro_mark(lang)} after a planet = retrograde"),
         (L('rasi'), '   '.join(f"{i + 1} = {i18n.rasi(i, lang)}" for i in range(12))),
-        (L('kp_chart'), 'Roman numerals I-XII mark the sign in which each house cusp falls.'),
+        (L('kp_chart'), notes_i18n.roman_line(lang) if notes_i18n.active(lang, 'pdf')
+         else 'Roman numerals I-XII mark the sign in which each house cusp falls.'),
     ]
     pdf.table([('', 22, 'LEFT'), ('', 78, 'LEFT')], items, font_size=8, line_h=4.8, wrap=True)
 

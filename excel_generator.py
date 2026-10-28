@@ -32,8 +32,11 @@ import charts
 import family_engine
 import i18n
 import match_engine
+import notes_i18n
 import saptarishi
-from astro_engine import fmt_dms, fmt_sign_dms
+from astro_engine import VARGAS, fmt_dms, fmt_sign_dms
+
+VARGA_RULES = {v[0]: v[3] for v in VARGAS}      # English rule of each divisional chart
 
 # ── PALETTE (print-friendly: white paper, dark ink, one accent) ───────────────
 INK = '2B1B0E'
@@ -788,7 +791,7 @@ def _notes(wb, res, lang, ai=None):
     r = band(1, f"{L('notes')}  ·  {m['name']}", fill=BAND, size=15, h=30) + 1
     r = band(r, L('how_calculated'))
     node = 'True node' if m['node'] == 'true' else 'Mean node'
-    for k, val in [
+    items = [
         ('Ephemeris', f"{m['engine']}. Positions are geocentric, apparent, sidereal."),
         ('Birth moment', f"Local time {m['local_dt'].strftime('%d-%m-%Y %H:%M:%S')} at {m['tz']} "
                          f"({m['utc_offset_str']}) = UT {m['ut_dt'].strftime('%d-%m-%Y %H:%M:%S')}; "
@@ -819,22 +822,27 @@ def _notes(wb, res, lang, ai=None):
         ('ALP', 'Akshaya Lagna Paddhati: the birth lagna advances 30° every 10 years (3° a year), so one '
                 f"nakshatra pada lasts 1 year 1 month 10 days. Year of {m['year_days']} days."),
         ('Generated', m['generated_at'].strftime('%d-%m-%Y %H:%M') + f" ({m['utc_offset_str']})"),
-    ]:
+    ]
+    if notes_i18n.active(lang):
+        items = notes_i18n.how_items(res, lang, 'xlsx')
+    for k, val in items:
         r = row(r, k, val)
 
     r = band(r + 1, L('divisional'))
-    r = row(r, L('tob'), L('varga_time_note') if lang in ('ta', 'hi', 'mr', 'bi') else i18n.LABELS['en']['varga_time_note'])
+    r = row(r, L('tob'), L('varga_time_note') if lang != 'en' else i18n.LABELS['en']['varga_time_note'])
     for vg in v['vargas']:
-        r = row(r, i18n.varga_name(vg['key'], lang), vg['rule'])
-    r = row(r, L('vargottama'), i18n.LABELS['en']['vargottama_note'])
+        r = row(r, i18n.varga_name(vg['key'], lang), notes_i18n.varga_rule(vg['key'], lang, VARGA_RULES[vg['key']]))
+    r = row(r, L('vargottama'), L('vargottama_note') if notes_i18n.active(lang) else i18n.LABELS['en']['vargottama_note'])
 
     r = band(r + 1, L('abbreviations'))
     names = ['Lagna', 'Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu', 'Mandi', 'ALP']
     r = row(r, L('planet'), '   '.join(
         f"{i18n.abbr(n, lang)} = {i18n.planet(n, lang) if n != 'ALP' else L('alp_lagna_now')}" for n in names))
-    r = row(r, L('retro'), f"{i18n.retro_mark(lang)} after a planet = retrograde")
+    r = row(r, L('retro'), notes_i18n.retro_line(lang) if notes_i18n.active(lang)
+            else f"{i18n.retro_mark(lang)} after a planet = retrograde")
     r = row(r, L('rasi'), '   '.join(f"{i + 1} = {i18n.rasi(i, lang)}" for i in range(12)))
-    r = row(r, L('kp_chart'), 'Roman numerals I-XII mark the sign in which each house cusp falls.')
+    r = row(r, L('kp_chart'), notes_i18n.roman_line(lang) if notes_i18n.active(lang)
+            else 'Roman numerals I-XII mark the sign in which each house cusp falls.')
     ws.merge_cells(start_row=r + 1, start_column=2, end_row=r + 1, end_column=3)
     c = ws.cell(row=r + 1, column=2, value=L('disclaimer'))
     c.font = _font(8, False, MUTED, True)

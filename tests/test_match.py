@@ -1612,8 +1612,9 @@ def test_download_the_match_as_a_workbook_and_as_a_pdf(client):
 
 
 def test_a_partner_adds_the_marriage_sheet_and_section_to_a_horoscope(client):
-    plain = client.post('/api/download/excel', json=dict(BOY, gender='male'))
-    rv = client.post('/api/download/excel', json=dict(BOY, gender='male', partner=GIRL))
+    # predictions=False: the sheet order below is the one without the rule-based readings
+    plain = client.post('/api/download/excel', json=dict(BOY, gender='male', predictions=False))
+    rv = client.post('/api/download/excel', json=dict(BOY, gender='male', partner=GIRL, predictions=False))
     assert rv.status_code == 200 and 'HoroscopeGen_Sample_Native.xlsx' in rv.headers['Content-Disposition']
     names, plain_names = load(rv.data).sheetnames, load(plain.data).sheetnames
     assert 'Marriage' not in plain_names and names[:7] == plain_names[:7] and names[7] == 'Marriage'

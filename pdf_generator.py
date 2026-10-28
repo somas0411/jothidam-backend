@@ -16,8 +16,9 @@ import charts
 import family_engine
 import i18n
 import match_engine
+import notes_i18n
 import saptarishi
-from excel_generator import (STATUS_COLOR, MATCH_WINDOWS_SHOWN, family_blocks, _match_group_counts, _match_note, _match_person,
+from excel_generator import (STATUS_COLOR, VARGA_RULES, MATCH_WINDOWS_SHOWN, family_blocks, _match_group_counts, _match_note, _match_person,
                              _match_points, _match_summary)
 
 FONT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fonts')
@@ -820,13 +821,16 @@ def _notes(pdf):
                 f"nakshatra pada lasts 1 year 1 month 10 days. Year of {m['year_days']} days."),
         ('Generated', m['generated_at'].strftime('%d-%m-%Y %H:%M') + f" ({m['utc_offset_str']})"),
     ]
+    if notes_i18n.active(lang, 'pdf'):
+        items = notes_i18n.how_items(res, lang, 'pdf')
     pdf.table([('', 22, 'LEFT'), ('', 78, 'LEFT')], items, font_size=8, line_h=4.8, wrap=True)
 
     pdf.section(L('divisional'), need=60)
     en = i18n.LABELS['en']
-    items = [(L('tob'), L('varga_time_note') if lang in ('ta', 'hi', 'mr', 'bi') else en['varga_time_note'])]
-    items += [(i18n.varga_name(vg['key'], lang), vg['rule']) for vg in v['vargas']]
-    items.append((L('vargottama'), en['vargottama_note']))
+    items = [(L('tob'), L('varga_time_note') if lang != 'en' else en['varga_time_note'])]
+    items += [(i18n.varga_name(vg['key'], lang), notes_i18n.varga_rule(vg['key'], lang, VARGA_RULES[vg['key']], 'pdf'))
+              for vg in v['vargas']]
+    items.append((L('vargottama'), L('vargottama_note') if notes_i18n.active(lang, 'pdf') else en['vargottama_note']))
     pdf.table([('', 22, 'LEFT'), ('', 78, 'LEFT')], items, font_size=8, line_h=4.8, wrap=True)
 
     pdf.section(L('abbreviations'), need=45)
@@ -834,9 +838,11 @@ def _notes(pdf):
     items = [
         (L('planet'), '   '.join(f"{i18n.abbr(n, lang)} = "
                                  f"{i18n.planet(n, lang) if n != 'ALP' else L('alp_lagna_now')}" for n in names)),
-        (L('retro'), f"{i18n.retro_mark(lang)} after a planet = retrograde"),
+        (L('retro'), notes_i18n.retro_line(lang) if notes_i18n.active(lang, 'pdf')
+         else f"{i18n.retro_mark(lang)} after a planet = retrograde"),
         (L('rasi'), '   '.join(f"{i + 1} = {i18n.rasi(i, lang)}" for i in range(12))),
-        (L('kp_chart'), 'Roman numerals I-XII mark the sign in which each house cusp falls.'),
+        (L('kp_chart'), notes_i18n.roman_line(lang) if notes_i18n.active(lang, 'pdf')
+         else 'Roman numerals I-XII mark the sign in which each house cusp falls.'),
     ]
     pdf.table([('', 22, 'LEFT'), ('', 78, 'LEFT')], items, font_size=8, line_h=4.8, wrap=True)
 
@@ -985,14 +991,49 @@ def _marriage(pdf, match, people):
               font_size=7.4, line_h=4.3, wrap=True)
 
 
+# ── PREDICTIONS ──────────────────────────────────────────────────────────────
+
+TONE_RGB = {'favourable': (228, 242, 223), 'mixed': (252, 239, 210), 'challenging': (251, 227, 196),
+            'neutral': (239, 237, 234)}
+
+
+def _predictions(pdf, block):
+    """Rule-based readings: the summary on its own page first, then one heading per section."""
+    pdf.add_page()
+    pdf.band(f"HoroscopeGen  ·  {block['title']}", block['disclaimer'])
+    labels = block['labels']
+    cols = labels['columns']
+    size = {'en': 7.4, 'bi': 6.4}.get(pdf.lang, 7.0)
+    for n, sec in enumerate(block['sections']):
+        rows = [x for x in block['rows'] if x['section'] == sec['key'] and x['item'] != 'disclaimer']
+        if not rows:
+            continue
+        if n == 1:
+            pdf.add_page()
+        pdf.section(sec['title'], need=40)
+        table, fills = [], {}
+        for i, x in enumerate(rows):
+            table.append([x['topic'], x['text'], f"{labels['tone'].get(x['tone'], x['tone'])}"
+                          + (f"\n{x['period']}" if x['period'] else '')])
+            fills[i] = (2, TONE_RGB.get(x['tone'], WHITE))
+        pdf.table([(cols['topic'], 18, 'LEFT'), (cols['text'], 60, 'LEFT'), (cols['period'], 22, 'LEFT')],
+                  table, font_size=size, line_h=4.0, wrap=True, fills=fills)
+    pdf.set_font('main', '', 7.2)
+    pdf.set_text_color(*MUTED)
+    pdf.set_x(MARGIN)
+    pdf.multi_cell(BODY_W, 4.2, block['rule'], new_x='LMARGIN', new_y='NEXT')
+
+
 # ── ENTRY POINTS ──────────────────────────────────────────────────────────────
 
-def generate_pdf(res, lang=None, match=None, people=None):
+def generate_pdf(res, lang=None, match=None, people=None, predictions=None):
     """
     Build the PDF from compute() output. Returns bytes.
     match, people: the result of match_engine.match() for this person and a
     partner, and {'boy': res, 'girl': res}; when given, a Marriage section
     follows the notes.
+    predictions: the block of predictions.build(res, ai, lang); when given, a
+    Predictions section (summary first) follows the notes.
     """
     lang = lang or res['meta'].get('lang', 'en')
     if lang not in i18n.LANGS:
@@ -1006,6 +1047,8 @@ def generate_pdf(res, lang=None, match=None, people=None):
     _alp(pdf, specs)
     _dasa(pdf)
     _notes(pdf)
+    if predictions:
+        _predictions(pdf, predictions)
     if match:
         _marriage(pdf, match, people)
     return bytes(pdf.output())

@@ -22,6 +22,11 @@ agree. The Excel and JSON downloads also call enrich(), which adds flat
 tables of derived facts for AI readers; /api/horoscope adds them only when
 the body has "ai": true.
 
+Rule-based readings in plain words (predictions.py, no AI model) are added to
+the Excel workbook, the PDF and the JSON file by default ("predictions": false
+leaves them out), and to /api/horoscope only when the body has
+"predictions": true, so that the plain answer stays as it was.
+
 The horoscope endpoints store nothing: birth details are used for the
 calculation and discarded. The one exception is an astrologer consultation
 the user books with their consent (booking_api.py): the booking, the user's
@@ -48,6 +53,7 @@ from limits import parse as parse_limit
 from werkzeug.exceptions import HTTPException, TooManyRequests
 
 import booking_api
+import predictions as prediction_engine
 import rulebook
 import charts
 import i18n
@@ -363,6 +369,20 @@ def _wants_ai():
     return _ai_mode() == 'full'
 
 
+def _wants_predictions(default):
+    """
+    The "predictions" field of the request body: true or false; when it is
+    missing or not a clear yes or no, the default of the endpoint applies.
+    """
+    value = _body().get('predictions')
+    text = str(value).strip().lower()
+    if value is True or text in ('true', '1', 'yes'):
+        return True
+    if value is False or text in ('false', '0', 'no'):
+        return False
+    return default
+
+
 def _extras():
     """
     Optional inputs for the AI block, read from the request body:
@@ -488,8 +508,11 @@ def horoscope():
         out['names'] = i18n.bundle(lang)
         out['saptarishi_view'] = saptarishi.view(res['saptarishi'], lang)
         out.update(_legacy_fields(res))
+        ai = enrich(res, extras=_extras()) if _wants_ai() or _wants_predictions(False) else None
         if _wants_ai():
-            out['ai'] = to_jsonable(enrich(res, extras=_extras()))
+            out['ai'] = to_jsonable(ai)
+        if _wants_predictions(False):
+            out['predictions'] = to_jsonable(prediction_engine.build(res, ai, lang))
         return jsonify(out)
     return _guard(run)
 
@@ -603,7 +626,7 @@ def download_excel():
         res, lang = _compute_from_request()
         result, people = _partner_match(res)
         return _file_response(generate_excel(res, lang, ai=enrich(res, extras=_extras()), match=result,
-                                             people=people),
+                                             people=people, predictions=_wants_predictions(True)),
                               _filename(res['meta']['name'], 'xlsx'),
                               'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     return _guard(run)
@@ -615,7 +638,9 @@ def download_pdf():
     def run():
         res, lang = _compute_from_request()
         result, people = _partner_match(res)
-        return _file_response(generate_pdf(res, lang, match=result, people=people),
+        block = (prediction_engine.build(res, enrich(res, extras=_extras()), lang)
+                 if _wants_predictions(True) else None)
+        return _file_response(generate_pdf(res, lang, match=result, people=people, predictions=block),
                               _filename(res['meta']['name'], 'pdf'), 'application/pdf')
     return _guard(run)
 
@@ -628,12 +653,15 @@ def download_json():
     With "ai": "brief" the file holds meta and the short AI_Brief table only.
     """
     def run():
-        res, _ = _compute_from_request()
+        res, lang = _compute_from_request()
         if _ai_mode() == 'brief':
             out = _brief_block(res)
         else:
             out = to_jsonable(res)
-            out['ai'] = to_jsonable(enrich(res, extras=_extras()))
+            ai = enrich(res, extras=_extras())
+            out['ai'] = to_jsonable(ai)
+            if _wants_predictions(True):
+                out['predictions'] = to_jsonable(prediction_engine.build(res, ai, lang))
         data = json.dumps(out, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
         return _file_response(data, _filename(res['meta']['name'], 'json'), 'application/json; charset=utf-8')
     return _guard(run)

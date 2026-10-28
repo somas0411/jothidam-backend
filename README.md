@@ -26,6 +26,7 @@ of the API is unchanged. Design, setup (Neon, Brevo, Render), API and test plan:
 |---|---|
 | `astro_engine.py` | All calculations. `compute()` is the single source for every output |
 | `rulebook.py` | `evaluate(res)`: the rule book. Each rule in `data/rulebook/*.json` that applies to the chart, with the dasa or bhukti that switches it on and whether that period is running, still to come, over, or outside the useful years. Feeds `AI_RuleBook` and `/api/predictions`. See [Rule book](#rule-book) |
+| `predictions.py` | `build(res, ai, lang)`: rule-based readings in plain words, no AI model. Fixed templates in `data/predictions/*.json` (English and Tamil) chosen by the facts of the AI tables. Feeds the Predictions sheet, `AI_Predictions`, the PDF section and the `predictions` block. See [Rule-based predictions](#rule-based-predictions) |
 | `enrich.py` | `enrich(res)`: derived facts as flat tables for AI readers. A separate step, so `compute()` and the web page are not slowed down |
 | `charts.py` | Chart contents and layout shared by web page, Excel and PDF |
 | `i18n.py` | Names and labels (en, ta, hi, te, kn, ml, mr, bn, and `bi` = English + Tamil). The marriage labels are kept apart from the report labels, so the labels sent to the web page with each horoscope are unchanged |
@@ -51,9 +52,11 @@ All horoscope endpoints take the same JSON body.
 POST /api/horoscope          -> JSON (meta, vedic, kp, alp, charts, varga_charts, varga_table, names)
                                 add "ai": true to the body to also get the "ai" block
                                 "ai": "brief" returns meta and the short AI_Brief table only
-POST /api/download/excel     -> .xlsx (the seven report sheets, then the AI_ sheets)
-POST /api/download/pdf       -> .pdf
-POST /api/download/json      -> .json (meta, vedic, kp, alp and the "ai" block), named like the Excel file
+                                add "predictions": true to also get the rule-based readings ("predictions" block)
+POST /api/download/excel     -> .xlsx (the seven report sheets, Predictions, then the AI_ sheets and AI_Predictions)
+POST /api/download/pdf       -> .pdf (with a Predictions section after the notes)
+POST /api/download/json      -> .json (meta, vedic, kp, alp, the "ai" block and the "predictions" block), named like the Excel file
+                                the three downloads take "predictions": false to leave the readings out
                                 with "ai": "brief": meta and the short AI_Brief table only (under 45 KB)
 POST /api/predictions        -> JSON: rule-book readings (see Rule book)
 POST /api/match              -> JSON: marriage matching of two people (see Marriage matching)
@@ -196,6 +199,35 @@ for an astrologer only (intimacy, conduct, health diagnoses, second-marriage
 counts). Transit rules and rules that need two charts (property in the
 spouse's name, matching) are kept in the files as reference but are not
 evaluated yet.
+
+## Rule-based predictions
+
+`predictions.py` turns the facts already worked out by `enrich()` (and the
+rule book) into readings in plain words. No AI model and no outside service
+is called: every line is a fixed template from `data/predictions/*.json`,
+picked by chart facts, so the same birth details and report moment always
+give the same text. Sections, in order:
+
+| Section | What it says |
+|---|---|
+| Summary | 6 to 8 lines: lagna, Moon and star; the two strongest life areas and the one needing most effort; the running dasa and bhukti; the next notable window; Sade Sati; the key yoga |
+| Personality | lagna (12), Moon sign (12), birth star (27), navamsa pada lord, gana, yoni, nadi, lagna lord's house (12), paksha, tithi group, weekday, birth yoga (27), karana (11) |
+| Strengths | exalted, own-sign, moolatrikona, debilitated (with neecha bhanga) and vargottama planets; the 3 strongest and 3 weakest houses by SAV bindus |
+| Yogas and doshas | every yoga `AI_Yogas` finds, what it gives and the period that carries it; Kuja dosha, Kala Sarpa, Kemadruma, Guru-Chandala in calm words with "consider the full chart and matching" |
+| Life areas | 13 areas of `enrich.TOPICS`: promise level from `AI_TopicPromise` (strong from 0.65, moderate from 0.45), the main house lord, the significator, the varga lagna lord, the rule-book rows, the next 3 windows. Career fields (10th lord, planets in the 10th, D10 lagna lord, amatyakaraka), job or business; marriage periods (7th lord, Venus, Rahu bhuktis at ages 21-35) and partner indications; children periods (5th lord, Jupiter bhuktis at ages 23-40) |
+| Current period | running dasa, bhukti and antaram: houses ruled and occupied, functional nature, dignity, star lord; the next two bhuktis |
+| Transits | Saturn, Jupiter, Rahu and Ketu from the Moon now and for 24 months (48 templates), softened when the sign has 4 or more own bindus; Sade Sati phases; Jupiter-Saturn double transit |
+| Month calendar | the next 12 months rated by a counted rule printed with the report (`CAL_*` in `predictions.py`) |
+| Remedies | generic and optional (day, deity, colour, charity, prayer) for the running dasa lord and the weakest functional benefic; no gemstones, no paid rituals. `SHOW_REMEDIES` switches the section off |
+
+Every row carries `basis`, the chart facts that chose the template (English),
+and each section ends with the disclaimer. Below age 18 no career, business,
+marriage or children rows are made. Nothing about death, length of life or
+health is written: every row is checked against `rulebook.BANNED` and
+`predictions.HEALTH`, and `tests/test_predictions.py` scans the templates and
+the rows of sample charts. Text is English or Tamil; other languages get
+English text with names in their own script. Rule-book findings are English
+only (a Tamil report marks them).
 
 ## AI sheets and JSON
 

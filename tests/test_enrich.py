@@ -1246,7 +1246,9 @@ def test_api_horoscope_with_ai_adds_only_the_ai_block(client, ai):
 
 
 def test_api_download_json(client, ai):
-    rv = client.post('/api/download/json', json=G.API_BODY)
+    with_predictions = json.loads(client.post('/api/download/json', json=G.API_BODY).data.decode('utf-8'))
+    assert set(with_predictions) == {'meta', 'vedic', 'kp', 'alp', 'saptarishi', 'ai', 'predictions'}
+    rv = client.post('/api/download/json', json=dict(G.API_BODY, predictions=False))
     assert rv.status_code == 200
     assert 'HoroscopeGen_Chart_S.json' in rv.headers['Content-Disposition']
     assert rv.headers['Content-Type'].startswith('application/json')
@@ -1263,10 +1265,14 @@ def test_api_download_json(client, ai):
 
 def test_api_download_excel_has_the_ai_sheets(client):
     import openpyxl
-    rv = client.post('/api/download/excel', json=G.API_BODY)
+    rv = client.post('/api/download/excel', json=dict(G.API_BODY, predictions=False))
     assert rv.status_code == 200 and rv.data[:2] == b'PK'
     wb = openpyxl.load_workbook(io.BytesIO(rv.data), read_only=True)
     assert len(wb.sheetnames) == 36 and wb.sheetnames[7] == 'AI_ReadMe' and wb.sheetnames[-1] == 'AI_RuleBook'
+    # by default the rule-based readings add a Predictions sheet after Notes and AI_Predictions at the end
+    wb = openpyxl.load_workbook(io.BytesIO(client.post('/api/download/excel', json=G.API_BODY).data), read_only=True)
+    assert len(wb.sheetnames) == 38 and wb.sheetnames[7] == 'Predictions' and wb.sheetnames[8] == 'AI_ReadMe'
+    assert wb.sheetnames[-2:] == ['AI_RuleBook', 'AI_Predictions']
 
 
 def test_api_json_errors(client):

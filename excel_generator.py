@@ -32,8 +32,11 @@ import charts
 import family_engine
 import i18n
 import match_engine
+import notes_i18n
 import saptarishi
-from astro_engine import fmt_dms, fmt_sign_dms
+from astro_engine import VARGAS, fmt_dms, fmt_sign_dms
+
+VARGA_RULES = {v[0]: v[3] for v in VARGAS}      # English rule of each divisional chart
 
 # ── PALETTE (print-friendly: white paper, dark ink, one accent) ───────────────
 INK = '2B1B0E'
@@ -788,7 +791,7 @@ def _notes(wb, res, lang, ai=None):
     r = band(1, f"{L('notes')}  ·  {m['name']}", fill=BAND, size=15, h=30) + 1
     r = band(r, L('how_calculated'))
     node = 'True node' if m['node'] == 'true' else 'Mean node'
-    for k, val in [
+    items = [
         ('Ephemeris', f"{m['engine']}. Positions are geocentric, apparent, sidereal."),
         ('Birth moment', f"Local time {m['local_dt'].strftime('%d-%m-%Y %H:%M:%S')} at {m['tz']} "
                          f"({m['utc_offset_str']}) = UT {m['ut_dt'].strftime('%d-%m-%Y %H:%M:%S')}; "
@@ -819,22 +822,27 @@ def _notes(wb, res, lang, ai=None):
         ('ALP', 'Akshaya Lagna Paddhati: the birth lagna advances 30° every 10 years (3° a year), so one '
                 f"nakshatra pada lasts 1 year 1 month 10 days. Year of {m['year_days']} days."),
         ('Generated', m['generated_at'].strftime('%d-%m-%Y %H:%M') + f" ({m['utc_offset_str']})"),
-    ]:
+    ]
+    if notes_i18n.active(lang):
+        items = notes_i18n.how_items(res, lang, 'xlsx')
+    for k, val in items:
         r = row(r, k, val)
 
     r = band(r + 1, L('divisional'))
-    r = row(r, L('tob'), L('varga_time_note') if lang in ('ta', 'hi', 'mr', 'bi') else i18n.LABELS['en']['varga_time_note'])
+    r = row(r, L('tob'), L('varga_time_note') if lang != 'en' else i18n.LABELS['en']['varga_time_note'])
     for vg in v['vargas']:
-        r = row(r, i18n.varga_name(vg['key'], lang), vg['rule'])
-    r = row(r, L('vargottama'), i18n.LABELS['en']['vargottama_note'])
+        r = row(r, i18n.varga_name(vg['key'], lang), notes_i18n.varga_rule(vg['key'], lang, VARGA_RULES[vg['key']]))
+    r = row(r, L('vargottama'), L('vargottama_note') if notes_i18n.active(lang) else i18n.LABELS['en']['vargottama_note'])
 
     r = band(r + 1, L('abbreviations'))
     names = ['Lagna', 'Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu', 'Mandi', 'ALP']
     r = row(r, L('planet'), '   '.join(
         f"{i18n.abbr(n, lang)} = {i18n.planet(n, lang) if n != 'ALP' else L('alp_lagna_now')}" for n in names))
-    r = row(r, L('retro'), f"{i18n.retro_mark(lang)} after a planet = retrograde")
+    r = row(r, L('retro'), notes_i18n.retro_line(lang) if notes_i18n.active(lang)
+            else f"{i18n.retro_mark(lang)} after a planet = retrograde")
     r = row(r, L('rasi'), '   '.join(f"{i + 1} = {i18n.rasi(i, lang)}" for i in range(12)))
-    r = row(r, L('kp_chart'), 'Roman numerals I-XII mark the sign in which each house cusp falls.')
+    r = row(r, L('kp_chart'), notes_i18n.roman_line(lang) if notes_i18n.active(lang)
+            else 'Roman numerals I-XII mark the sign in which each house cusp falls.')
     ws.merge_cells(start_row=r + 1, start_column=2, end_row=r + 1, end_column=3)
     c = ws.cell(row=r + 1, column=2, value=L('disclaimer'))
     c.font = _font(8, False, MUTED, True)
@@ -1088,6 +1096,8 @@ AI_WRAP = {('AI_ReadMe', 'text'): 120, ('AI_Facts', 'note'): 70, ('AI_Yogas', 'r
            ('AI_MatchReadMe', 'text'): 120, ('AI_MatchSummary', 'note'): 70, ('AI_Match', 'boy_value'): 45,
            ('AI_Match', 'girl_value'): 45, ('AI_Match', 'note'): 60, ('AI_Match', 'rule_applied'): 75,
            ('AI_Match', 'exception_applied'): 40, ('AI_MatchRules', 'rule'): 120}
+AI_WRAP.update({('AI_Predictions', 'text'): 100, ('AI_Predictions', 'basis'): 70,
+                ('AI_Predictions', 'period'): 40})
 AI_DEG_COLUMNS = ('deg_in_sign', 'deg_in_chart', 'lagna_deg_in_chart', 'speed_deg_per_day')
 AI_MAX_WIDTH = 60
 
@@ -1156,9 +1166,101 @@ def _ai_sheets(wb, ai):
         ws.print_title_rows = '1:1'
 
 
+# ── PREDICTIONS ──────────────────────────────────────────────────────────────
+
+TONE_FILL = {'favourable': 'E4F2DF', 'mixed': 'FCEFD2', 'challenging': 'FBE3C4', 'neutral': 'EFEDEA'}
+TONE_INK = {'favourable': '2E6B24', 'mixed': '8A5A0C', 'challenging': '8A4B14', 'neutral': MUTED}
+
+
+def _predictions(wb, block, lang):
+    """The Predictions sheet: one band per section, one row per reading, the tone as a coloured cell."""
+    title = block['title'] if lang != 'bi' else 'Predictions'
+    ws = wb.create_sheet(_sheet_name_text(title))
+    ws.sheet_view.showGridLines = False
+    widths = {'A': 1.5, 'B': 22, 'C': 78, 'D': 13, 'E': 30, 'F': 14, 'G': 48}
+    for k, w in widths.items():
+        ws.column_dimensions[k].width = w
+    border = Border(left=_thin, right=_thin, top=_thin, bottom=_thin)
+    labels = block['labels']
+
+    def band(r, text, fill, size, h):
+        ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=7)
+        ws.row_dimensions[r].height = h
+        c = ws.cell(row=r, column=2, value=text)
+        c.font, c.fill = _font(size, True, WHITE), _fill(fill)
+        c.alignment = Alignment(horizontal='left', vertical='center', indent=1)
+        return r + 1
+
+    r = band(1, block['title'], BAND, 15, 30)
+    ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=7)
+    c = ws.cell(row=r, column=2, value=block['disclaimer'])
+    c.font, c.alignment = _font(9, False, MUTED, True), Alignment(vertical='center', indent=1, wrap_text=True)
+    ws.row_dimensions[r].height = 18
+    r += 2
+    heads = [labels['columns'][k] for k in ('topic', 'text', 'tone', 'period', 'status', 'basis')]
+    titles = {s['key']: s['title'] for s in block['sections']}
+    for sec in block['sections']:
+        rows = [x for x in block['rows'] if x['section'] == sec['key'] and x['item'] != 'disclaimer']
+        if not rows:
+            continue
+        r = band(r, titles[sec['key']], HEAD, 11, 22)
+        for j, h in enumerate(heads):
+            cell = ws.cell(row=r, column=2 + j, value=h)
+            cell.font, cell.fill, cell.border = _font(9, True, MUTED), _fill(SOFT), border
+            cell.alignment = Alignment(vertical='center', indent=1)
+        r += 1
+        for x in rows:
+            vals = [x['topic'], x['text'], labels['tone'].get(x['tone'], x['tone']), x['period'],
+                    labels['status'].get(x['status'], x['status']), x['basis']]
+            for j, v in enumerate(vals):
+                cell = ws.cell(row=r, column=2 + j, value=v)
+                cell.border = border
+                cell.alignment = Alignment(vertical='top', wrap_text=True, indent=1)
+                cell.font = _font(8 if j == 5 else 9, j == 0, MUTED if j == 5 else INK)
+                if j == 2:
+                    cell.fill = _fill(TONE_FILL.get(x['tone'], WHITE))
+                    cell.font = _font(9, True, TONE_INK.get(x['tone'], INK))
+            lines = max(1, -(-len(str(x['text'])) // 88), -(-len(str(x['basis'])) // 60),
+                        -(-len(str(x['period'])) // 32))
+            ws.row_dimensions[r].height = 13 * lines + 4
+            r += 1
+        r += 1
+    ws.freeze_panes = 'A4'
+    ws.page_setup.paperSize = ws.PAPERSIZE_A4
+    ws.page_setup.orientation = 'landscape'
+    ws.sheet_properties.pageSetUpPr = PageSetupProperties(fitToPage=True)
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+
+
+def _sheet_name_text(name):
+    for ch in '[]:*?/\\':
+        name = name.replace(ch, ' ')
+    return name[:31]
+
+
+def _ai_predictions(wb, block):
+    """The flat AI_Predictions sheet (English), documented at the end of AI_ReadMe."""
+    cols = [c['name'] for c in block['columns']]
+    _ai_sheets(wb, {'sheets': ['AI_Predictions'],
+                    'columns': {'AI_Predictions': block['columns']},
+                    'tables': {'AI_Predictions': [{k: x[k] for k in cols} for x in block['rows']]}})
+    if 'AI_ReadMe' in wb.sheetnames:
+        ws = wb['AI_ReadMe']
+        ws.append(['AI_Predictions', 'what this is',
+                   'Rule-based readings in plain words (predictions.py): every row is a fixed template chosen by '
+                   'the facts in the other AI_ sheets, with the facts used in "basis". Not an AI reading and not '
+                   'a certainty. ' + block['disclaimer']])
+        for c in block['columns']:
+            ws.append(['AI_Predictions', c['name'], c['meaning']])
+        ws.append(['AI_Predictions', 'month calendar rule', block['rule']])
+        for row in ws.iter_rows(min_row=ws.max_row - len(block['columns']) - 1, max_row=ws.max_row):
+            row[-1].alignment = Alignment(vertical='top', wrap_text=True)
+
+
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────
 
-def generate_excel(res, lang=None, ai=None, match=None, people=None):
+def generate_excel(res, lang=None, ai=None, match=None, people=None, predictions=False):
     """
     Build the workbook from compute() output. Returns bytes.
     ai: the block returned by enrich.enrich(res); when given, the AI_ sheets
@@ -1166,6 +1268,9 @@ def generate_excel(res, lang=None, ai=None, match=None, people=None):
     match, people: the result of match_engine.match() for this person and a
     partner, and {'boy': res, 'girl': res}; when given, a Marriage sheet
     follows Notes and the AI_Match sheets close the workbook.
+    predictions: True (with ai given) adds the rule-based readings of
+    predictions.py: a Predictions sheet right after Notes, in the report
+    language, and a flat AI_Predictions sheet in English after the AI_ sheets.
     """
     lang = lang or res['meta'].get('lang', 'en')
     if lang not in i18n.LANGS:
@@ -1179,10 +1284,15 @@ def generate_excel(res, lang=None, ai=None, match=None, people=None):
     _alp(wb, res, specs, lang)
     _dasa(wb, res, lang)
     _notes(wb, res, lang, ai)
+    if predictions and ai:
+        import predictions as prediction_engine          # imported here: it builds on enrich and rulebook
+        _predictions(wb, prediction_engine.build(res, ai, lang), lang)
     if match:
         _marriage(wb, match, people, lang)
     if ai:
         _ai_sheets(wb, ai)
+    if predictions and ai:
+        _ai_predictions(wb, prediction_engine.build(res, ai, 'en'))
     if match:
         _ai_sheets(wb, match_engine.tables(match))
     wb.properties.title = f"HoroscopeGen - {res['meta']['name']}"

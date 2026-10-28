@@ -958,7 +958,7 @@ def test_api_takes_the_optional_inputs_and_refuses_bad_ones(client, full):
 
 def test_workbook_carries_every_new_sheet_as_a_flat_table(client, full):
     import openpyxl
-    rv = client.post('/api/download/excel', json=dict(G.API_BODY, tobUncertaintyMin=5, life=LIFE))
+    rv = client.post('/api/download/excel', json=dict(G.API_BODY, tobUncertaintyMin=5, life=LIFE, predictions=False))
     assert rv.status_code == 200
     wb = openpyxl.load_workbook(io.BytesIO(rv.data))
     assert wb.sheetnames[7:] == full['sheets'] and len(wb.sheetnames) == 38

@@ -950,8 +950,12 @@ def compute(name, dob, tob, pob, lat=None, lon=None, tz=None, utc_offset=None,
         'kp': kp,
         'alp': alp,
     }
+    import notes_i18n                  # imported here, like saptarishi below
     import saptarishi                  # imported here: saptarishi.py uses this module
     res['saptarishi'] = saptarishi.info(res, gotra)
+    if notes_i18n.active(lang, 'web'):     # the rule of each divisional chart, as the page shows it
+        for vg in res['vedic']['vargas']:
+            vg['rule'] = notes_i18n.varga_rule(vg['key'], lang, vg['rule'], 'web')
     return res
 
 

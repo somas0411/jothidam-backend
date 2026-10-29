@@ -61,6 +61,7 @@ import saptarishi
 from astro_engine import AYANAMSHAS, InputError, compute, geocode, to_jsonable
 from enrich import enrich
 import family_engine
+import family_relations
 from excel_generator import generate_excel, generate_family_excel, generate_match_excel
 from match_engine import match, tables as match_tables
 from pdf_generator import generate_family_pdf, generate_match_pdf, generate_pdf
@@ -589,6 +590,12 @@ def family_route():
     def run():
         result, lang = _family_from_request()
         out = to_jsonable(family_engine.public(result))
+        # Section I readings in the request language, plus a title and intro for the page.
+        out['relations_over_time'] = to_jsonable({
+            'title': family_relations.T('title', lang if lang in family_relations.TEMPLATES['title'] else 'en'),
+            'intro': family_relations.T('intro', lang if lang in family_relations.TEMPLATES['title'] else 'en'),
+            'rows': family_relations.localize(result['sections']['I']['rows'], lang)})
+        out['sections']['I']['rows'] = out['relations_over_time']['rows']
         out['charts'] = [{k: v for k, v in charts.build_specs(m.res, lang).items() if k == 'd1'}
                          for m in result['_people']]
         if _wants_ai():

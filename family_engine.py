@@ -48,6 +48,7 @@ from itertools import combinations
 
 import astro_engine as A
 import enrich as E
+import family_relations
 from astro_engine import NAKS, PLANETS, RASIS, SIGN_LORDS, InputError
 
 SCHEMA = 'horoscopegen-family/1'
@@ -61,11 +62,13 @@ MONTH_DAYS = 30.436875
 # ── RELATIONS ─────────────────────────────────────────────────────────────────
 
 RELATIONS = ('Self', 'Spouse', 'Father', 'Mother', 'Father-in-law', 'Mother-in-law', 'Son', 'Daughter',
-             'Brother', 'Sister', 'Grandfather', 'Grandmother', 'Grandson', 'Granddaughter', 'Other')
+             'Brother', 'Sister', 'Grandfather', 'Grandmother', 'Grandson', 'Granddaughter',
+             'Daughter-in-law', 'Son-in-law', 'Maternal uncle', 'Other')
 RELATION_GENDER = {'Father': 'male', 'Mother': 'female', 'Father-in-law': 'male', 'Mother-in-law': 'female',
                    'Son': 'male', 'Daughter': 'female', 'Brother': 'male', 'Sister': 'female',
                    'Grandfather': 'male', 'Grandmother': 'female', 'Grandson': 'male',
-                   'Granddaughter': 'female'}
+                   'Granddaughter': 'female', 'Daughter-in-law': 'female', 'Son-in-law': 'male',
+                   'Maternal uncle': 'male'}
 RELATION_LIMITS = {'Self': 1, 'Spouse': 1, 'Father': 1, 'Mother': 1, 'Father-in-law': 1, 'Mother-in-law': 1,
                    'Grandfather': 2, 'Grandmother': 2}
 
@@ -94,6 +97,9 @@ RELATION_HOUSES = {
     'Mother-in-law': [(10, 'mother-in-law: 4th from the 7th', 'Moon', 'D12')],
     'Grandson': [(9, 'grandchildren: 5th from the 5th', 'Jupiter', 'D7')],
     'Granddaughter': [(9, 'grandchildren: 5th from the 5th', 'Jupiter', 'D7')],
+    'Daughter-in-law': [(11, 'child-in-law: 7th from the 5th', 'Venus', 'D9')],
+    'Son-in-law': [(11, 'child-in-law: 7th from the 5th', 'Jupiter', 'D9')],
+    'Maternal uncle': [(6, 'maternal uncle: 3rd from the 4th', 'Mercury', 'D12')],
     **GRANDPARENT_ROWS,
 }
 YOUNGER_SIBLING = (3, '3rd: younger siblings', 'Mars', 'D3')
@@ -134,6 +140,7 @@ SECTIONS = {
     'F': 'Transits',
     'G': 'Family rules',
     'H': 'Summary',
+    'I': 'Relationships over time',
 }
 
 FAMILY_RULES = [
@@ -196,6 +203,35 @@ FAMILY_RULES = [
      'lords linked by sign or by exchange. A lord or karaka in an own, exalted, moolatrikona or friendly '
      'sign supports; debilitated or combust needs care. Where two or more members agree on a topic, it is '
      'reported as shared.'),
+    ('Relationships over time (section I)', 'For every pair whose relation can be named from the relations '
+     'given (directly to the anchor, or through the anchor: e.g. the spouse and the anchor\'s mother are '
+     'daughter-in-law and mother-in-law), each member\'s chart is read about the other over the years shown. '
+     'Relation houses and karakas as in "Relation houses" and "Karakas"; in addition: child-in-law 11th '
+     '(7th from the 5th), Venus for a daughter-in-law and Jupiter for a son-in-law; maternal uncle 6th '
+     '(3rd from the 4th), Mercury; a sister\'s child 7th (younger sister) or 3rd (elder sister), Jupiter. '
+     'Below 18, spouse and in-law pairs are not read.'),
+    ('I1 Karaka period', 'The member runs the dasa or bhukti of the relative\'s karaka. Supportive: the '
+     'karaka is exalted, moolatrikona, own sign or in a friend\'s sign, not in the 6th, 8th or 12th and not '
+     'combust. Needs care: debilitated, combust, in the 6th, 8th or 12th, or in one sign with Saturn, Rahu or '
+     'Ketu. Mixed otherwise.'),
+    ('I2 Relation-house lord', 'The member runs the period of the lord of the relative\'s house, read by '
+     'the same test as I1.'),
+    ('I3 Trik from the relation house', 'The member runs the period of the lord of the 6th, 8th or 12th '
+     'counted from the relative\'s house (bhavat bhavam): needs care; mixed when that lord also owns the '
+     'relative\'s house or a trikona (1, 5, 9). Read only as care in the relationship, never as danger to '
+     'the relative.'),
+    ('I4 Separating planets', 'Sun, Saturn, Rahu, Ketu. A mahadasa of one that occupies or aspects (graha '
+     'drishti) the relative\'s house, or is the karaka: physical distance (study, work, a separate home) '
+     'eases the relationship; needs care, or mixed when the planet is strong by I1.'),
+    ('I5 Dasa lord and Moon-sign lord', 'Each month, the member\'s mahadasa lord (Rahu and Ketu through '
+     'their sign lord) against the other\'s Moon-sign lord by natural relation: enemies both ways needs '
+     'care, friends both ways supportive, only when the other\'s lagna lord gives the same; consecutive '
+     'months make a window.'),
+    ('I6 Moon axis in hard months', 'A pair whose Moons are 6/8 or 2/12 apart: months in which either is in '
+     'a difficult period (rule "Period of a lord"), sade sati or ashtama need care in mutual understanding '
+     '(6/8) or shared money and expectations (2/12).'),
+    ('I overall', 'For one period read by two or more of I1-I4: needs care when at least two say needs care '
+     'and none supportive; supportive the other way round; mixed otherwise. Every rule row is kept.'),
     ('Language', 'Facts and counted rules only. No verdict on any member, nothing about how long anyone '
                  'lives, no health reading, and no line that makes one member the cause of another\'s '
                  'difficulty.'),
@@ -205,6 +241,9 @@ NOT_INCLUDED = (
     'Health readings of any kind',
     'Any statement that blames one member for another\'s difficulty',
     'Remedies',
+    'Birth-star rules that blame a member for a relative (e.g. Moola for the father-in-law, Ashlesha for the '
+    'mother-in-law, Jyeshtha for the elder brother-in-law): they make one person the cause of another\'s '
+    'difficulty',
 )
 
 
@@ -400,6 +439,15 @@ def read_back(anchor, member):
         return [(5, '5th: paternal grandfather'), (7, '7th: maternal grandfather')]
     if rel in ('Father-in-law', 'Mother-in-law'):
         return [(11, '11th: child-in-law (7th from the 5th)')]
+    if rel in ('Daughter-in-law', 'Son-in-law'):
+        if anchor.gender == 'male':
+            return [(3, '3rd: father-in-law (9th from the 7th)')]
+        if anchor.gender == 'female':
+            return [(10, '10th: mother-in-law (4th from the 7th)')]
+        return [(3, '3rd: father-in-law (9th from the 7th)'), (10, '10th: mother-in-law (4th from the 7th)')]
+    if rel == 'Maternal uncle':
+        return [(7, "7th: younger sister's child (5th from the 3rd)"),
+                (3, "3rd: elder sister's child (5th from the 11th)")]
     return []
 
 
@@ -808,6 +856,30 @@ def _section_g(members):
     return rows, shared
 
 
+PRESET_PAIRS = (
+    ({'father', 'child'}, 'father and child'), ({'mother', 'child'}, 'mother and child'),
+    ({'mother_in_law', 'child_in_law'}, 'mother-in-law and daughter-in-law / son-in-law'),
+    ({'father_in_law', 'child_in_law'}, 'father-in-law and son-in-law / daughter-in-law'),
+    ({'spouse'}, 'husband and wife'), ({'younger_sibling', 'elder_sibling'}, 'siblings'),
+    ({'maternal_uncle', 'sister_child'}, 'maternal uncle and nephew / niece'),
+)
+
+
+def _summary_i(rows):
+    """One line for section I: the pairs read and, per common pair, how many periods need care or support."""
+    if not rows:
+        return 'No relationship rows in the years shown.'
+    parts = []
+    for roles, name in PRESET_PAIRS:
+        sel = [r for r in rows if r['relation'] in roles and r['rule_id'] in ('Σ', 'I5')]
+        if sel:
+            care = sum(1 for r in sel if r['tone'] == 'care')
+            sup = sum(1 for r in sel if r['tone'] == 'supportive')
+            parts.append(f"{name}: {sup} supportive, {care} needing care")
+    pairs = len({r['pair'] for r in rows})
+    return f"{len(rows)} rows for {pairs} member pairs" + (f"; {'; '.join(parts)}" if parts else '') + '.'
+
+
 def _summary(result):
     s = result['sections']
     months = s['E']['months']
@@ -828,6 +900,7 @@ def _summary(result):
               f"{counts['pressured']} pressured; {len(s['E']['sandhi'])} pairs of mahadasa changes close together."),
         ('F', '; '.join(r['line'] for r in s['F']['now'] if r['planet'] in ('Saturn', 'Jupiter'))),
         ('G', f"{len(s['G']['shared'])} topics where two or more members agree."),
+        ('I', _summary_i(s['I']['rows'])),
     ]
     return {
         'lines': [{'section': k, 'title': SECTIONS[k], 'text': t} for k, t in lines],
@@ -867,6 +940,7 @@ def family(members, options=None, now=None):
     months, windows, periods, sandhi, changes = _section_e(ms, sky, lo, hi, options['sandhi_months'])
     tnow, stays = _section_f(ms, sky, now, lo, hi)
     topics, shared = _section_g(ms)
+    relations_over_time = family_relations.section_i(anchor, ms, now, options['years'], months)
     result = {
         'schema': SCHEMA, 'label': LABEL, 'generated_utc': now.replace(microsecond=0),
         'anchor': anchor.name,
@@ -883,6 +957,7 @@ def family(members, options=None, now=None):
                   'changes': changes},
             'F': {'now': tnow, 'stays': stays},
             'G': {'topics': topics, 'shared': shared},
+            'I': {'rows': relations_over_time},
         },
         'titles': dict(SECTIONS),
         'rules': [{'name': n, 'rule': r} for n, r in FAMILY_RULES],
@@ -985,6 +1060,14 @@ TABLES = [
     ('AI_FamilyTopics', 'G', 'topics', [
         ('topic', 'Property, Children, Education, Spouse, Foreign travel'), ('member', 'Name'),
         ('relation', 'Relation'), ('reading', 'supports / neutral / needs care'), ('facts', 'What was read')]),
+    ('AI_FamilyRelationsOverTime', 'I', 'rows', [
+        ('pair', 'The two members'), ('member_running', 'Member whose period it is (both for I6)'),
+        ('other', 'The other member'), ('relation', 'What the other is to the member running the period'),
+        ('level', 'dasa / bhukti / months'), ('lord', 'Lord of the period'),
+        ('start', 'Start, clock time of the member'), ('end', 'End'),
+        ('age_start', 'Age of the member at the start'), ('age_end', 'Age at the end'),
+        ('rule_id', 'I1-I6, or the overall row of a period'), ('tone', 'supportive / mixed / care'),
+        ('reading', 'The reading in English'), ('basis', 'The facts and the period')]),
     ('AI_FamilyShared', 'G', 'shared', [
         ('topic', 'Topic'), ('reading', 'supports / needs care'), ('count', 'Members'), ('members', 'Who')]),
 ]

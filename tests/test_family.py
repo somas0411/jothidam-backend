@@ -254,7 +254,7 @@ def test_charts_are_left_alone(six):
 def test_excel(result6, lang):
     from excel_generator import generate_family_excel
     wb = openpyxl.load_workbook(io.BytesIO(generate_family_excel(result6, lang)))
-    assert wb.sheetnames[:6] == ['Family', 'Relations', 'Pairs', 'Patterns', 'Transits', 'Rules']
+    assert wb.sheetnames[:7] == ['Family', 'Relationships', 'Relations', 'Pairs', 'Patterns', 'Transits', 'Rules']
     assert 'AI_FamilyMonths' in wb.sheetnames and 'AI_FamilyRules' in wb.sheetnames
 
 

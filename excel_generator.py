@@ -1327,12 +1327,41 @@ def generate_match_excel(match, people=None, lang='en'):
 # Family sheets here and the PDF (pdf_generator) both draw from it.
 
 STATUS_COLOR = {'supportive': 'D6EFD0', 'mixed': 'FFF1B8', 'pressured': 'F6D3CC'}
-FAMILY_SHEETS = (('family', 'sec_A'), ('relations', 'sec_B'), ('pairs', 'sec_C'), ('patterns', 'sec_D'),
-                 ('transits', 'sec_F'), ('rules', 'rules'))
+TONE_COLOR = {'supportive': 'D6EFD0', 'mixed': 'FFF1B8', 'care': 'F6D3CC'}
+FAMILY_SHEETS = (('family', 'sec_A'), ('relations_time', 'sec_I'), ('relations', 'sec_B'), ('pairs', 'sec_C'),
+                 ('patterns', 'sec_D'), ('transits', 'sec_F'), ('rules', 'rules'))
 
 
 def _fd(dt):
     return dt.strftime('%d-%m-%Y') if isinstance(dt, datetime) else ('' if dt is None else dt)
+
+
+def rel_blocks(result, lang, block):
+    """Section I: one block per pair, the reading in the report language, the basis in English."""
+    import family_relations as FR
+    T = lambda k: FR.T(k, lang if lang in FR.TEMPLATES['title'] else 'en')
+    rows = result['sections'].get('I', {}).get('rows', [])
+    if not rows:
+        block('relations_time', T('title'), [('', 100, 'L')], [[T('none')]])
+        return
+    block('relations_time', T('title'), [('', 100, 'L')], [[T('intro')]])
+    pairs = []
+    for r in rows:
+        if r['pair'] not in pairs:
+            pairs.append(r['pair'])
+    for pair in pairs:
+        sel = [r for r in rows if r['pair'] == pair]
+        block('relations_time', pair,
+              [(T('col.running'), 14, 'L'), (T('col.with'), 18, 'L'), (T('col.period'), 26, 'L'),
+               (T('col.rule'), 6, 'C'), (T('col.tone'), 12, 'C'), (T('col.reading'), 50, 'L'),
+               (T('col.basis'), 46, 'L')],
+              [[r['member_running'],
+                f"{r['other']} ({FR.role_label(r['relation'], lang)})" if r['relation'] else r['other'],
+                f"{FR.level_label(r, lang)} {i18n.planet(r['lord'], lang) if r['lord'] else ''}: "
+                f"{_fd(r['start'])} - {_fd(r['end'])}"
+                + (f" ({r['age_start']}-{r['age_end']})" if r['age_start'] is not None else ''),
+                r['rule_id'], FR.tone_label(r['tone'], lang), FR.render(r, lang), r['basis']] for r in sel],
+              status=4)
 
 
 def family_blocks(result, lang):
@@ -1370,6 +1399,7 @@ def family_blocks(result, lang):
            [f"{mo['members'][i]['dasa']}/{mo['members'][i]['bhukti']} {mo['members'][i]['tag']}" for i in sorted(names)]
            for mo in sec['E']['months']], status=1)
 
+    rel_blocks(result, lang, block)
     block('relations', F('family_houses'),
           [('Chart', 6, 'C'), ('House', 5, 'C'), ('Name', 12, 'L'), ('Sign', 10, 'L'), ('Lord', 9, 'L'),
            ('Lord in', 6, 'C'), ('Lord dignity', 16, 'L'), ('Occupants', 16, 'L'), ('Aspected by', 18, 'L')],
@@ -1432,6 +1462,12 @@ def family_blocks(result, lang):
     return blocks
 
 
+def _tone_words(lang):
+    """{tone word in the report language: colour} for the section I rows."""
+    import family_relations as FR
+    return {FR.tone_label(t, lang): TONE_COLOR[t] for t in TONE_COLOR}
+
+
 def _family_sheet(wb, title, blocks, lang, first=False):
     ws = wb.active if first else wb.create_sheet()
     ws.title = _sheet_name_text(title)
@@ -1465,6 +1501,9 @@ def _family_sheet(wb, title, blocks, lang, first=False):
                 for st in STATUS_COLOR:
                     if word == i18n.FL(st, lang):
                         ws.cell(r, 2 + b['status']).fill = _fill(STATUS_COLOR[st])
+                for tone, color in _tone_words(lang).items():
+                    if word == tone:
+                        ws.cell(r, 2 + b['status']).fill = _fill(color)
             r += 1
         for j, (_, w, _) in enumerate(b['cols']):
             widths[j] = max(widths[j], w)
@@ -1491,8 +1530,8 @@ def generate_family_excel(result, lang='en'):
         lang = 'en'
     wb = openpyxl.Workbook()
     blocks = family_blocks(result, lang)
-    titles = {'family': 'Family', 'relations': 'Relations', 'pairs': 'Pairs', 'patterns': 'Patterns',
-              'transits': 'Transits', 'rules': 'Rules'}
+    titles = {'family': 'Family', 'relations_time': 'Relationships', 'relations': 'Relations', 'pairs': 'Pairs',
+              'patterns': 'Patterns', 'transits': 'Transits', 'rules': 'Rules'}
     for i, (key, _) in enumerate(FAMILY_SHEETS):
         _family_sheet(wb, titles[key], blocks[key], lang, first=(i == 0))
     _ai_sheets(wb, family_engine.tables(result))

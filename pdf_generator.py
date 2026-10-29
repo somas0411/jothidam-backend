@@ -18,7 +18,7 @@ import i18n
 import match_engine
 import notes_i18n
 import saptarishi
-from excel_generator import (STATUS_COLOR, VARGA_RULES, MATCH_WINDOWS_SHOWN, family_blocks, _match_group_counts, _match_note, _match_person,
+from excel_generator import (STATUS_COLOR, VARGA_RULES, _tone_words, MATCH_WINDOWS_SHOWN, family_blocks, _match_group_counts, _match_note, _match_person,
                              _match_points, _match_summary)
 
 FONT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fonts')
@@ -1105,7 +1105,8 @@ def _family(pdf, result):
     pdf.set_y(y_next)
 
     blocks = family_blocks(result, lang)
-    for key, _ in (('family', 0), ('relations', 0), ('pairs', 0), ('patterns', 0), ('transits', 0), ('rules', 0)):
+    for key, _ in (('family', 0), ('relations_time', 0), ('relations', 0), ('pairs', 0), ('patterns', 0),
+                   ('transits', 0), ('rules', 0)):
         for b in blocks[key]:
             if not b['rows']:
                 continue
@@ -1113,10 +1114,13 @@ def _family(pdf, result):
             fills = None
             if b['status'] is not None:
                 fills = {}
+                tones = _tone_words(lang)
                 for i, row in enumerate(b['rows']):
                     for st, color in STATUS_COLOR.items():
                         if row[b['status']] == i18n.FL(st, lang):
                             fills[i] = (b['status'], _rgb(color))
+                    if row[b['status']] in tones:
+                        fills[i] = (b['status'], _rgb(tones[row[b['status']]]))
             cols = [(h, w, {'L': 'LEFT', 'C': 'CENTER', 'R': 'RIGHT'}[a]) for h, w, a in b['cols']]
             many = len(b['rows']) > 40
             pdf.table(cols, b['rows'], font_size=6.4 if len(cols) > 6 else 7.0, line_h=3.9,

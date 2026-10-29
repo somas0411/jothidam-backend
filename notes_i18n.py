@@ -2,17 +2,15 @@
 notes_i18n.py — the Notes page ("How this report was calculated", the
 divisional-chart rules and the abbreviations) in the report language.
 
-Translated for hi, mr, te, kn, ml and bn everywhere, and for Tamil in the
-PDF and on the web page. The Tamil Excel Notes sheet stays English: it is part
-of the golden test (tests/golden_main.json), and translating it needs that
-file regenerated on purpose. English and bilingual reports keep the English.
+Translated for ta, hi, mr, te, kn, ml and bn in Excel, PDF and on the web
+page. English and bilingual reports keep the English text.
 
 Placeholders: {r0}..{r11} are sign names (Mesha..Meena) in the report
 language; the others are filled from the chart.
 """
 import i18n
 
-NOTE_LANGS = ('hi', 'mr', 'te', 'kn', 'ml', 'bn')
+NOTE_LANGS = ('ta', 'hi', 'mr', 'te', 'kn', 'ml', 'bn')
 
 T = {}
 
@@ -340,7 +338,7 @@ T['ta'] = {
 def active(lang, target='xlsx'):
     """True when the Notes text is translated for this language and output. Tamil is
     translated in the PDF and on the web page, not in Excel (golden test)."""
-    return lang in NOTE_LANGS or (lang == 'ta' and target != 'xlsx')
+    return lang in NOTE_LANGS
 
 
 def varga_rule(key, lang, en_rule, target='xlsx'):

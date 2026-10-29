@@ -18,6 +18,11 @@ row on the Vedic sheet (Saptarishi Samvat in the Panchangam box, row 28),
 three new rows at the foot of Notes (no existing row changed), and two new
 keys in the /api/horoscope answer ("saptarishi", "saptarishi_view"); every
 other key of that answer was identical.
+
+Regenerated for the Tamil Notes translation (notes_i18n.py). Checked against
+the previous golden: the only difference was the Tamil Notes sheet (same 50
+rows, text now Tamil); every other sheet in en and ta and the /api/horoscope
+answer were identical.
 """
 import functools
 import hashlib

@@ -10,8 +10,7 @@ Tests for the report languages (en, ta, hi, te, kn, ml, mr, bn).
     length of life, maraka, health words)
   * rule-book findings of sample charts all have a translation
   * the audit (tests/i18n_audit.py) finds no English left in the web answer,
-    the Excel workbook or the PDF for hi, te, kn, ml, mr and bn; for Tamil only
-    the Excel Notes sheet, which the golden test keeps English, may hold English
+    the Excel workbook or the PDF for ta, hi, te, kn, ml, mr and bn
 """
 import json
 import os
@@ -87,7 +86,7 @@ def test_name_tables_complete():
 
 def test_notes_complete():
     keys = set(notes_i18n.T['hi'])
-    for lang in notes_i18n.NOTE_LANGS + ('ta',):
+    for lang in notes_i18n.NOTE_LANGS:
         assert set(notes_i18n.T[lang]) == keys, lang
         for k in keys:
             assert set(PH.findall(notes_i18n.T[lang][k])) == set(PH.findall(notes_i18n.T['hi'][k])), (lang, k)
@@ -153,16 +152,17 @@ def test_rows_follow_policy_in_every_language(chart):
             assert not PH.search(r['text']), (lang, r['text'])
 
 
-@pytest.mark.parametrize('lang', ['hi', 'te', 'kn', 'ml', 'mr', 'bn'])
+@pytest.mark.parametrize('lang', ['ta', 'hi', 'te', 'kn', 'ml', 'mr', 'bn'])
 def test_no_english_left(lang):
     from tests import i18n_audit
     hits = i18n_audit.audit(lang)
     assert not hits, hits[:10]
 
 
-def test_tamil_english_only_in_excel_notes():
-    from tests import i18n_audit
-    hits = i18n_audit.audit('ta')
-    notes = i18n.L('notes', 'ta')
-    stray = [h for h in hits if not h[0].startswith(f'xlsx.{notes}!')]
-    assert not stray, stray[:10]
+def test_marriage_tables_complete():
+    for lang in OTHER:
+        assert set(i18n.MATCH_LABELS[lang]) == set(i18n.MATCH_LABELS['en']), lang
+        assert set(i18n.MATCH_CHECKS[lang]) == set(i18n.MATCH_CHECKS['ta']), lang
+        assert set(i18n.MATCH_WORDS[lang]) == set(i18n.MATCH_WORDS['ta']), lang
+        for k, v in i18n.MATCH_LABELS[lang].items():
+            assert set(PH.findall(v)) == set(PH.findall(i18n.MATCH_LABELS['en'][k])), (lang, k)

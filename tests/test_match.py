@@ -1445,9 +1445,10 @@ def test_match_workbook_in_tamil_and_bilingual(matched):
     assert wb.sheetnames[0] == 'Marriage'
     texts = cell_texts(wb.worksheets[0])
     assert 'Dinam / தினப் பொருத்தம்' in texts and 'Matched / பொருத்தம் உண்டு' in texts
-    # Telugu has no labels of its own: English labels, as on the other sheets.
+    # Telugu has its own labels and check names, like every report language.
     wb = load(generate_match_excel(result, people, 'te'))
-    assert wb.sheetnames[0] == 'Marriage' and 'Dinam' in cell_texts(wb.worksheets[0])
+    texts = cell_texts(wb.worksheets[0])
+    assert wb.sheetnames[0] == 'వివాహ పొంతన' and 'దిన పొంతన' in texts and 'Dinam' not in texts
 
 
 def test_match_workbook_for_stars_only(star_match):
@@ -1518,7 +1519,10 @@ def test_match_pdf(matched, star_match, lang, tmp_path):
     assert 'Mars in the 5th from the lagna:' in text and '12 / 36' in text and '03-10-2026' in text
     assert 'Jupiter to Saturn on 2037-03-03' in text
     assert 'No overall verdict is given.' in text                               # the last rule: nothing was cut off
-    if lang in ('en', 'te'):
+    if lang == 'te':
+        for words in ('వివాహ పొంతన', 'స్త్రీ దీర్ఘ పొంతన', 'దశా సంధి', 'నియమాలు మరియు భేదాలు'):
+            assert words in text, words
+    if lang == 'en':
         for words in ('Marriage Matching', 'Stree Deergham', 'Vainasika (22nd star)', 'Kuja dosha in both charts',
                       'Papa samyam (count)', 'Dasa sandhi', 'Rules and Variants', 'Not matched', 'Information'):
             assert words in text, words
@@ -1583,7 +1587,9 @@ def test_labels_cover_every_check_and_the_page_bundle_is_untouched():
     assert i18n.match_value('Mars in the 5th from the lagna: absent', 'ta') == 'Mars in the 5th from the lagna: absent'
     assert i18n.match_value(None, 'en') == '—' and i18n.match_value('Kanya', 'ta') == 'கன்னி'
     assert i18n.match_check('dinam', 'Dinam', 'bi') == 'Dinam / தினப் பொருத்தம்'
-    assert i18n.match_check('dinam', 'Dinam', 'kn') == 'Dinam' and i18n.ML('marriage', 'mr') == 'विवाह मिलान'
+    assert i18n.match_check('dinam', 'Dinam', 'kn') == 'ದಿನ ಕೂಟ' and i18n.ML('marriage', 'mr') == 'विवाह जुळणी'
+    for lang in ('te', 'kn', 'ml', 'mr', 'bn'):
+        assert set(i18n.MATCH_CHECKS[lang]) == set(M.CHECKS) and set(i18n.MATCH_WORDS[lang]) == words, lang
 
 
 # ── the download routes ───────────────────────────────────────────────────────

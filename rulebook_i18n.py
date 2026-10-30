@@ -25,7 +25,8 @@ PLANET_SLOTS = ('p', 'n', 'st', 'd')
 LIST_SLOTS = ('names', 'hidden')
 KEEP_SLOTS = ('h', 'houses', 'start', 'end')
 PHRASE_SLOTS = {'areas': 'areas.', 'quick': 'quick', 'extra_jup': 'extra_jup', 'extra_node': 'extra_node',
-                'why': 'why.', 'fields': 'fields.', 'dig': 'dig.'}
+                'why': 'why.', 'fields': 'fields.', 'dig': 'dig.', 'who': 'who.', 'sym': 'sym.'}
+NAK_SLOTS = ('nk',)                                     # a nakshatra name, shown from i18n.NAKS
 OPTIONAL = ('quick', 'extra_jup', 'extra_node')          # phrases that may be empty
 SLOT = re.compile(r'\{(\w+)\}')
 
@@ -143,6 +144,10 @@ def _slot(slot, value, data, planet):
         return ', '.join(planet(x.strip()) for x in value.split(','))
     if slot in KEEP_SLOTS:
         return value
+    if slot in NAK_SLOTS:
+        import i18n
+        en = i18n.NAKS['en']
+        return i18n.NAKS[data['language']][en.index(value)] if value in en else None
     if slot == 'exc':
         out = []
         for part in value.split('; '):

@@ -50,7 +50,7 @@ def ids(rows):
 
 def test_rule_files_carry_no_source_or_author():
     files = sorted(Path(RB.DATA_DIR).glob('*.json'))
-    assert len(files) == 22
+    assert len(files) == 23
     for f in files:
         text = f.read_text(encoding='utf-8')
         low = text.lower()
@@ -156,3 +156,42 @@ def test_predictions_route_rejects_bad_input():
     resp = app_module.app.test_client().post('/api/predictions', json={'dob': 'x', 'tob': '10:00', 'pob': 'Chennai',
                                                                          'lat': 13, 'lon': 80})
     assert resp.status_code == 400
+
+
+# ── nakshatra traits (NK-*) ───────────────────────────────────────────────────
+
+def _nk(rows):
+    return {r['rule_id']: r for r in rows if r['rule_id'].startswith('NK-')}
+
+
+def test_mrigashira_moon_pada_and_wealth_star():
+    # Moon at Rishabha 25 deg = Mrigashira pada 1 (Leo navamsa); next star Ardra
+    nk = _nk(rows_of('Mesha', Moon=('Rishabha', 25.0)))
+    assert 'Mrigashira' in nk['NK-01']['finding']
+    assert nk['NK-02']['finding'].startswith('Moon in the first pada of Mrigashira')
+    assert 'Ardra' in nk['NK-26']['finding'] and 'a diamond' in nk['NK-26']['finding']
+    assert all(r['status'] == 'always' for r in nk.values())
+
+
+def test_seventh_lord_in_vishakha():
+    # Mesha lagna: Venus rules the 7th; Thula 25 deg is Vishakha
+    nk = _nk(rows_of('Mesha', Venus=('Thula', 25.0)))
+    assert nk['NK-05']['tone'] == 'mixed' and 'Venus' in nk['NK-05']['finding']
+
+
+def test_theme_routed_to_the_house_the_planet_rules():
+    # Kataka lagna: Saturn rules the 7th (and 8th); Mithuna 25 deg is Punarvasu
+    nk = _nk(rows_of('Kataka', Saturn=('Mithuna', 25.0)))
+    assert 'for the spouse' in nk['NK-03']['finding']
+
+
+def test_nakshatra_findings_translate_everywhere():
+    import i18n
+    import rulebook_i18n as RI
+    rows = rows_of('Kataka', Moon=('Rishabha', 25.0), Saturn=('Mithuna', 25.0), Venus=('Thula', 25.0))
+    nk = [r for r in rows if r['rule_id'].startswith('NK-')]
+    assert len(nk) >= 4
+    for r in nk:
+        for lang in ('ta', 'hi', 'te', 'kn', 'ml', 'mr', 'bn'):
+            out = RI.translate(r['finding'], r['rule_id'], lang, lambda p: i18n.planet(p, lang))
+            assert out and '{' not in out, (lang, r['finding'])

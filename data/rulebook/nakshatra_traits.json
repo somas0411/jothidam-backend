@@ -1,0 +1,51 @@
+{
+ "ruleset": "nakshatra_traits",
+ "version": "1.0",
+ "definitions": {
+  "reference": "Nakshatra of a point is from its sidereal longitude (13 deg 20 min each, 4 padas of 3 deg 20 min). Houses counted from LAGNA.",
+  "principle": "Nakshatras refine what signs, planets and houses already show. A nakshatra theme is read through its symbol, its deity and its story.",
+  "house_routing": "A theme shows in the life of the person the planet stands for by lordship: lagna lord or the Lagna/Moon itself = the native; 7th lord = spouse; 5th lord = children; 9th lord = father; 4th lord = mother; 3rd lord = siblings. First match in that order wins; anything else = the native.",
+  "context": "Every trait is a tendency. Place, era and the person's situation decide how it shows; a trait may show in a relative rather than in the native.",
+  "kept_out": "Themes about separation by force, early loss of a parent, illness and the gandanta junctions are not used in reports."
+ },
+ "rules": [
+  {"id": "NK-01", "points": ["Lagna", "Moon"], "nakshatra": "Mrigashira", "result": "A seeker who keeps chasing the next goal; enjoys travel, speed and fragrances."},
+  {"id": "NK-02", "points": ["Moon"], "nakshatra": "Mrigashira", "by_pada": {
+   "1": "Leo navamsa: the search centres on creativity, romance and studies.",
+   "2": "Virgo navamsa: the search turns analytical - checking, reviewing and measuring.",
+   "3": "Libra navamsa: the search is for beauty, comfort and money.",
+   "4": "Scorpio navamsa: the search turns inward - occult subjects, spirituality and hidden knowledge."}},
+  {"id": "NK-03", "points": ["any"], "nakshatra": "Punarvasu", "result": "Events repeat - returning to a place, a job or a person after a gap.", "routed": true},
+  {"id": "NK-04", "points": ["Mercury"], "nakshatra": "Punarvasu", "result": "A name change, or a name with repeated letters.", "routed": true},
+  {"id": "NK-05", "points": ["lord_7"], "nakshatra": "Vishakha", "result": "Married life can see phases of distance; conscious effort keeps it together."},
+  {"id": "NK-06", "points": ["lord_4"], "nakshatra": "Vishakha", "result": "Likely to live away from the family home at some stage."},
+  {"id": "NK-07", "points": ["Lagna", "Moon"], "nakshatra": "Anuradha", "result": "Rises from modest beginnings and gathers loyal supporters; devotional nature."},
+  {"id": "NK-08", "points": ["Rahu"], "nakshatra": "Rohini", "result": "Devotion to Krishna; pilgrimages such as Khatu Shyam may appeal."},
+  {"id": "NK-09", "points": ["Ketu"], "nakshatra": "Rohini", "result": "A liking for the flute or other wind instruments.", "routed": true},
+  {"id": "NK-10", "points": ["Mars", "Venus"], "nakshatra": "Dhanishtha", "house": 7, "result": "The spouse is likely to be musical, with a feel for rhythm."},
+  {"id": "NK-11", "points": ["lord_7"], "nakshatra_any": ["Dhanishtha", "Uttara Ashadha"], "result": "Marriage may come later, or one may choose to stay single."},
+  {"id": "NK-12", "points": ["lord_2", "lord_11"], "nakshatra": "Dhanishtha", "result": "Unearned money such as inheritance or family property."},
+  {"id": "NK-13", "points": ["lord_5", "Jupiter"], "nakshatra": "Ashwini", "pada": 3, "result": "A possibility of twins in the family."},
+  {"id": "NK-14", "points": ["Lagna", "Moon"], "nakshatra": "Ashwini", "result": "Quick and active; loves vehicles and speed; caring towards animals."},
+  {"id": "NK-15", "points": ["any"], "nakshatra": "Ashlesha", "result": "A strategic mind suited to chess, mathematics or research; attachments run deep.", "routed": true},
+  {"id": "NK-16", "points": ["any"], "nakshatra": "Krittika", "result": "A talent for cooking, or for work that involves cutting and editing such as film."},
+  {"id": "NK-17", "points": ["lord_7"], "nakshatra": "Purva Ashadha", "result": "Marriage tends to come early."},
+  {"id": "NK-18", "points": ["any"], "nakshatra": "Shravana", "result": "Learns best by listening; drawn to the sky and the stars."},
+  {"id": "NK-19", "points": ["Lagna", "Moon"], "nakshatra": "Hasta", "result": "A distinctive smile and a good sense of humour; likes rings, watches and hand adornments."},
+  {"id": "NK-20", "points": ["Lagna", "Moon", "Sun"], "nakshatra": "Magha", "result": "A pull towards leadership and public standing; fond of grand furniture and ancestral traditions."},
+  {"id": "NK-21", "points": ["Saturn"], "nakshatra": "Ardra", "result": "Work that lifts up the neglected, people or stray animals; struggles come first and recognition late."},
+  {"id": "NK-22", "points": ["Rahu", "Ketu"], "nakshatra_any": ["Ardra", "Moola"], "result": "Likely to keep dogs or care for strays."},
+  {"id": "NK-23", "points": ["lord_1", "lord_3"], "nakshatra_any": ["Purva Phalguni", "Uttara Phalguni"], "result": "Left-handedness may show up.", "routed": true},
+  {"id": "NK-24", "points": ["any"], "nakshatra": "Uttara Ashadha", "result": "Does not accept defeat; keeps returning until the goal is won."},
+  {"id": "NK-25", "points": ["Moon", "Mercury", "Jupiter", "Venus"], "nakshatra": "Pushya", "condition": "planet not debilitated", "result": "Steady growth and nourishment.", "routed": true},
+  {"id": "NK-26", "points": ["Moon"], "result": "Sampat tara (wealth star) = the nakshatra after the birth star. Keeping its symbol nearby as a picture or wallpaper is a remedy that costs nothing.",
+   "symbols": {
+    "Ashwini": "a horse", "Bharani": "an elephant", "Krittika": "a flame", "Rohini": "a chariot", "Mrigashira": "a deer",
+    "Ardra": "a diamond", "Punarvasu": "a quiver of arrows", "Pushya": "a cow", "Ashlesha": "a coiled serpent",
+    "Magha": "a royal throne", "Purva Phalguni": "a decorated bed", "Uttara Phalguni": "a decorated bed",
+    "Hasta": "an open hand", "Chitra": "a bright jewel", "Swati": "a young plant shoot", "Vishakha": "a decorated archway",
+    "Anuradha": "a lotus", "Jyeshtha": "a round amulet", "Moola": "a bunch of roots", "Purva Ashadha": "a hand fan",
+    "Uttara Ashadha": "an elephant tusk", "Shravana": "an ear", "Dhanishtha": "a drum", "Shatabhisha": "a circle of stars",
+    "Purva Bhadrapada": "a sword", "Uttara Bhadrapada": "a serpent in water", "Revati": "a pair of fish"}}
+ ]
+}

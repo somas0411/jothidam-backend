@@ -331,3 +331,47 @@ def test_route_family_downloads(client):
     openpyxl.load_workbook(io.BytesIO(rv.data))
     rv = client.post('/api/download/family/pdf', json=_body(2))
     assert rv.status_code == 200 and rv.data[:5] == b'%PDF-'
+
+
+# ── language of the report values ─────────────────────────────────────────────
+
+def _english_left(xlsx, names, skip=('AI_',)):
+    import re
+    wb = openpyxl.load_workbook(io.BytesIO(xlsx))
+    left = []
+    for ws in wb:
+        if ws.title.startswith(skip):
+            continue
+        for row in ws.iter_rows(values_only=True):
+            for x in row:
+                if not isinstance(x, str):
+                    continue
+                y = x
+                for n in names:
+                    y = y.replace(n, '')
+                y = re.sub(r'\b(D\d+|I\d|[GMDSAJ]{1,3}|horoscopegen\.in)\b', '', y)
+                if re.search('[A-Za-z]{2,}', y):
+                    left.append((ws.title, x))
+    return left
+
+
+def test_family_excel_tamil_has_no_english_values(result6):
+    from excel_generator import generate_family_excel
+    names = [p[1] for p in PEOPLE]
+    assert _english_left(generate_family_excel(result6, 'ta'), names) == []
+
+
+@pytest.mark.parametrize('lang', ['hi', 'te', 'kn', 'ml', 'mr', 'bn'])
+def test_family_excel_values_translated_except_rule_texts(result6, lang):
+    from excel_generator import generate_family_excel
+    names = [p[1] for p in PEOPLE]
+    assert {s for s, _ in _english_left(generate_family_excel(result6, lang), names)} <= {'Rules'}
+
+
+def test_family_planet_names_in_tamil():
+    import family_i18n as FI
+    assert FI.tr('Jupiter', 'ta') == 'குரு'
+    assert FI.tr('Mercury / Rahu', 'ta') == 'புதன் / ராகு'
+    assert FI.tr('Jupiter in 5th from lagna (Meena), Own sign, with Rahu', 'ta') == \
+        'குரு லக்னத்திலிருந்து 5-ம் வீட்டில் (மீனம்), ஆட்சி, ராகு உடன்'
+    assert FI.tr('Jupiter', 'en') == 'Jupiter'

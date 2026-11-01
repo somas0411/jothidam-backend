@@ -1153,6 +1153,223 @@ def r_cx13(ch):
     return hit('A mix of supportive and weak dasas between 15 and 50.', seq, [], 'mixed')
 
 
+# -- nakshatra traits (data/rulebook/nakshatra_traits.json) ----------------------
+# Traits read from the nakshatra (and pada) a point sits in. They describe the
+# chart and are not tied to a period, so every row reads 'always'.
+
+NK_SET = 'nakshatra_traits'
+NK_POINTS = ('Lagna',) + tuple(PLANETS)
+WHO_ORDER = ((1, 'self'), (7, 'spouse'), (5, 'children'), (9, 'father'), (4, 'mother'), (3, 'siblings'))
+WHO_TEXT = {'self': 'you', 'spouse': 'the spouse', 'children': 'the children', 'father': 'the father',
+            'mother': 'the mother', 'siblings': 'the siblings'}
+
+
+def nak_of(ch, p):
+    return A.NAKS[ch.pt[p]['nak']]
+
+
+def pada_of(ch, p):
+    return ch.pt[p]['pada']
+
+
+def who(ch, p):
+    """Whose life a point's theme shows in, by the houses the planet rules."""
+    if p in ('Lagna', 'Moon') or p in NODES:
+        return WHO_TEXT['self']
+    owned = ch.owned.get(p, [])
+    for h, key in WHO_ORDER:
+        if h in owned:
+            return WHO_TEXT[key]
+    return WHO_TEXT['self']
+
+
+def _in(ch, points, *naks):
+    return [p for p in points if nak_of(ch, p) in naks]
+
+
+def _nk(finding, ch, p, tone='favourable'):
+    return hit(finding, f'{p} in {nak_of(ch, p)} pada {pada_of(ch, p)}', [], tone)
+
+
+@rule('NK-01', NK_SET, 'personality', 'Mrigashira: the seeker')
+def r_nk01(ch):
+    return [_nk(f'{p} in Mrigashira: a seeker who keeps chasing the next goal; enjoys travel, speed and fragrances.', ch, p)
+            for p in _in(ch, ('Lagna', 'Moon'), 'Mrigashira')]
+
+
+NK02_TEXT = {
+    1: 'Moon in the first pada of Mrigashira: the search centres on creativity, romance and studies.',
+    2: 'Moon in the second pada of Mrigashira: the search turns analytical - checking, reviewing and measuring.',
+    3: 'Moon in the third pada of Mrigashira: the search is for beauty, comfort and money.',
+    4: 'Moon in the fourth pada of Mrigashira: the search turns inward - occult subjects, spirituality and hidden knowledge.',
+}
+
+
+@rule('NK-02', NK_SET, 'personality', 'Mrigashira Moon by pada')
+def r_nk02(ch):
+    if nak_of(ch, 'Moon') == 'Mrigashira':
+        return _nk(NK02_TEXT[pada_of(ch, 'Moon')], ch, 'Moon')
+
+
+@rule('NK-03', NK_SET, 'general', 'Punarvasu: things return')
+def r_nk03(ch):
+    return [_nk(f'{p} in Punarvasu: events repeat for {who(ch, p)} - returning to a place, a job or a person after a gap.', ch, p)
+            for p in _in(ch, NK_POINTS, 'Punarvasu')]
+
+
+@rule('NK-04', NK_SET, 'personality', 'Mercury in Punarvasu: the name')
+def r_nk04(ch):
+    if nak_of(ch, 'Mercury') == 'Punarvasu':
+        return _nk(f'Mercury in Punarvasu: a name change, or a name with repeated letters, is likely for {who(ch, "Mercury")}.',
+                   ch, 'Mercury')
+
+
+@rule('NK-05', NK_SET, 'marriage', '7th lord in Vishakha')
+def r_nk05(ch):
+    p = ch.lord[7]
+    if nak_of(ch, p) == 'Vishakha':
+        return _nk(f'The 7th lord {p} is in Vishakha: married life can see phases of distance; conscious effort keeps it together.',
+                   ch, p, 'mixed')
+
+
+@rule('NK-06', NK_SET, 'family', '4th lord in Vishakha')
+def r_nk06(ch):
+    p = ch.lord[4]
+    if nak_of(ch, p) == 'Vishakha':
+        return _nk(f'The 4th lord {p} is in Vishakha: likely to live away from the family home at some stage.', ch, p, 'mixed')
+
+
+@rule('NK-07', NK_SET, 'personality', 'Anuradha: the lotus')
+def r_nk07(ch):
+    return [_nk(f'{p} in Anuradha: rises from modest beginnings and gathers loyal supporters; a devotional nature.', ch, p)
+            for p in _in(ch, ('Lagna', 'Moon'), 'Anuradha')]
+
+
+@rule('NK-08', NK_SET, 'spiritual', 'Rahu in Rohini')
+def r_nk08(ch):
+    if nak_of(ch, 'Rahu') == 'Rohini':
+        return _nk('Rahu in Rohini: devotion to Krishna; pilgrimages such as Khatu Shyam may appeal.', ch, 'Rahu')
+
+
+@rule('NK-09', NK_SET, 'personality', 'Ketu in Rohini')
+def r_nk09(ch):
+    if nak_of(ch, 'Ketu') == 'Rohini':
+        return _nk(f'Ketu in Rohini: a liking for the flute or other wind instruments for {who(ch, "Ketu")}.', ch, 'Ketu')
+
+
+@rule('NK-10', NK_SET, 'marriage', 'Musical spouse')
+def r_nk10(ch):
+    return [_nk(f'{p} in Dhanishtha in the 7th house: the spouse is likely to be musical, with a feel for rhythm.', ch, p)
+            for p in _in(ch, ('Mars', 'Venus'), 'Dhanishtha') if ch.house[p] == 7]
+
+
+@rule('NK-11', NK_SET, 'marriage', '7th lord in a late-marriage nakshatra')
+def r_nk11(ch):
+    p = ch.lord[7]
+    if nak_of(ch, p) in ('Dhanishtha', 'Uttara Ashadha'):
+        return _nk(f'The 7th lord {p} is in a nakshatra linked with late marriage: marriage may come later, '
+                   f'or one may choose to stay single.', ch, p, 'mixed')
+
+
+@rule('NK-12', NK_SET, 'wealth', 'Wealth lord in Dhanishtha')
+def r_nk12(ch):
+    lords = list(dict.fromkeys((ch.lord[2], ch.lord[11])))
+    return [_nk(f'{p}, a lord of wealth, is in Dhanishtha: unearned money such as inheritance or family property is likely.', ch, p)
+            for p in _in(ch, lords, 'Dhanishtha')]
+
+
+@rule('NK-13', NK_SET, 'children', 'Twins')
+def r_nk13(ch):
+    pts = list(dict.fromkeys((ch.lord[5], 'Jupiter')))
+    return [_nk(f'{p} in the Gemini pada of Ashwini: a possibility of twins in the family.', ch, p)
+            for p in _in(ch, pts, 'Ashwini') if pada_of(ch, p) == 3]
+
+
+@rule('NK-14', NK_SET, 'personality', 'Ashwini: speed and care')
+def r_nk14(ch):
+    return [_nk(f'{p} in Ashwini: quick and active; loves vehicles and speed; caring towards animals.', ch, p)
+            for p in _in(ch, ('Lagna', 'Moon'), 'Ashwini')]
+
+
+@rule('NK-15', NK_SET, 'personality', 'Ashlesha: the strategist')
+def r_nk15(ch):
+    return [_nk(f'{p} in Ashlesha: a strategic mind suited to chess, mathematics or research; '
+                f'attachments run deep for {who(ch, p)}.', ch, p)
+            for p in _in(ch, NK_POINTS, 'Ashlesha')]
+
+
+@rule('NK-16', NK_SET, 'career', 'Krittika: the cut')
+def r_nk16(ch):
+    return [_nk(f'{p} in Krittika: a talent for cooking, or for work that involves cutting and editing such as film.', ch, p)
+            for p in _in(ch, NK_POINTS, 'Krittika')]
+
+
+@rule('NK-17', NK_SET, 'marriage', '7th lord in Purva Ashadha')
+def r_nk17(ch):
+    p = ch.lord[7]
+    if nak_of(ch, p) == 'Purva Ashadha':
+        return _nk(f'The 7th lord {p} is in Purva Ashadha: marriage tends to come early.', ch, p)
+
+
+@rule('NK-18', NK_SET, 'education', 'Shravana: the listener')
+def r_nk18(ch):
+    return [_nk(f'{p} in Shravana: learns best by listening; drawn to the sky and the stars.', ch, p)
+            for p in _in(ch, NK_POINTS, 'Shravana')]
+
+
+@rule('NK-19', NK_SET, 'personality', 'Hasta: the hand')
+def r_nk19(ch):
+    return [_nk(f'{p} in Hasta: a distinctive smile and a good sense of humour; likes rings, watches and hand adornments.', ch, p)
+            for p in _in(ch, ('Lagna', 'Moon'), 'Hasta')]
+
+
+@rule('NK-20', NK_SET, 'career', 'Magha: the throne')
+def r_nk20(ch):
+    return [_nk(f'{p} in Magha: a pull towards leadership and public standing; fond of grand furniture and ancestral traditions.',
+                ch, p)
+            for p in _in(ch, ('Lagna', 'Moon', 'Sun'), 'Magha')]
+
+
+@rule('NK-21', NK_SET, 'career', 'Saturn in Ardra')
+def r_nk21(ch):
+    if nak_of(ch, 'Saturn') == 'Ardra':
+        return _nk('Saturn in Ardra: work that lifts up the neglected, people or stray animals; '
+                   'struggles come first and recognition late.', ch, 'Saturn', 'mixed')
+
+
+@rule('NK-22', NK_SET, 'personality', 'Node in Ardra or Moola: dogs')
+def r_nk22(ch):
+    return [_nk(f'{p} in Ardra or Moola: likely to keep dogs or care for strays.', ch, p)
+            for p in _in(ch, NODES, 'Ardra', 'Moola')]
+
+
+@rule('NK-23', NK_SET, 'family', 'Phalguni: left hand')
+def r_nk23(ch):
+    pts = list(dict.fromkeys((ch.lord[1], ch.lord[3])))
+    return [_nk(f'{p} in a Phalguni nakshatra: left-handedness may show up for {who(ch, p)}.', ch, p)
+            for p in _in(ch, pts, 'Purva Phalguni', 'Uttara Phalguni')]
+
+
+@rule('NK-24', NK_SET, 'personality', 'Uttara Ashadha: undefeated')
+def r_nk24(ch):
+    return [_nk(f'{p} in Uttara Ashadha: does not accept defeat; keeps returning until the goal is won.', ch, p)
+            for p in _in(ch, NK_POINTS, 'Uttara Ashadha')]
+
+
+@rule('NK-25', NK_SET, 'general', 'Benefic in Pushya')
+def r_nk25(ch):
+    return [_nk(f'{p} in Pushya: steady growth and nourishment for {who(ch, p)}.', ch, p)
+            for p in _in(ch, ('Moon', 'Mercury', 'Jupiter', 'Venus'), 'Pushya') if ch.dig(p) != 'debilitated']
+
+
+@rule('NK-26', NK_SET, 'wealth', 'Wealth star (Sampat tara) remedy')
+def r_nk26(ch):
+    star = A.NAKS[(ch.pt['Moon']['nak'] + 1) % 27]
+    sym = data()[NK_SET]['rules'][-1]['symbols'][star]
+    return hit(f'Wealth star (Sampat tara) is {star}: keeping its symbol, {sym}, nearby as a picture or wallpaper '
+               f'is a simple remedy that costs nothing.', f'Moon in {nak_of(ch, "Moon")}; next star {star}')
+
+
 # ── evaluation ───────────────────────────────────────────────────────────────
 
 def evaluate(res, now=None):

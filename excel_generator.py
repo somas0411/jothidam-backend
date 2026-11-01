@@ -29,6 +29,7 @@ from openpyxl.worksheet.pagebreak import Break
 from openpyxl.worksheet.properties import PageSetupProperties
 
 import charts
+import family_i18n
 import family_engine
 import i18n
 import match_engine
@@ -1368,7 +1369,7 @@ def family_blocks(result, lang):
     """
     {sheet: [block]} where a block is {'title', 'cols': [(heading, width, align)],
     'rows': [[values]], 'status': column index holding a status word or None}.
-    Headings are in the report language; values are the engine's English facts.
+    Headings and values are in the report language (family_i18n renders the engine's English facts).
     """
     F = lambda k: i18n.FL(k, lang)
     R = lambda r: i18n.relation_name(r, lang)
@@ -1377,7 +1378,12 @@ def family_blocks(result, lang):
     names = {m['idx']: m['name'] for m in result['members']}
     blocks = {k: [] for k, _ in FAMILY_SHEETS}
 
-    def block(sheet, title, cols, rows, status=None):
+    def block(sheet, title, cols, rows, status=None, raw=False):
+        if lang in family_i18n.ORDER and not raw:          # the engine's English facts in the report language
+            t = lambda v: family_i18n.tr(v, lang)
+            title = t(title)
+            cols = [(t(h), w, al) for h, w, al in cols]
+            rows = [[t(v) for v in row] for row in rows]
         blocks[sheet].append({'title': title, 'cols': cols, 'rows': rows, 'status': status})
 
     block('family', F('members'),
@@ -1456,9 +1462,11 @@ def family_blocks(result, lang):
           [[x['member_a'], x['change_a'], _fd(x['date_a']), x['member_b'], x['change_b'], _fd(x['date_b']),
             x['months_apart']] for x in sec['E']['sandhi']])
 
-    block('rules', F('rules'), [('', 24, 'L'), ('', 100, 'L')], [[r['name'], r['rule']] for r in result['rules']])
+    block('rules', F('rules'), [('', 24, 'L'), ('', 100, 'L')],
+          [[family_i18n.rule_name(r['name'], lang), family_i18n.rule_text(r['name'], r['rule'], lang)]
+           for r in result['rules']], raw=True)
     block('rules', F('not_included'), [('', 4, 'C'), ('', 100, 'L')],
-          [[i, t] for i, t in enumerate(result['not_included'], 1)])
+          [[i, family_i18n.not_included(t, lang)] for i, t in enumerate(result['not_included'], 1)], raw=True)
     return blocks
 
 

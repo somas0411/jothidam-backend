@@ -20,6 +20,9 @@ Sections, in output order
                    timing windows; career fields, job or business, marriage
                    and children periods, partner indications
   period       P5  running dasa, bhukti and antaram, and the next bhuktis
+  kp           P10 KP event timing (kp_timing.py): promise by the cuspal sub
+                   lord, significators, ruling planets of the report moment,
+                   the best dasa / bhukti windows with peak antarams and Sun dates
   transit      P6  Saturn, Jupiter, Rahu and Ketu from the Moon, now and for
                    24 months; Sade Sati; Jupiter-Saturn double transit
   calendar     P7  the next 12 months rated by a counted rule (CALENDAR_RULE)
@@ -45,6 +48,7 @@ import re
 from datetime import datetime, timedelta
 
 import i18n
+import kp_timing
 import match_engine as M
 import rulebook_i18n
 from astro_engine import NAKS, RASIS, SIGN_LORDS, YOGAS as NITYA_YOGAS
@@ -53,7 +57,7 @@ from rulebook import BANNED
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'predictions')
 
-SECTIONS = ('summary', 'personality', 'strengths', 'yogas', 'life', 'period', 'transit', 'calendar',
+SECTIONS = ('summary', 'personality', 'strengths', 'yogas', 'life', 'period', 'kp', 'transit', 'calendar',
             'remedies')
 SEVEN = ('Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn')
 NODES = ('Rahu', 'Ketu')
@@ -1011,6 +1015,63 @@ def _summary(c):
 
 # ── build ────────────────────────────────────────────────────────────────────
 
+KP_TONE = {'strong': 'favourable', 'promised': 'favourable', 'mixed': 'mixed', 'weak': 'challenging'}
+KP_SIGNIFICATORS_SHOWN = 4
+
+
+def _kp(c):
+    """P10: KP event timing, one block per event (kp_timing.compute)."""
+    S = 'kp'
+    out = kp_timing.compute(c.res, c.now)
+    rp = out['ruling_planets']
+    topic = c.L('kp.topic')
+    c.add(S, topic, 'method', 'neutral', c.L('kp.method'), 'kp_timing.py: cuspal sub lord, ABCD significators, '
+          'ruling planets, Vimshottari dasa / bhukti / antaram, Sun transit')
+    c.add(S, topic, 'ruling planets', 'neutral', c.L('kp.rp', planets=c.pns(rp['planets'])),
+          'ruling planets at ' + rp['moment'].strftime('%Y-%m-%d %H:%M') + ': '
+          + ', '.join(f'{k} {v}' for k, v in rp['parts'].items()))
+    hs = lambda xs: ', '.join(str(x) for x in xs) or '-'
+    for e in out['events']:
+        label = c.L('kp.event.' + e['event'])
+        verdict = c.L('kp.verdict.' + e['verdict'])
+        c.add(S, label, 'promise', KP_TONE[e['verdict']],
+              c.L('kp.promise', cusp=e['cusp'], csl=c.pn(e['csl']), star=c.pn(e['csl_star']),
+                  houses=hs(e['csl_primary']), fav=hs(e['fav_primary']), neg=hs(e['neg_primary']),
+                  verdict=verdict),
+              f"cusp {e['cusp']} sub lord {e['csl']}, star lord {e['csl_star']}; via star lord {e['csl_primary']}, "
+              f"own {e['csl_own']}; favourable {e['fav']}, negating {e['neg']}; verdict {e['verdict']}")
+        if e['verdict'] == 'weak':
+            continue
+        fruitful = [s['planet'] for s in e['significators'] if s['fruitful']][:KP_SIGNIFICATORS_SHOWN]
+        if fruitful:
+            c.add(S, label, 'significators', 'neutral', c.L('kp.sig', planets=c.pns(fruitful)),
+                  'scores (A4 B3 C2 D1 over houses ' + hs(e['fav']) + '): '
+                  + ', '.join(f"{s['planet']} {s['score']}{' RP' if s['ruling'] else ''}"
+                              f"{'' if s['fruitful'] else ' (not fruitful)'}" for s in e['significators']))
+        if e['past_band']:
+            c.add(S, label, 'timing', 'neutral', c.L('kp.past_band', a=e['ages'][0], b=e['ages'][1]),
+                  f"age {out['age']} is past the band {e['ages'][0]}-{e['ages'][1]}")
+            continue
+        if not e['windows']:
+            c.add(S, label, 'timing', 'neutral', c.L('kp.none', years=out['horizon_years']),
+                  f"no bhukti of a fruitful significator within {out['horizon_years']} years and ages "
+                  f"{e['ages'][0]}-{e['ages'][1]}")
+            continue
+        for w in e['windows']:
+            period = c.span(w['start'], w['end'])
+            peaks = '; '.join(f"{c.pn(p['antara'])} {c.L('level.antaram')} {c.span(p['start'], p['end'], False)}"
+                              for p in w['peaks'])
+            text = c.L('kp.window', dasa=c.pn(w['dasa']), bhukti=c.pn(w['bhukti']), period=period, peaks=peaks)
+            if w['sun']:
+                text += c.L('kp.sun', dates='; '.join(c.span(a, b, False) if a != b else c.date(a)
+                                                       for a, b in w['sun']))
+            c.add(S, label, 'window', KP_TONE[e['verdict']], text,
+                  f"dasa {w['dasa']}, bhukti {w['bhukti']}, peaks "
+                  + ', '.join(p['antara'] for p in w['peaks'])
+                  + f"; score {w['score']}; ruling planets among dasa/bhukti: {', '.join(w['rp_hits']) or 'none'}",
+                  period, c.status(w['start'], w['end']))
+
+
 def _clean(rows):
     """Drop any row whose words break site policy (none should; this is the last guard)."""
     keep = []
@@ -1031,6 +1092,7 @@ def build_rows(res, ai, lang='en'):
     _yogas(c)
     _life(c)
     _period(c)
+    _kp(c)
     _transits(c)
     _calendar(c)
     if SHOW_REMEDIES:

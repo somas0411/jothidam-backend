@@ -20,9 +20,10 @@ For each life event the classic three KP steps are applied, in this order:
   3. Timing    Every Vimshottari dasa / bhukti / antaram ahead of the report
                moment (up to HORIZON_YEARS, inside the event's age band) is
                grouped by bhukti: the bhukti lord must be fruitful and the dasa
-               lord must not lean clearly to the negating houses; a fruitful
+               lord must have a favourable house (one that only leans
+               against the event lowers the score instead); a fruitful
                dasa lord, each dasa/bhukti lord that is also a Ruling Planet of
-               the report moment, and the share of fruitful antarams add to the
+               the birth moment, and the share of fruitful antarams add to the
                score. The best bhuktis are listed with up to two peak antarams
                and the first days of the first peak when the transiting Sun is
                in a sign or star ruled by the bhukti or that antaram lord.
@@ -57,7 +58,8 @@ ADULT_AGE = 18
 LEVEL_SCORE = {'a': 4, 'b': 3, 'c': 2, 'd': 1}
 HORIZON_YEARS = 15
 WINDOWS_PER_EVENT = 3
-RP_BONUS = 1.0
+RP_BONUS = 0.5               # per dasa / bhukti lord that is a ruling planet of the birth moment
+DASA_PENALTY = 0.75         # dasa lord whose houses lean to the negating group
 W_DASA, W_BHUKTI, W_ANTARA = 1.0, 2.0, 1.5
 PEAKS_PER_WINDOW = 2
 SUN_DAYS_MAX = 3              # transit date spans listed per window
@@ -162,13 +164,24 @@ def sun_spans(start, end, lords, offset_hours, limit=SUN_DAYS_MAX):
 
 
 def _against(p, houses, fav, neg):
-    """A dasa lord whose houses lean clearly to the negating group."""
+    """A dasa lord with no favourable house and at least two negating ones."""
     h = houses[p]['all']
-    return len([x for x in h if x in neg]) > len([x for x in h if x in fav]) + 1
+    return not [x for x in h if x in fav] and len([x for x in h if x in neg]) >= 2
 
 
-def _windows(antaras, now, horizon, birth, ages, fruitful, houses, fav, neg, rp_set, offset):
-    """Bhukti windows ahead, best first by score, then listed in date order, each with peak antarams."""
+def _leans_against(p, houses, fav, neg):
+    h = houses[p]['all']
+    return len([x for x in h if x in neg]) > len([x for x in h if x in fav])
+
+
+def _windows(antaras, now, horizon, birth, ages, fruitful, houses, fav, neg, rp_set, offset, strength):
+    """
+    Bhukti windows ahead, best first by score, then listed in date order, each with peak antarams.
+    The score uses this event's own significator strengths (A4 B3 C2 D1), so different
+    events rank different periods.
+    """
+    top = max(strength.values()) if strength else 1.0
+    st = lambda p: strength.get(p, 0) / top                 # 0..1 for this event
     groups = {}
     for d, b, a, start, end in antaras:
         if end <= now or start >= horizon:
@@ -180,23 +193,28 @@ def _windows(antaras, now, horizon, birth, ages, fruitful, houses, fav, neg, rp_
         y0, y1 = (start - birth).days / 365.25, (end - birth).days / 365.25
         if y1 < ages[0] or y0 > ages[1] or b not in fruitful or _against(d, houses, fav, neg):
             continue
-        peaks = [(a, max(s, now), e) for a, s, e in rows if a in fruitful]
+        peaks = [(a, max(s_, now), e) for a, s_, e in rows if a in fruitful]
         if not peaks:
             continue
         rp_hits = [x for x in dict.fromkeys((d, b)) if x in rp_set]
-        score = (W_BHUKTI + (W_DASA if d in fruitful else 0) + RP_BONUS * len(rp_hits)
-                 + W_ANTARA * min(1.0, len(peaks) / 3))
-        peaks.sort(key=lambda r: (-(r[0] in rp_set), r[1]))
+        score = (W_BHUKTI * (0.5 + st(b)) + W_DASA * st(d)
+                 - (DASA_PENALTY if _leans_against(d, houses, fav, neg) else 0)
+                 + RP_BONUS * len(rp_hits) + W_ANTARA * min(1.0, len(peaks) / 3))
+        peaks.sort(key=lambda r: (-st(r[0]), r[1]))
         peaks = sorted(peaks[:PEAKS_PER_WINDOW], key=lambda r: r[1])
         out.append({'dasa': d, 'bhukti': b, 'start': start, 'end': end, 'score': round(score, 2),
-                    'rp_hits': rp_hits,
-                    'peaks': [{'antara': a, 'start': s, 'end': e, 'ruling': a in rp_set} for a, s, e in peaks]})
+                    'rp_hits': rp_hits, 'dasa_against': _leans_against(d, houses, fav, neg),
+                    'peaks': [{'antara': a, 'start': s_, 'end': e, 'ruling': a in rp_set} for a, s_, e in peaks]})
     out.sort(key=lambda w: (-w['score'], w['start']))
-    out = sorted(out[:WINDOWS_PER_EVENT], key=lambda w: w['start'])
+    # The running bhukti, when it qualifies, is always listed: it is the period the reader is in.
+    running = [w for w in out if w['start'] <= now]
+    pick = running[:1] + [w for w in out if w not in running[:1]][:WINDOWS_PER_EVENT - len(running[:1])]
+    out = sorted(pick, key=lambda w: w['start'])
     for w in out:
         p = w['peaks'][0]
         w['sun'] = sun_spans(p['start'], p['end'], (w['bhukti'], p['antara']), offset)
     return out
+
 
 # ── main ─────────────────────────────────────────────────────────────────────
 
@@ -214,7 +232,9 @@ def compute(res, now=None):
     now = now or m['generated_at']
     offset = m['utc_offset']
     age = (now - birth).days / 365.25
-    rp = ruling_planets_at(now, offset, m['lat'], m['lon'], m.get('node', 'mean'))
+    # Ruling planets of the birth moment: fixed for the chart, so the report does
+    # not change with the day it is generated (moment-of-judgement RPs belong to horary).
+    rp = ruling_planets_at(birth, offset, m['lat'], m['lon'], m.get('node', 'mean'))
     rp_set = set(rp['planets'])
     houses = _signified(kp)
     levels = _house_levels(kp)
@@ -255,7 +275,7 @@ def compute(res, now=None):
         windows = []
         past_band = (now - birth).days / 365.25 > ages[1]
         if verdict != 'weak' and not past_band:
-            windows = _windows(antaras, now, horizon, birth, ages, fruitful, houses, fav, neg, rp_set, offset)
+            windows = _windows(antaras, now, horizon, birth, ages, fruitful, houses, fav, neg, rp_set, offset, score)
         events.append({'event': key, 'cusp': cusp, 'fav': list(fav), 'neg': list(neg), 'ages': ages,
                        'csl': csl, 'csl_star': star, 'csl_primary': h['primary'], 'csl_own': h['own'],
                        'fav_primary': fav_p, 'neg_primary': neg_p, 'fav_own': fav_s,

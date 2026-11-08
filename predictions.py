@@ -21,7 +21,7 @@ Sections, in output order
                    and children periods, partner indications
   period       P5  running dasa, bhukti and antaram, and the next bhuktis
   kp           P10 KP event timing (kp_timing.py): promise by the cuspal sub
-                   lord, significators, ruling planets of the report moment,
+                   lord, significators, ruling planets of the birth moment,
                    the best dasa / bhukti windows with peak antarams and Sun dates
   transit      P6  Saturn, Jupiter, Rahu and Ketu from the Moon, now and for
                    24 months; Sade Sati; Jupiter-Saturn double transit
@@ -1028,7 +1028,7 @@ def _kp(c):
     c.add(S, topic, 'method', 'neutral', c.L('kp.method'), 'kp_timing.py: cuspal sub lord, ABCD significators, '
           'ruling planets, Vimshottari dasa / bhukti / antaram, Sun transit')
     c.add(S, topic, 'ruling planets', 'neutral', c.L('kp.rp', planets=c.pns(rp['planets'])),
-          'ruling planets at ' + rp['moment'].strftime('%Y-%m-%d %H:%M') + ': '
+          'ruling planets of the birth moment ' + rp['moment'].strftime('%Y-%m-%d %H:%M') + ': '
           + ', '.join(f'{k} {v}' for k, v in rp['parts'].items()))
     hs = lambda xs: ', '.join(str(x) for x in xs) or '-'
     for e in out['events']:

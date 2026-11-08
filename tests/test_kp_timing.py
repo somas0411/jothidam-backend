@@ -44,7 +44,7 @@ def test_deterministic():
 def test_ruling_planets_parts():
     res, out = _out(CHARTS[0])
     rp = out['ruling_planets']
-    jd = A.julian_day(NOW - timedelta(hours=res['meta']['utc_offset']))
+    jd = A.julian_day(res['meta']['local_dt'] - timedelta(hours=res['meta']['utc_offset']))
     pos = A._positions(jd, res['meta']['lat'], res['meta']['lon'], A.swe.SIDM_KRISHNAMURTI)
     _, star, _, _ = A.kp_lords(pos['cusps'][0])
     assert rp['parts']['lagna_star_lord'] == star
@@ -100,3 +100,34 @@ def test_kp_section_in_predictions(lang):
     assert any(r['item'] == 'promise' for r in rows) and any(r['item'] == 'ruling planets' for r in rows)
     for r in rows:
         assert '{' not in r['text'] and r['basis']
+
+
+def test_report_date_does_not_change_the_windows():
+    """Ruling planets are those of the birth moment, so a later report date only drops passed periods."""
+    a = K.compute(A.compute(now=NOW, **CHARTS[0]), NOW)
+    later = NOW + timedelta(days=3)
+    b = K.compute(A.compute(now=later, **CHARTS[0]), later)
+    assert a['ruling_planets']['planets'] == b['ruling_planets']['planets']
+    for ea, eb in zip(a['events'], b['events']):
+        assert [(w['dasa'], w['bhukti'], w['end']) for w in ea['windows']] == \
+               [(w['dasa'], w['bhukti'], w['end']) for w in eb['windows']]
+
+
+def test_ruling_planets_are_of_the_birth_moment():
+    res = A.compute(now=NOW, **CHARTS[0])
+    rp = K.compute(res, NOW)['ruling_planets']
+    assert rp['moment'] == res['meta']['local_dt']
+    assert rp['parts']['day_lord'] == res['vedic']['panchangam']['vara_lord']
+
+
+def test_events_do_not_all_share_the_same_windows():
+    for chart in CHARTS:
+        _, out = _out(chart)
+        sets = {tuple((w['dasa'], w['bhukti']) for w in e['windows']) for e in out['events'] if e['windows']}
+        assert len(sets) > 1
+
+
+def test_running_bhukti_is_listed_when_it_qualifies():
+    _, out = _out(CHARTS[0])
+    job = next(e for e in out['events'] if e['event'] == 'job')
+    assert job['windows'][0]['start'] == NOW and job['windows'][0]['bhukti'] == 'Rahu'

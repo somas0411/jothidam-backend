@@ -107,7 +107,8 @@ def products(lang='en'):
 
 def options_block(lang='en'):
     """What /api/options adds for the website."""
-    return {'payments_enabled': ready(), 'currency': 'INR', 'products': products(lang)}
+    return {'payments_enabled': ready(), 'currency': 'INR', 'products': products(lang),
+            'support_email': pay_i18n._support_address(), 'link_hours': link_hours()}
 
 
 # ── SIGNATURES AND TOKENS ─────────────────────────────────────────────────────

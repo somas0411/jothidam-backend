@@ -1026,7 +1026,7 @@ def _predictions(pdf, block):
 
 # ── ENTRY POINTS ──────────────────────────────────────────────────────────────
 
-def generate_pdf(res, lang=None, match=None, people=None, predictions=None):
+def generate_pdf(res, lang=None, match=None, people=None, predictions=None, product='full'):
     """
     Build the PDF from compute() output. Returns bytes.
     match, people: the result of match_engine.match() for this person and a
@@ -1034,6 +1034,8 @@ def generate_pdf(res, lang=None, match=None, people=None, predictions=None):
     follows the notes.
     predictions: the block of predictions.build(res, ai, lang); when given, a
     Predictions section (summary first) follows the notes.
+    product: 'full' (every section) or 'basic' (no divisional charts, no
+    notes, no predictions).
     """
     lang = lang or res['meta'].get('lang', 'en')
     if lang not in i18n.LANGS:
@@ -1041,13 +1043,16 @@ def generate_pdf(res, lang=None, match=None, people=None, predictions=None):
     specs = charts.build_specs(res, lang)
     pdf = Report(res, lang)
     _summary(pdf, specs)
+    full = product != 'basic'
     _vedic(pdf, specs)
-    _divisional(pdf)
+    if full:
+        _divisional(pdf)
     _kp(pdf, specs)
     _alp(pdf, specs)
     _dasa(pdf)
-    _notes(pdf)
-    if predictions:
+    if full:
+        _notes(pdf)
+    if full and predictions:
         _predictions(pdf, predictions)
     if match:
         _marriage(pdf, match, people)

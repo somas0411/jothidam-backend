@@ -44,6 +44,17 @@ of the API is unchanged. Design, setup (Neon, Brevo, Render), API and test plan:
 | `fonts/` | Noto Sans fonts (SIL Open Font License, see `fonts/OFL.txt`) |
 | `tests/` | `pytest` suite: `test_engine.py` (engine and reports), `test_enrich.py` (AI tables, AI sheets, JSON routes), `test_protection.py` (request limits, body size cap, CORS, bad input), `test_reader.py` (what schema 2 added: dasa levels, faster transits, stations, period facts, topic promise and windows, optional inputs, the brief), `test_bookings.py` (consultations: slots, validation, double bookings, calendar, e-mails, admin, retention; set `TEST_DATABASE_URL` to run it on PostgreSQL), `test_match.py` (marriage matching: the star tables against the published lists, every pair of the 108 padas against a second statement of the rules, pairs worked by hand, the route). `golden_main.json` holds fingerprints of the seven report sheets and of the `/api/horoscope` response, made by `make_golden.py`, so a change to the old output is caught |
 
+## Switches, paid reports and support tickets
+
+**The AI sheets are switched off** (`AI_TABS_ENABLED=false`, the default). No workbook gets an `AI_` sheet, the
+Notes sheet says nothing about them, `/api/download/json` answers 404 and `"ai"` in a body is ignored. Everything
+below that mentions the AI block, `AI_` sheets or the JSON download applies only with `AI_TABS_ENABLED=true`.
+The Predictions sheet no longer has the "Chart basis" column.
+
+**Payments** (Razorpay, INR) are built and switched off (`PAYMENTS_ENABLED=false`): basic horoscope ₹200, horoscope
+with Notes and Predictions ₹500, marriage matching ₹200, family reading ₹500. **Support tickets** are at
+`POST /api/tickets`. Products, routes, settings and the go-live checklist: [docs/PAYMENTS.md](docs/PAYMENTS.md).
+
 ## API
 
 All horoscope endpoints take the same JSON body.

@@ -487,9 +487,9 @@ CHECKS = {
                    'Ketu also act for their sign lord and the planets with them, which is not added here.'),
     'marriage_windows': ('E', 'Marriage windows of both', 'The spans of the next 10 years in which a Marriage '
                          'window of the boy\'s horoscope and one of the girl\'s overlap. No result.',
-                         'A window is a span of AI_TopicWindows for the topic Marriage: two or more of bhukti, '
-                         'antaram, Jupiter and Saturn agreeing. Rule-based overlap, not a prediction. The row '
-                         'names the first spans; all are in "windows".'),
+                         'A window is a span in which two or more of bhukti, antaram, Jupiter and Saturn agree '
+                         'for the topic Marriage. Rule-based overlap, not a prediction. The row names the first '
+                         'spans.'),
 }
 
 MATCH_RULES = [(f'{GROUPS[group].split(" (")[0]}: {name}', f'{rule} {variant}')

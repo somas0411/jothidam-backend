@@ -53,6 +53,9 @@ from limits import parse as parse_limit
 from werkzeug.exceptions import HTTPException, TooManyRequests
 
 import booking_api
+import features
+import payments
+import tickets
 import predictions as prediction_engine
 import rulebook
 import charts
@@ -366,8 +369,8 @@ def _ai_mode():
 
 
 def _wants_ai():
-    """True when the request body asks for the full AI block ("ai": true)."""
-    return _ai_mode() == 'full'
+    """True when the request body asks for the full AI block ("ai": true) and AI_TABS_ENABLED is on."""
+    return features.ai_tabs() and _ai_mode() == 'full'
 
 
 def _wants_predictions(default):
@@ -462,6 +465,18 @@ def _legacy_fields(res):
     }
 
 
+
+def _paywall(fn):
+    """With payments switched on, the free download routes answer 402: files come from /api/orders/<id>/download."""
+    def run(*args, **kwargs):
+        if payments.ready():
+            return jsonify({'error': 'This download is a paid report. Please buy it on the website.',
+                            'code': 'payment_required'}), 402
+        return fn(*args, **kwargs)
+    run.__name__ = fn.__name__
+    return run
+
+
 # ── ROUTES ────────────────────────────────────────────────────────────────────
 
 @app.route('/health')
@@ -480,7 +495,8 @@ def ping():
 def options():
     return jsonify({'ayanamshas': {k: v[0] for k, v in AYANAMSHAS.items()},
                     'languages': i18n.LANGS, 'chartStyles': ['south', 'north'],
-                    'nodes': ['mean', 'true']})
+                    'nodes': ['mean', 'true'], 'ai_tabs': features.ai_tabs(),
+                    **payments.options_block(request.args.get('lang', 'en'))})
 
 
 @app.route('/api/geocode')
@@ -499,7 +515,7 @@ def geocode_route():
 def horoscope():
     def run():
         res, lang = _compute_from_request()
-        if _ai_mode() == 'brief':
+        if features.ai_tabs() and _ai_mode() == 'brief':
             return jsonify(_brief_block(res))
         out = to_jsonable(res)
         out['charts'] = charts.build_specs(res, lang)
@@ -509,11 +525,16 @@ def horoscope():
         out['names'] = i18n.bundle(lang)
         out['saptarishi_view'] = saptarishi.view(res['saptarishi'], lang)
         out.update(_legacy_fields(res))
-        ai = enrich(res, extras=_extras()) if _wants_ai() or _wants_predictions(False) else None
+        ai = (enrich(res, extras=_extras())
+              if _wants_ai() or (_wants_predictions(False) and not payments.ready()) else None)
         if _wants_ai():
             out['ai'] = to_jsonable(ai)
         if _wants_predictions(False):
-            out['predictions'] = to_jsonable(prediction_engine.build(res, ai, lang))
+            if payments.ready():
+                # Predictions (பலன்கள்) are part of the paid "full" report: the page shows a locked tab.
+                out['predictions_locked'] = True
+            else:
+                out['predictions'] = to_jsonable(prediction_engine.build(res, ai, lang))
         return jsonify(out)
     return _guard(run)
 
@@ -563,6 +584,7 @@ def _match_filename(result, ext):
 
 @app.route('/api/download/match/excel', methods=['POST'])
 @download_limit
+@_paywall
 def download_match_excel():
     """The match as a workbook: the Marriage sheet, then the AI_Match sheets."""
     def run():
@@ -574,6 +596,7 @@ def download_match_excel():
 
 @app.route('/api/download/match/pdf', methods=['POST'])
 @download_limit
+@_paywall
 def download_match_pdf():
     """The match as a PDF: the Marriage section alone."""
     def run():
@@ -606,6 +629,7 @@ def family_route():
 
 @app.route('/api/download/family/excel', methods=['POST'])
 @download_limit
+@_paywall
 def download_family_excel():
     """The family reading as a workbook: Family sheets, then the AI_Family sheets."""
     def run():
@@ -617,6 +641,7 @@ def download_family_excel():
 
 @app.route('/api/download/family/pdf', methods=['POST'])
 @download_limit
+@_paywall
 def download_family_pdf():
     """The family reading as a PDF."""
     def run():
@@ -628,6 +653,7 @@ def download_family_pdf():
 
 @app.route('/api/download/excel', methods=['POST'])
 @download_limit
+@_paywall
 def download_excel():
     def run():
         res, lang = _compute_from_request()
@@ -641,6 +667,7 @@ def download_excel():
 
 @app.route('/api/download/pdf', methods=['POST'])
 @download_limit
+@_paywall
 def download_pdf():
     def run():
         res, lang = _compute_from_request()
@@ -659,6 +686,9 @@ def download_json():
     The full result of compute() plus the AI block, for giving to an AI assistant.
     With "ai": "brief" the file holds meta and the short AI_Brief table only.
     """
+    if not features.ai_tabs():
+        return jsonify({'error': 'Not found.'}), 404
+
     def run():
         res, lang = _compute_from_request()
         if _ai_mode() == 'brief':
@@ -687,6 +717,46 @@ def _booking_pdf(birth, lang):
 
 
 booking_api.register(app, limiter, check_birth=_booking_compute, render_pdf=_booking_pdf)
+
+
+def _render_paid(product, payload, fmt, lang):
+    """
+    Build a paid report from the stored request (payments.py). fmt 'check'
+    only validates the details (raises InputError); 'pdf' and 'excel' return
+    (bytes, filename, mime).
+    """
+    xlsx = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    with app.test_request_context('/', method='POST', json=payload):
+        if product in features.HOROSCOPE_PRODUCTS:
+            res, lang = _compute_from_request()
+            if fmt == 'check':
+                return None
+            result, people = _partner_match(res)
+            full = product == 'full'
+            ai = enrich(res, extras=_extras()) if full else None
+            if fmt == 'excel':
+                return (generate_excel(res, lang, ai=ai, match=result, people=people, predictions=full,
+                                       product=product), _filename(res['meta']['name'], 'xlsx'), xlsx)
+            block = prediction_engine.build(res, ai, lang) if full else None
+            return (generate_pdf(res, lang, match=result, people=people, predictions=block, product=product),
+                    _filename(res['meta']['name'], 'pdf'), 'application/pdf')
+        if product == 'match':
+            result, people, lang = _match_from_request()
+            if fmt == 'check':
+                return None
+            if fmt == 'excel':
+                return generate_match_excel(result, people, lang), _match_filename(result, 'xlsx'), xlsx
+            return generate_match_pdf(result, people, lang), _match_filename(result, 'pdf'), 'application/pdf'
+        result, lang = _family_from_request()
+        if fmt == 'check':
+            return None
+        if fmt == 'excel':
+            return generate_family_excel(result, lang), _family_filename(result, 'xlsx'), xlsx
+        return generate_family_pdf(result, lang), _family_filename(result, 'pdf'), 'application/pdf'
+
+
+payments.register(app, limiter, _render_paid)
+tickets.register(app, limiter)
 
 
 if __name__ == '__main__':

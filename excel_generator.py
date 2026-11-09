@@ -18,6 +18,7 @@ sorted and filtered. Dates are real Excel dates. Every sheet is set up for
 A4 portrait, one page wide.
 """
 import io
+import features
 import math
 from datetime import date, datetime, time
 from functools import lru_cache
@@ -1033,7 +1034,7 @@ def _marriage(wb, match, people, lang, first=False):
                                w['boy_layers'], w['girl_layers']] for w in shown])
         if len(windows) > len(shown):
             g.height(r, 15)
-            g.put(r, COL0, ML('windows_shown').format(n=len(shown), total=len(windows)) + ' ' + ML('windows_all_ai'),
+            g.put(r, COL0, ML('windows_shown').format(n=len(shown), total=len(windows)) + (' ' + ML('windows_all_ai') if features.ai_tabs() else ''),
                   span=GRID_N, size=8, color=MUTED, italic=True, border=False, wrap=False)
             r += 1
         r += 1
@@ -1178,14 +1179,14 @@ def _predictions(wb, block, lang):
     title = block['title'] if lang != 'bi' else 'Predictions'
     ws = wb.create_sheet(_sheet_name_text(title))
     ws.sheet_view.showGridLines = False
-    widths = {'A': 1.5, 'B': 22, 'C': 78, 'D': 13, 'E': 30, 'F': 14, 'G': 48}
+    widths = {'A': 1.5, 'B': 22, 'C': 78, 'D': 13, 'E': 30, 'F': 14}
     for k, w in widths.items():
         ws.column_dimensions[k].width = w
     border = Border(left=_thin, right=_thin, top=_thin, bottom=_thin)
     labels = block['labels']
 
     def band(r, text, fill, size, h):
-        ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=7)
+        ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=6)
         ws.row_dimensions[r].height = h
         c = ws.cell(row=r, column=2, value=text)
         c.font, c.fill = _font(size, True, WHITE), _fill(fill)
@@ -1193,12 +1194,12 @@ def _predictions(wb, block, lang):
         return r + 1
 
     r = band(1, block['title'], BAND, 15, 30)
-    ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=7)
+    ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=6)
     c = ws.cell(row=r, column=2, value=block['disclaimer'])
     c.font, c.alignment = _font(9, False, MUTED, True), Alignment(vertical='center', indent=1, wrap_text=True)
     ws.row_dimensions[r].height = 18
     r += 2
-    heads = [labels['columns'][k] for k in ('topic', 'text', 'tone', 'period', 'status', 'basis')]
+    heads = [labels['columns'][k] for k in ('topic', 'text', 'tone', 'period', 'status')]
     titles = {s['key']: s['title'] for s in block['sections']}
     for sec in block['sections']:
         rows = [x for x in block['rows'] if x['section'] == sec['key'] and x['item'] != 'disclaimer']
@@ -1212,17 +1213,16 @@ def _predictions(wb, block, lang):
         r += 1
         for x in rows:
             vals = [x['topic'], x['text'], labels['tone'].get(x['tone'], x['tone']), x['period'],
-                    labels['status'].get(x['status'], x['status']), x['basis']]
+                    labels['status'].get(x['status'], x['status'])]
             for j, v in enumerate(vals):
                 cell = ws.cell(row=r, column=2 + j, value=v)
                 cell.border = border
                 cell.alignment = Alignment(vertical='top', wrap_text=True, indent=1)
-                cell.font = _font(8 if j == 5 else 9, j == 0, MUTED if j == 5 else INK)
+                cell.font = _font(9, j == 0, INK)
                 if j == 2:
                     cell.fill = _fill(TONE_FILL.get(x['tone'], WHITE))
                     cell.font = _font(9, True, TONE_INK.get(x['tone'], INK))
-            lines = max(1, -(-len(str(x['text'])) // 88), -(-len(str(x['basis'])) // 60),
-                        -(-len(str(x['period'])) // 32))
+            lines = max(1, -(-len(str(x['text'])) // 88), -(-len(str(x['period'])) // 32))
             ws.row_dimensions[r].height = 13 * lines + 4
             r += 1
         r += 1
@@ -1261,40 +1261,47 @@ def _ai_predictions(wb, block):
 
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────
 
-def generate_excel(res, lang=None, ai=None, match=None, people=None, predictions=False):
+def generate_excel(res, lang=None, ai=None, match=None, people=None, predictions=False, product='full',
+                   ai_tabs=None):
     """
     Build the workbook from compute() output. Returns bytes.
-    ai: the block returned by enrich.enrich(res); when given, the AI_ sheets
-    are added after Notes and the Notes sheet gains a section on their rules.
+    ai: the block returned by enrich.enrich(res). The Predictions sheet is
+    built from it; the AI_ sheets (and the Notes section on them) are written
+    only when ai_tabs is true (default: features.ai_tabs(), env AI_TABS_ENABLED).
     match, people: the result of match_engine.match() for this person and a
     partner, and {'boy': res, 'girl': res}; when given, a Marriage sheet
-    follows Notes and the AI_Match sheets close the workbook.
-    predictions: True (with ai given) adds the rule-based readings of
-    predictions.py: a Predictions sheet right after Notes, in the report
-    language, and a flat AI_Predictions sheet in English after the AI_ sheets.
+    follows Notes.
+    predictions: True (with ai given) adds the rule-based Predictions sheet
+    (பலன்கள்) right after Notes, in the report language.
+    product: 'full' (every sheet) or 'basic' (no divisional charts, no Notes,
+    no Predictions).
     """
     lang = lang or res['meta'].get('lang', 'en')
     if lang not in i18n.LANGS:
         lang = 'en'
+    ai_tabs = features.ai_tabs() if ai_tabs is None else ai_tabs
+    full = product != 'basic'
     specs = charts.build_specs(res, lang)
     wb = openpyxl.Workbook()
     _summary(wb, res, specs, lang)
     _vedic(wb, res, specs, lang)
-    _divisional(wb, res, lang)
+    if full:
+        _divisional(wb, res, lang)
     _kp(wb, res, specs, lang)
     _alp(wb, res, specs, lang)
     _dasa(wb, res, lang)
-    _notes(wb, res, lang, ai)
-    if predictions and ai:
+    if full:
+        _notes(wb, res, lang, ai if ai_tabs else None)
+    if full and predictions and ai:
         import predictions as prediction_engine          # imported here: it builds on enrich and rulebook
         _predictions(wb, prediction_engine.build(res, ai, lang), lang)
     if match:
         _marriage(wb, match, people, lang)
-    if ai:
+    if ai_tabs and ai:
         _ai_sheets(wb, ai)
-    if predictions and ai:
+    if ai_tabs and full and predictions and ai:
         _ai_predictions(wb, prediction_engine.build(res, ai, 'en'))
-    if match:
+    if ai_tabs and match:
         _ai_sheets(wb, match_engine.tables(match))
     wb.properties.title = f"HoroscopeGen - {res['meta']['name']}"
     wb.properties.creator = 'horoscopegen.in'
@@ -1314,7 +1321,8 @@ def generate_match_excel(match, people=None, lang='en'):
         lang = 'en'
     wb = openpyxl.Workbook()
     _marriage(wb, match, people, lang, first=True)
-    _ai_sheets(wb, match_engine.tables(match))
+    if features.ai_tabs():
+        _ai_sheets(wb, match_engine.tables(match))
     boy, girl = match['persons']['boy'], match['persons']['girl']
     wb.properties.title = f"HoroscopeGen - {boy['name']} and {girl['name']}"
     wb.properties.creator = 'horoscopegen.in'
@@ -1542,7 +1550,8 @@ def generate_family_excel(result, lang='en'):
               'patterns': 'Patterns', 'transits': 'Transits', 'rules': 'Rules'}
     for i, (key, _) in enumerate(FAMILY_SHEETS):
         _family_sheet(wb, titles[key], blocks[key], lang, first=(i == 0))
-    _ai_sheets(wb, family_engine.tables(result))
+    if features.ai_tabs():
+        _ai_sheets(wb, family_engine.tables(result))
     wb.properties.title = f"HoroscopeGen - Family of {result['anchor']}"
     wb.properties.creator = 'horoscopegen.in'
     buf = io.BytesIO()

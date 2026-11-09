@@ -409,6 +409,13 @@ def _loop():
             now = D.utcnow()
             if last_purge is None or (now - last_purge).total_seconds() >= IDLE_SECONDS:
                 purge_personal_data(now)
+                try:
+                    import payments
+                    import tickets
+                    payments.purge(now)
+                    tickets.purge(now)
+                except Exception:
+                    log.exception('Order / ticket purge failed')
                 last_purge = now
             pending = next_due(now)
             if pending is not None:

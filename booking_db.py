@@ -122,6 +122,60 @@ outbox = Table(
 )
 Index('ix_outbox_due', outbox.c.status, outbox.c.next_attempt_at)
 
+# ── PAID REPORTS (payments.py) ────────────────────────────────────────────────
+# One row per Razorpay order. The request that builds the report is kept so the
+# paid files can be made again from the download links; it is wiped
+# RETENTION_DAYS after payment. Amounts, Razorpay ids and dates stay for the
+# accounts.
+orders = Table(
+    'orders', metadata,
+    Column('id', String(36), primary_key=True),           # UUID4
+    Column('product', String(10), nullable=False),         # basic | full | match | family
+    Column('amount_paise', Integer, nullable=False),
+    Column('currency', String(3), nullable=False, server_default=text("'INR'")),
+    Column('razorpay_order_id', String(40), unique=True),
+    Column('razorpay_payment_id', String(40)),
+    Column('status', String(10), nullable=False),          # created | paid | failed | refunded
+    Column('email', String(254)),
+    Column('phone_e164', String(20)),
+    Column('lang', String(4), nullable=False),
+    Column('request_payload', JSON),                       # what the report is built from; wiped on purge
+    Column('receipt_sent_at', DateTime(timezone=True)),
+    Column('download_count', Integer, nullable=False, server_default=text('0')),
+    Column('created_at', DateTime(timezone=True), nullable=False),
+    Column('paid_at', DateTime(timezone=True)),
+    Column('refunded_at', DateTime(timezone=True)),
+    Column('purged_at', DateTime(timezone=True)),
+    CheckConstraint("status IN ('created', 'paid', 'failed', 'refunded')", name='ck_orders_status'),
+    CheckConstraint("product IN ('basic', 'full', 'match', 'family')", name='ck_orders_product'),
+)
+Index('ix_orders_payment', orders.c.razorpay_payment_id)
+
+# ── SUPPORT TICKETS (tickets.py) ──────────────────────────────────────────────
+tickets = Table(
+    'tickets', metadata,
+    Column('id', String(36), primary_key=True),           # UUID4
+    Column('ticket_no', String(20), unique=True, nullable=False),   # HG-YYYYMMDD-NNNN
+    Column('status', String(12), nullable=False),          # open | in_progress | closed
+    Column('email', String(254)),
+    Column('name', String(80)),
+    Column('phone_e164', String(20)),
+    Column('payment_ref', String(40), nullable=False),     # pay_..., order_... or NA
+    Column('payment_date', String(10), nullable=False),    # YYYY-MM-DD (IST date as entered)
+    Column('issue_type', String(20), nullable=False),
+    Column('description', Text),
+    Column('birth_details', Text),
+    Column('lang', String(4), nullable=False),
+    Column('order_id', String(36)),                        # set when payment_ref matches an order
+    Column('admin_note', Text),
+    Column('created_at', DateTime(timezone=True), nullable=False),
+    Column('updated_at', DateTime(timezone=True), nullable=False),
+    Column('closed_at', DateTime(timezone=True)),
+    Column('purged_at', DateTime(timezone=True)),
+    CheckConstraint("status IN ('open', 'in_progress', 'closed')", name='ck_tickets_status'),
+)
+Index('ix_tickets_status', tickets.c.status, tickets.c.created_at)
+
 _engine = None
 
 

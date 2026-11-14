@@ -612,7 +612,7 @@ def _divisional(pdf):
         draw(vspecs[start:start + 6], pdf.get_y(), full)
 
 
-def _kp(pdf, specs):
+def _kp(pdf, specs, kp_predictions=False):
     res, lang = pdf.res, pdf.lang
     m, kp = res['meta'], res['kp']
     L = lambda k: i18n.L(k, lang)
@@ -676,6 +676,27 @@ def _kp(pdf, specs):
     pdf.add_page()
     pdf.section(f"{L('kp_dasa')}  ·  {L('dasa_balance')}: {_balance(kp['dasa']['balance'], lang)}")
     _dasa_bhukti_table(pdf, kp['dasa'], m, now)
+    if kp_predictions:
+        _kp_predictions(pdf)
+
+
+def _kp_predictions(pdf):
+    """KP cuspal sub lord rules (kp_rules.py) at the end of the KP section."""
+    import kp_rules
+    res, lang = pdf.res, pdf.lang
+    K = lambda k: kp_rules.label(k, lang)
+    L = lambda k: i18n.L(k, lang)
+    pdf.add_page()
+    pdf.section(K('section'))
+    pdf.set_font('main', '', 8)
+    pdf.set_text_color(*MUTED)
+    pdf.set_x(MARGIN)
+    pdf.multi_cell(BODY_W, 4.2, K('note'), new_x='LMARGIN', new_y='NEXT')
+    pdf.set_text_color(*INK)
+    pdf.ln(2)
+    cols = [(K('area'), 24, 'LEFT'), (L('cusp'), 7, 'CENTER'), (L('sub_lord'), 17, 'LEFT'),
+            (K('houses'), 14, 'CENTER'), (K('verdict'), 16, 'LEFT'), (K('period'), 22, 'LEFT')]
+    pdf.table(cols, [row[:6] for row in kp_rules.table_rows(res, lang)], wrap=True)
 
 
 def _dasa_bhukti_table(pdf, dasa, m, now):
@@ -1047,7 +1068,7 @@ def generate_pdf(res, lang=None, match=None, people=None, predictions=None, prod
     _vedic(pdf, specs)
     if full:
         _divisional(pdf)
-    _kp(pdf, specs)
+    _kp(pdf, specs, kp_predictions=full)
     _alp(pdf, specs)
     _dasa(pdf)
     if full:

@@ -1204,11 +1204,13 @@ def test_seven_old_sheets_are_cell_for_cell_what_main_produced(lang, workbooks):
     from excel_generator import generate_excel
     want = GOLDEN['workbooks'][lang]
     # 1. without the AI block the workbook is exactly the old one
-    plain = G.workbook_print(generate_excel(A.compute(lang=lang, now=NOW, **S), lang))
+    #    (the KP sheet is identical down to its old last row; the KP predictions section follows it)
+    kp_rows = want[3]['rows']
+    plain = G.workbook_print(generate_excel(A.compute(lang=lang, now=NOW, **S), lang), limit={3: kp_rows})
     assert plain == want, [_first_difference(a, b) for a, b in zip(plain, want)]
-    # 2. with the AI block: six sheets are identical, and Notes is identical down to its old last row
+    # 2. with the AI block: five sheets are identical, and KP and Notes are identical down to their old last row
     notes_rows = want[6]['rows']
-    with_ai = G.workbook_print(workbooks[lang][0], limit={6: notes_rows})
+    with_ai = G.workbook_print(workbooks[lang][0], limit={3: kp_rows, 6: notes_rows})
     assert with_ai == want, [_first_difference(a, b) for a, b in zip(with_ai, want)]
     assert len(want) == 7 and sum(s['rows'] for s in want) > 1300
 

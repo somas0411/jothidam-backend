@@ -564,7 +564,7 @@ def _divisional(wb, res, lang):
     _page_setup(g.ws, m['name'], COL0 + GRID_N - 1)
 
 
-def _kp(wb, res, specs, lang):
+def _kp(wb, res, specs, lang, kp_predictions=False):
     g = Grid(wb, _sheet_name('kp', lang), lang)
     m, kp = res['meta'], res['kp']
     L = lambda k: i18n.L(k, lang)
@@ -644,9 +644,36 @@ def _kp(wb, res, specs, lang):
                 current.add(len(rows))
             rows.append([P(d['lord']), P(b['lord']), (_d(b['start']), DATE_FMT), (_d(b['end']), DATE_FMT),
                          _age(b['start'], m['local_dt']), _status(b, now, lang)])
-    g.table(r, cols, rows, current=current)
+    r = g.table(r, cols, rows, current=current) + 1
+    if kp_predictions:
+        _kp_predictions(g, res, lang, r)
     g.ws.freeze_panes = 'A3'
     _page_setup(g.ws, m['name'], COL0 + GRID_N - 1)
+
+
+def _kp_predictions(g, res, lang, r):
+    """KP cuspal sub lord rules (kp_rules.py) at the end of the KP sheet."""
+    import kp_rules
+    K = lambda k: kp_rules.label(k, lang)
+    L = lambda k: i18n.L(k, lang)
+    g.page_break(r)
+    r = g.section(r, K('section'))
+    g.put(r, COL0, K('note'), span=GRID_N, size=8.5, italic=True, wrap=True)
+    g.height(r, 48 if lang in ('en', 'bi') else 66)
+    r += 1
+    cols = [(K('area'), 6, 'left'), (L('cusp'), 2, 'center'), (L('sub_lord'), 4, 'left'),
+            (K('houses'), 4, 'center'), (K('verdict'), 4, 'left'), (K('period'), 5, 'left')]
+    data = kp_rules.table_rows(res, lang)
+    hdr = r
+    r = g.table(r, cols, [row[:6] for row in data], row_h=30)
+    g.height(hdr, 32)
+    for i, row in enumerate(data):
+        rr = hdr + 1 + i
+        for cc in range(COL0, COL0 + GRID_N):
+            cell = g.ws.cell(row=rr, column=cc)
+            cell.alignment = Alignment(horizontal=cell.alignment.horizontal, vertical='center',
+                                       wrap_text=True, indent=cell.alignment.indent)
+    return r + 1
 
 
 def _alp(wb, res, specs, lang):
@@ -1287,7 +1314,7 @@ def generate_excel(res, lang=None, ai=None, match=None, people=None, predictions
     _vedic(wb, res, specs, lang)
     if full:
         _divisional(wb, res, lang)
-    _kp(wb, res, specs, lang)
+    _kp(wb, res, specs, lang, kp_predictions=full)
     _alp(wb, res, specs, lang)
     _dasa(wb, res, lang)
     if full:

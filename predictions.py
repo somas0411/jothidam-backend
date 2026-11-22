@@ -15,7 +15,8 @@ Sections, in output order
   strengths    P2  exalted / own / moolatrikona / debilitated / vargottama
                    planets; the strongest and weakest houses by SAV bindus
   yogas        P3  every yoga found, what it gives and when it is active;
-                   Kuja dosha, Kala Sarpa, Kemadruma, Guru-Chandala
+                   Kuja dosha, Kala Sarpa, Kemadruma, Guru-Chandala; Mandi (Mandhi)
+                   by house, with the planets joined to it and what softens it
   life         P4  13 life areas: promise level, key factors, rule-book rows,
                    timing windows; career fields, job or business, marriage
                    and children periods, partner indications
@@ -128,6 +129,13 @@ YOGA_KEYS = (
     ('Guru-Chandala', 'Guru-Chandala'),
 )
 DOSHAS = ('Kuja', 'Kala Sarpa', 'Kemadruma', 'Guru-Chandala')
+
+# Mandi (Mandhi): tone by house from the lagna. 3, 6, 10 and 11 are upachaya
+# houses where Mandi helps (Phaladeepika); 10 is read as half and half.
+MANDI_TONE = {1: 'challenging', 2: 'mixed', 3: 'favourable', 4: 'mixed', 5: 'mixed', 6: 'favourable',
+              7: 'mixed', 8: 'challenging', 9: 'mixed', 10: 'mixed', 11: 'favourable', 12: 'challenging'}
+MANDI_MINOR_HOUSES = (5, 7)        # below 18 these read without spouse or children
+MANDI_REMEDY_SKIP = (3, 6, 11)     # houses where no Mandi remedy is suggested
 KEY_YOGA_ORDER = ('Ruchaka', 'Bhadra', 'Hamsa', 'Malavya', 'Sasa', 'Gajakesari', 'Dharma-Karmadhipati', 'Raja',
                   'Dhana', 'Viparita', 'Budha-Aditya', 'Chandra-Mangala', 'Parivartana', 'Adhi', 'Amala',
                   'Neecha bhanga', 'Sunapha', 'Anapha', 'Durudhara', 'Ubhayachari', 'Vasi', 'Vesi')
@@ -529,6 +537,46 @@ def _yogas(c):
             basis += '; softening factors: ' + '; '.join(g['weak'])
         text += c.L('consider')
         c.add(S, c.L(f'dname.{key}'), 'dosha', 'mixed', text, basis)
+    _mandi(c)
+
+
+def _split(text):
+    return [x.strip() for x in (text or '').split(',') if x.strip() and x.strip() != 'none']
+
+
+def _mandi(c):
+    """Mandi as its own topic of the yogas section: house, planets with it, softening factors."""
+    m = c.p.get('Mandi')
+    if not m or not m.get('house_whole_sign'):
+        return
+    house = m['house_whole_sign']
+    key = f'mandi.h{house}' + ('m' if c.minor and house in MANDI_MINOR_HOUSES else '')
+    text = c.L(key)
+    basis = f"Mandi in {RASIS[m['sign_no'] - 1]}, house {house} from the lagna"
+    joined = [p for p in _split(m.get('conjunct_with')) if p in SEVEN + NODES]
+    hard = [p for p in joined if p != 'Jupiter']     # Jupiter softens Mandi; the rest add to it
+    if hard:
+        text += c.L('mandi.with', planets=c.pns(hard))
+    if joined:
+        basis += '; with ' + ', '.join(joined)
+    aspects = _split(m.get('aspected_by'))
+    if aspects:
+        basis += '; aspected by ' + ', '.join(aspects)
+    soft = False
+    if 'Jupiter' in joined or 'Jupiter' in aspects:
+        text += c.L('mandi.jup')
+        soft = True
+    lord = m.get('sign_lord')
+    lp = c.p.get(lord) or {}
+    if lord in SEVEN and (lp.get('debilitated') == 'yes' or lp.get('combust') == 'yes'):
+        text += c.L('mandi.lord', planet=c.pn(lord))
+        basis += f'; sign lord {lord} debilitated or combust'
+        soft = True
+    tone = MANDI_TONE[house]
+    if soft and tone == 'challenging':
+        tone = 'mixed'
+    text += c.L('mandi.note')
+    c.add('yogas', c.L('dname.Mandi'), 'mandi', tone, text, basis)
 
 
 # ── P4 life areas ────────────────────────────────────────────────────────────
@@ -951,7 +999,12 @@ def _remedies(c):
                  f"{planet}: functional {c.p[planet].get('functional_nature')}, lowest vimsopaka "
                  f"{c.p[planet].get('vimsopaka_shodasavarga')}")
         c.add(S, c.pn(planet), 'remedy', 'neutral', text, basis)
-    if picks:
+    m = c.p.get('Mandi')
+    mandi = bool(m and m.get('house_whole_sign') and m['house_whole_sign'] not in MANDI_REMEDY_SKIP)
+    if mandi:
+        c.add(S, c.L('dname.Mandi'), 'remedy', 'neutral', c.L('mandi.rem'),
+              f"Mandi in house {m['house_whole_sign']} from the lagna")
+    if picks or mandi:
         c.add(S, c.L('general'), 'note', 'neutral', c.L('remedy_note'), 'site policy')
 
 
